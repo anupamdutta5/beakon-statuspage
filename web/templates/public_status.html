@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Status</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/public.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="alternate" type="application/rss+xml" title="Incidents RSS Feed" href="/api/v1/incidents.rss">
+    <link rel="alternate" type="application/atom+xml" title="Incidents Atom Feed" href="/api/v1/incidents.atom">
+</head>
+<body class="public-body">
+    <!-- Header -->
+    <header class="status-header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo-section">
+                    <div class="logo">
+                        <i class="fas fa-chart-line"></i>
+                        <span>System Status</span>
+                    </div>
+                </div>
+                <div class="overall-status">
+                    <div class="status-indicator operational">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="status-text">
+                        <h1>All Systems Operational</h1>
+                        <p>All services are running normally</p>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="subscribe-btn" id="subscribeBtn">
+                        <i class="fas fa-bell"></i>
+                        Subscribe to Updates
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Components Section -->
+            <section class="components-section">
+                <h2>Components</h2>
+                <div class="components-grid" id="componentsGrid">
+                    <!-- Components will be loaded here -->
+                </div>
+            </section>
+
+            <!-- Incidents Section -->
+            <section class="incidents-section">
+                <div class="section-header">
+                    <h2>Incidents</h2>
+                    <div class="incident-filters">
+                        <button class="filter-btn active" data-filter="all">All</button>
+                        <button class="filter-btn" data-filter="active">Active</button>
+                        <button class="filter-btn" data-filter="resolved">Resolved</button>
+                    </div>
+                </div>
+                <div class="incidents-list" id="incidentsList">
+                    <!-- Incidents will be loaded here -->
+                </div>
+            </section>
+
+            <!-- Maintenance Section -->
+            <section class="maintenance-section">
+                <div class="section-header">
+                    <h2>Scheduled Maintenance</h2>
+                </div>
+                <div class="maintenance-list" id="maintenanceList">
+                    <!-- Maintenance events will be loaded here -->
+                </div>
+            </section>
+
+            <!-- Uptime Section -->
+            <section class="uptime-section">
+                <div class="section-header">
+                    <h2>Uptime</h2>
+                    <div class="uptime-periods">
+                        <button class="period-btn active" data-period="24h">24h</button>
+                        <button class="period-btn" data-period="7d">7d</button>
+                        <button class="period-btn" data-period="30d">30d</button>
+                        <button class="period-btn" data-period="90d">90d</button>
+                    </div>
+                </div>
+                <div class="uptime-stats" id="uptimeStats">
+                    <!-- Uptime stats will be loaded here -->
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="status-footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-left">
+                    <p>&copy; 2024 System Status. All rights reserved.</p>
+                </div>
+                <div class="footer-right">
+                    <div class="social-links">
+                        <a href="#" class="social-link">
+                            <i class="fab fa-twitter"></i>
+                        </a>
+                        <a href="#" class="social-link">
+                            <i class="fab fa-github"></i>
+                        </a>
+                        <a href="#" class="social-link">
+                            <i class="fab fa-linkedin"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Subscribe Modal -->
+    <div id="subscribeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Subscribe to Updates</h2>
+                <span class="close-button">&times;</span>
+            </div>
+            <form id="subscribeForm">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" required placeholder="your@email.com">
+                </div>
+                <div class="form-group">
+                    <label>Subscribe to specific components (optional)</label>
+                    <div id="servicesList" class="checkbox-group">
+                        <!-- Services will be loaded here -->
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="allServices" checked>
+                        Subscribe to all services
+                    </label>
+                </div>
+                <div id="subscriptionMessage" class="message"></div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" id="cancelSubscribe">Cancel</button>
+                    <button type="submit" class="btn-primary">Subscribe</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Incident Details Modal -->
+    <div id="incidentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="incidentModalTitle">Incident Details</h2>
+                <span class="close-button">&times;</span>
+            </div>
+            <div class="modal-body" id="incidentModalBody">
+                <!-- Incident details will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/public.js"></script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Status Page</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="page-header">
+            <h1>Status Page</h1>
+            <a href="#" class="subscribe-button">Subscribe to updates</a>
+        </header>
+
+        <div id="subscribe-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-button">&times;</span>
+                <h2>Subscribe to Updates</h2>
+                <form id="subscribe-form">
+                    <input type="email" id="email" name="email" placeholder="Enter your email" required>
+                    <div id="modal-services-list"></div>
+                    <button type="submit">Subscribe</button>
+                </form>
+                <p id="subscription-message"></p>
+            </div>
+        </div>
+
+        <div class="overall-status operational">
+            <h2>All Systems Operational</h2>
+        </div>
+
+        <div class="card">
+            <h3>Current Status of Services</h3>
+            <div id="components-list">
+                <!-- Service components will be dynamically inserted here -->
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Past Incidents</h3>
+            <div id="incidents-list">
+                <!-- Incidents will be dynamically loaded here -->
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Scheduled Maintenance</h3>
+            <div id="maintenance-list">
+                <!-- Maintenance events will be dynamically loaded here -->
+            </div>
+        </div>
+
+        <footer class="page-footer">
+            <p>&copy; 2025 Your Company. All rights reserved.</p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
