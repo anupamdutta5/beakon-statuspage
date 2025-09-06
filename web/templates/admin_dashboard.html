@@ -79,6 +79,12 @@
                     <span>Users</span>
                 </a>
             </li>
+            <li class="nav-item">
+                <a href="/admin/saas" class="nav-link">
+                    <i class="fas fa-cloud"></i>
+                    <span>SaaS Admin</span>
+                </a>
+            </li>
         </ul>
         
         <div class="sidebar-footer">
@@ -112,7 +118,7 @@
         </header>
 
         <!-- Dashboard Content -->
-        <div class="dashboard-content">
+        <div id="dashboard" class="content-section">
             <!-- Quick Stats -->
             <div class="stats-grid">
                 <div class="stat-card">
@@ -212,6 +218,184 @@
                 <div class="incidents-list" id="recentIncidentsList">
                     <!-- Recent incidents will be loaded here -->
                 </div>
+            </div>
+        </div>
+
+        <!-- Incidents Section -->
+        <div id="incidents" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2><i class="fas fa-exclamation-triangle"></i> Incidents</h2>
+                <div class="section-actions">
+                    <button class="btn-primary" onclick="adminDashboard.openModal('incidentModal')">
+                        <i class="fas fa-plus"></i> Create Incident
+                    </button>
+                </div>
+            </div>
+            <div class="loading-spinner" id="incidents-loading">
+                <i class="fas fa-spinner fa-spin"></i> Loading incidents...
+            </div>
+            <div id="incidents-content">
+                <!-- Incidents will be loaded here dynamically -->
+            </div>
+        </div>
+
+        <!-- Components Section -->
+        <div id="components" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2><i class="fas fa-cogs"></i> Components</h2>
+                <div class="section-actions">
+                    <button class="btn-primary" onclick="adminDashboard.openModal('componentModal')">
+                        <i class="fas fa-plus"></i> Add Component
+                    </button>
+                </div>
+            </div>
+            <div class="loading-spinner" id="components-loading">
+                <i class="fas fa-spinner fa-spin"></i> Loading components...
+            </div>
+            <div id="components-content">
+                <!-- Components will be loaded here dynamically -->
+            </div>
+        </div>
+
+        <!-- Maintenance Section -->
+        <div id="maintenance" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2><i class="fas fa-tools"></i> Maintenance</h2>
+                <div class="section-actions">
+                    <button class="btn-primary" onclick="adminDashboard.openModal('maintenanceModal')">
+                        <i class="fas fa-plus"></i> Schedule Maintenance
+                    </button>
+                </div>
+            </div>
+            <div class="loading-spinner" id="maintenance-loading">
+                <i class="fas fa-spinner fa-spin"></i> Loading maintenance events...
+            </div>
+            <div id="maintenance-content">
+                <!-- Maintenance events will be loaded here dynamically -->
+            </div>
+        </div>
+
+        <!-- Monitors Section -->
+        <div id="monitors" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2><i class="fas fa-heartbeat"></i> Monitors</h2>
+                <div class="section-actions">
+                    <button class="btn-primary" onclick="adminDashboard.openModal('monitorModal')">
+                        <i class="fas fa-plus"></i> Add Monitor
+                    </button>
+                </div>
+            </div>
+            <div class="loading-spinner" id="monitors-loading">
+                <i class="fas fa-spinner fa-spin"></i> Loading monitors...
+            </div>
+            <div id="monitors-content">
+                <!-- Monitors will be loaded here dynamically -->
+            </div>
+        </div>
+
+        <!-- Subscribers Section -->
+        <div id="subscribers" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2><i class="fas fa-users"></i> Subscribers</h2>
+                <div class="section-actions">
+                    <button class="btn-primary" onclick="dashboard.showAddSubscriberForm()">
+                        <i class="fas fa-plus"></i> Add Subscriber
+                    </button>
+                </div>
+            </div>
+            <div class="loading-spinner" id="subscribers-loading">
+                <i class="fas fa-spinner fa-spin"></i> Loading subscribers...
+            </div>
+            <div id="subscribers-content">
+                <!-- Subscribers will be loaded here dynamically -->
+            </div>
+        </div>
+
+        <!-- Users Section -->
+        <div id="users" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2><i class="fas fa-user-shield"></i> Users</h2>
+                <div class="section-actions">
+                    <button class="btn-primary" onclick="dashboard.showAddUserForm()">
+                        <i class="fas fa-plus"></i> Add User
+                    </button>
+                </div>
+            </div>
+            <div class="loading-spinner" id="users-loading">
+                <i class="fas fa-spinner fa-spin"></i> Loading users...
+            </div>
+            <div id="users-content">
+                <!-- Users will be loaded here dynamically -->
+            </div>
+        </div>
+
+        <!-- Reports Section -->
+        <div id="reports" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2><i class="fas fa-chart-bar"></i> Reports</h2>
+                <div class="section-actions">
+                    <button class="btn-primary" onclick="dashboard.generateReport()">
+                        <i class="fas fa-download"></i> Generate Report
+                    </button>
+                </div>
+            </div>
+            <div class="loading-spinner" id="reports-loading">
+                <i class="fas fa-spinner fa-spin"></i> Loading reports...
+            </div>
+            <div id="reports-content">
+                <!-- Reports will be loaded here dynamically -->
+            </div>
+        </div>
+
+        <!-- Settings Section -->
+        <div id="settings" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2><i class="fas fa-cog"></i> Settings</h2>
+            </div>
+            <div class="loading-spinner" id="settings-loading">
+                <i class="fas fa-spinner fa-spin"></i> Loading settings...
+            </div>
+            <div id="settings-content">
+                <!-- Settings will be loaded here dynamically -->
+            </div>
+        </div>
+
+        <!-- Analytics Section -->
+        <div id="analytics" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2><i class="fas fa-chart-bar"></i> Analytics</h2>
+            </div>
+            <div class="loading-spinner" id="analytics-loading">
+                <i class="fas fa-spinner fa-spin"></i> Loading analytics...
+            </div>
+            <div id="analytics-content">
+                <!-- Analytics will be loaded here dynamically -->
+            </div>
+        </div>
+
+        <!-- Integrations Section -->
+        <div id="integrations" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2><i class="fas fa-plug"></i> Integrations</h2>
+            </div>
+            <div class="loading-spinner" id="integrations-loading">
+                <i class="fas fa-spinner fa-spin"></i> Loading integrations...
+            </div>
+            <div id="integrations-content">
+                <!-- Integrations will be loaded here dynamically -->
+            </div>
+        </div>
+
+        <!-- Branding Section -->
+        <div id="branding" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2><i class="fas fa-palette"></i> Branding</h2>
+            </div>
+            <div class="loading-spinner" id="branding-loading">
+                <i class="fas fa-spinner fa-spin"></i> Loading branding...
+            </div>
+            <div id="branding-content">
+                <!-- Branding will be loaded here dynamically -->
             </div>
         </div>
     </main>

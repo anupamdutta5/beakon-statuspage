@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/enterprise-status/statuspage/internal/config"
+	"github.com/enterprise-status/statuspage/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -72,5 +73,55 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 			}
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 		}
+	}
+}
+
+// AuthRequired creates a Gin middleware for JWT authentication using the auth service.
+func AuthRequired(authService *services.AuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var tokenString string
+
+		// Try to get the token from the cookie first
+		if cookie, err := c.Cookie("auth_token"); err == nil {
+			tokenString = cookie
+		} else {
+			// Try to get the token from the Authorization header
+			authHeader := c.GetHeader("Authorization")
+			if authHeader != "" {
+				parts := strings.SplitN(authHeader, " ", 2)
+				if len(parts) == 2 && parts[0] == "Bearer" {
+					tokenString = parts[1]
+				}
+			}
+		}
+
+		if tokenString == "" {
+			if c.Request.Header.Get("Content-Type") == "application/json" || strings.HasPrefix(c.Request.URL.Path, "/api/") {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization token required"})
+			} else {
+				c.Redirect(http.StatusFound, "/admin/login")
+			}
+			c.Abort()
+			return
+		}
+
+		// Validate the token using the auth service
+		claims, err := authService.ValidateToken(tokenString)
+		if err != nil {
+			if c.Request.Header.Get("Content-Type") == "application/json" || strings.HasPrefix(c.Request.URL.Path, "/api/") {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			} else {
+				c.Redirect(http.StatusFound, "/admin/login")
+			}
+			c.Abort()
+			return
+		}
+
+		// Set user information in context
+		c.Set("user_id", (*claims)["sub"])
+		c.Set("username", (*claims)["user"])
+		c.Set("role", (*claims)["role"])
+
+		c.Next()
 	}
 }

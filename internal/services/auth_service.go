@@ -12,7 +12,7 @@ import (
 )
 
 // AuthService provides methods for user authentication.
-type AuthService struct{
+type AuthService struct {
 	cfg *config.Config
 }
 
@@ -47,4 +47,38 @@ func (s *AuthService) generateJWT(user *models.User) (string, error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(s.cfg.JWT.Secret))
+}
+
+// GenerateToken creates a new JWT token for a given user ID, username, and role.
+func (s *AuthService) GenerateToken(userID uint, username, role string) (string, error) {
+	claims := jwt.MapClaims{
+		"sub":  userID,
+		"user": username,
+		"role": role,
+		"exp":  time.Now().Add(time.Hour * time.Duration(s.cfg.JWT.ExpiresIn)).Unix(),
+		"iat":  time.Now().Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(s.cfg.JWT.Secret))
+}
+
+// ValidateToken validates a JWT token and returns the claims.
+func (s *AuthService) ValidateToken(tokenString string) (*jwt.MapClaims, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
+		}
+		return []byte(s.cfg.JWT.Secret), nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		return &claims, nil
+	}
+
+	return nil, errors.New("invalid token")
 }

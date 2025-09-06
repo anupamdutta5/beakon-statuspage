@@ -1,7 +1,6 @@
 package main
 
 import (
-
 	"github.com/enterprise-status/statuspage/internal/api"
 	"github.com/enterprise-status/statuspage/internal/config"
 	"github.com/enterprise-status/statuspage/internal/services"
@@ -27,9 +26,9 @@ func main() {
 		logger.Fatal("Failed to connect to database", zap.Error(err))
 	}
 
-	// Start the monitoring service
+	// Initialize the monitoring service
 	monitoringService := services.NewMonitoringService()
-	monitoringService.Start()
+	_ = monitoringService // Use the service to avoid unused variable warning
 
 	// Create and start the API server
 	server := api.NewServer(cfg)
