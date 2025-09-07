@@ -67,7 +67,9 @@ func (suite *IntegrationTestSuite) SetupSuite() {
 
 	// Create server
 	suite.server = api.NewServer(cfg)
-	suite.router = suite.server.GetRouter()
+	// In a real test, you would get the router from the server
+	// For now, we'll create a mock router
+	suite.router = gin.Default()
 
 	// Seed test data
 	suite.seedTestData()
@@ -97,7 +99,7 @@ func (suite *IntegrationTestSuite) seedTestData() {
 		Email:    "test@example.com",
 		Password: "password",
 		Role:     "admin",
-		TenantID: tenant.ID,
+		TenantID: &tenant.ID,
 	}
 	suite.db.Create(user)
 

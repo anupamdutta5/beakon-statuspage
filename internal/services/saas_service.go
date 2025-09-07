@@ -71,6 +71,14 @@ func (s *SaaSService) GetTenantByDomain(domain string) (*models.Tenant, error) {
 	return &tenant, nil
 }
 
+func (s *SaaSService) GetTenantBySubdomain(subdomain string) (*models.Tenant, error) {
+	var tenant models.Tenant
+	if err := s.db.Where("subdomain = ?", subdomain).First(&tenant).Error; err != nil {
+		return nil, err
+	}
+	return &tenant, nil
+}
+
 func (s *SaaSService) GetAllTenants(limit, offset int) ([]models.Tenant, error) {
 	var tenants []models.Tenant
 	query := s.db.Preload("CreatedByUser")

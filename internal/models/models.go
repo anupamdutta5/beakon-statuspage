@@ -62,6 +62,7 @@ type Incident struct {
 	Description string
 	Status      string `gorm:"default:'investigating'"`
 	Impact      string `gorm:"default:'minor'"` // minor, major, critical
+	Severity    string `gorm:"default:'low'"`   // low, medium, high, critical
 	ResolvedAt  *time.Time
 	Updates     []StatusUpdate    `gorm:"foreignKey:IncidentID"`
 	Services    []*Service        `gorm:"many2many:incident_services;"`
@@ -359,6 +360,20 @@ type SystemNotification struct {
 	TargetTenants string // JSON array of tenant IDs, empty means all
 }
 
+// APIUsage represents API usage tracking for analytics
+type APIUsage struct {
+	ID           uint    `gorm:"primaryKey"`
+	TenantID     uint    `gorm:"not null"`
+	Endpoint     string  `gorm:"not null"`
+	Method       string  `gorm:"not null"`
+	ResponseTime float64 `gorm:"not null"` // in milliseconds
+	StatusCode   int     `gorm:"not null"`
+	UserAgent    string
+	IPAddress    string
+	Timestamp    time.Time `gorm:"not null"`
+	CreatedAt    time.Time
+}
+
 // Billing Models
 
 // BillingCustomer represents a customer in the billing system
@@ -391,10 +406,12 @@ type BillingSubscription struct {
 // BillingInvoice represents an invoice in the billing system
 type BillingInvoice struct {
 	ID             uint    `gorm:"primaryKey"`
+	TenantID       uint    `gorm:"not null"`
 	SubscriptionID uint    `gorm:"not null"`
 	Amount         float64 `gorm:"not null"`
 	Currency       string  `gorm:"default:'USD'"`
 	Status         string  `gorm:"default:'pending'"` // pending, paid, overdue, cancelled
+	ExternalID     string  // External invoice ID (e.g., Stripe invoice ID)
 	DueDate        time.Time
 	PaidAt         *time.Time
 	CreatedAt      time.Time
@@ -404,6 +421,7 @@ type BillingInvoice struct {
 // BillingPayment represents a payment in the billing system
 type BillingPayment struct {
 	ID            uint    `gorm:"primaryKey"`
+	TenantID      uint    `gorm:"not null"`
 	InvoiceID     uint    `gorm:"not null"`
 	Amount        float64 `gorm:"not null"`
 	PaymentMethod string  `gorm:"not null"`          // stripe, paypal, bank_transfer
@@ -411,6 +429,85 @@ type BillingPayment struct {
 	Status        string  `gorm:"default:'pending'"` // pending, completed, failed, refunded
 	ProcessedAt   time.Time
 	CreatedAt     time.Time
+}
+
+// BillingRefund represents a refund in the billing system
+type BillingRefund struct {
+	ID          uint    `gorm:"primaryKey"`
+	PaymentID   uint    `gorm:"not null"`
+	Amount      float64 `gorm:"not null"`
+	Status      string  `gorm:"default:'pending'"` // pending, processed, failed
+	ExternalID  string  `gorm:"not null"`          // External refund ID
+	ProcessedAt time.Time
+	CreatedAt   time.Time
+}
+
+// PaymentEvent represents a payment event for analytics
+type PaymentEvent struct {
+	ID        uint      `gorm:"primaryKey"`
+	TenantID  uint      `gorm:"not null"`
+	EventType string    `gorm:"not null"` // created, completed, failed, refunded
+	PaymentID string    `gorm:"not null"`
+	Amount    float64   `gorm:"not null"`
+	Currency  string    `gorm:"not null"`
+	Method    string    `gorm:"not null"` // card, upi, netbanking, wallet
+	Gateway   string    `gorm:"not null"` // stripe, razorpay, payu, paypal
+	Timestamp time.Time `gorm:"not null"`
+	Metadata  string    // JSON metadata
+	CreatedAt time.Time
+}
+
+// PaymentRetry represents a payment retry attempt
+type PaymentRetry struct {
+	ID           uint      `gorm:"primaryKey"`
+	PaymentID    string    `gorm:"not null"`
+	ScheduledAt  time.Time `gorm:"not null"`
+	Status       string    `gorm:"default:'scheduled'"` // scheduled, processing, completed, failed, cancelled
+	Attempts     int       `gorm:"default:0"`
+	ErrorMessage string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+// Notification represents a notification in the system
+type Notification struct {
+	ID            uint   `gorm:"primaryKey"`
+	Type          string `gorm:"not null"` // payment_success, payment_failure, refund_processed, subscription_created
+	Title         string `gorm:"not null"`
+	Message       string `gorm:"not null"`
+	RecipientID   string `gorm:"not null"`
+	RecipientType string `gorm:"not null"` // tenant, user, admin
+	Data          string // JSON data
+	Status        string `gorm:"default:'pending'"` // pending, sent, failed
+	SentAt        *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+// EmailNotification represents an email notification
+type EmailNotification struct {
+	ID             uint   `gorm:"primaryKey"`
+	NotificationID uint   `gorm:"not null"`
+	RecipientEmail string `gorm:"not null"`
+	Subject        string `gorm:"not null"`
+	Body           string `gorm:"not null"`
+	Status         string `gorm:"default:'pending'"` // pending, sent, failed
+	SentAt         *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+// InvoiceItem represents an item on an invoice
+type InvoiceItem struct {
+	ID          uint    `gorm:"primaryKey"`
+	InvoiceID   uint    `gorm:"not null"`
+	Description string  `gorm:"not null"`
+	Quantity    int     `gorm:"not null"`
+	UnitPrice   float64 `gorm:"not null"`
+	TotalPrice  float64 `gorm:"not null"`
+	TaxRate     float64 `gorm:"default:0"`
+	TaxAmount   float64 `gorm:"default:0"`
+	CreatedAt   time.Time
 }
 
 // Advanced Monitoring Models

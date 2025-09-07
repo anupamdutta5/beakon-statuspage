@@ -63,6 +63,56 @@ func (s *SubscriptionService) CreateSubscription(tenantID uint, planSlug string)
 	return subscription, nil
 }
 
+// CreateSubscriptionFromStripe creates a subscription from Stripe checkout session
+func (s *SubscriptionService) CreateSubscriptionFromStripe(stripeSubscriptionID, tenantIDStr, planSlug string) (*models.Subscription, error) {
+	// Parse tenant ID
+	var tenantID uint
+	if _, err := fmt.Sscanf(tenantIDStr, "%d", &tenantID); err != nil {
+		return nil, fmt.Errorf("invalid tenant ID: %w", err)
+	}
+
+	// Get the plan
+	var plan models.SubscriptionPlan
+	if err := s.db.Where("slug = ? AND is_active = ?", planSlug, true).First(&plan).Error; err != nil {
+		return nil, fmt.Errorf("plan not found: %w", err)
+	}
+
+	// Check if subscription already exists
+	var existingSubscription models.Subscription
+	if err := s.db.Where("external_id = ?", stripeSubscriptionID).First(&existingSubscription).Error; err == nil {
+		return &existingSubscription, nil
+	}
+
+	// Create new subscription
+	now := time.Now()
+	subscription := &models.Subscription{
+		TenantID:           tenantID,
+		PlanID:             plan.ID,
+		Status:             "active",
+		CurrentPeriodStart: now,
+		CurrentPeriodEnd:   now.AddDate(0, 1, 0), // 1 month from now
+		ExternalID:         stripeSubscriptionID,
+	}
+
+	if err := s.db.Create(subscription).Error; err != nil {
+		logger.Error("Failed to create subscription from Stripe", zap.Error(err))
+		return nil, err
+	}
+
+	// Initialize feature flags for the tenant based on the plan
+	if err := s.initializeFeatureFlags(tenantID, &plan); err != nil {
+		logger.Error("Failed to initialize feature flags", zap.Error(err))
+		// Don't fail the subscription creation, just log the error
+	}
+
+	logger.Info("Subscription created from Stripe successfully",
+		zap.Uint("tenant_id", tenantID),
+		zap.String("plan", planSlug),
+		zap.String("stripe_subscription_id", stripeSubscriptionID))
+
+	return subscription, nil
+}
+
 // UpgradeSubscription upgrades a tenant's subscription to a higher plan
 func (s *SubscriptionService) UpgradeSubscription(tenantID uint, newPlanSlug string) error {
 	// Get current subscription
@@ -195,6 +245,15 @@ func (s *SubscriptionService) CheckFeatureAccess(tenantID uint, feature string) 
 	}
 
 	return flag.IsEnabled, nil
+}
+
+// GetAllPlans retrieves all available subscription plans
+func (s *SubscriptionService) GetAllPlans() ([]models.SubscriptionPlan, error) {
+	var plans []models.SubscriptionPlan
+	if err := s.db.Where("is_active = ?", true).Find(&plans).Error; err != nil {
+		return nil, err
+	}
+	return plans, nil
 }
 
 // CheckResourceLimits checks if a tenant is within their plan limits

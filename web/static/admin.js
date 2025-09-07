@@ -2,13 +2,28 @@
 
 class AdminDashboard {
     constructor() {
+        console.log('AdminDashboard constructor called');
         this.init();
     }
 
     init() {
+        console.log('AdminDashboard init called');
         this.setupEventListeners();
-        this.loadDashboardData();
         this.setupModals();
+        
+        // Check for initial hash and navigate accordingly
+        setTimeout(() => {
+            const initialHash = window.location.hash.substring(1);
+            console.log('Initial hash:', initialHash);
+            
+            if (initialHash && initialHash !== 'dashboard') {
+                // Navigate to the specified section
+                this.navigateToSection(initialHash);
+            } else {
+                // Default to dashboard
+                this.loadDashboardData();
+            }
+        }, 100);
     }
 
     setupEventListeners() {
@@ -21,6 +36,22 @@ class AdminDashboard {
                 sidebar.classList.toggle('open');
             });
         }
+
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth <= 768 && sidebar.classList.contains('open')) {
+                if (!sidebar.contains(e.target) && !sidebarToggle.contains(e.target)) {
+                    sidebar.classList.remove('open');
+                }
+            }
+        });
+
+        // Close sidebar when window is resized to desktop size
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768) {
+                sidebar.classList.remove('open');
+            }
+        });
 
         // Sidebar navigation
         this.setupSidebarNavigation();
@@ -113,15 +144,30 @@ class AdminDashboard {
             }
         });
 
-        // Handle initial hash on page load
-        const initialHash = window.location.hash.substring(1);
-        if (initialHash) {
-            this.navigateToSection(initialHash);
-        }
+        // Handle hash changes (when user manually changes URL)
+        window.addEventListener('hashchange', (e) => {
+            const newHash = window.location.hash.substring(1);
+            console.log('Hash changed to:', newHash);
+            if (newHash) {
+                this.navigateToSection(newHash);
+            } else {
+                // If no hash, go to dashboard
+                this.loadDashboardData();
+            }
+        });
+
+        // Initial hash handling is now done in init() method
     }
 
-    navigateToSection(section) {
+    async navigateToSection(section) {
         console.log('navigateToSection called with:', section);
+        console.log('Current URL:', window.location.href);
+        
+        // Update URL hash
+        if (window.location.hash !== `#${section}`) {
+            window.location.hash = `#${section}`;
+            console.log('Updated URL hash to:', `#${section}`);
+        }
         
         // Update active nav item
         document.querySelectorAll('.sidebar-nav .nav-item').forEach(item => {
@@ -148,10 +194,13 @@ class AdminDashboard {
             targetSection.style.display = 'block';
             targetSection.scrollIntoView({ behavior: 'smooth' });
             console.log('Showing section:', section);
+            
+            // Load section content asynchronously
+            this.loadSectionContent(section).catch(console.error);
         } else {
             console.log('Section not found, loading dynamically:', section);
             // If section doesn't exist, load it dynamically
-            this.loadSection(section);
+            this.loadSection(section).catch(console.error);
         }
 
         // Update URL without page reload
@@ -210,13 +259,26 @@ class AdminDashboard {
     }
 
     async loadSectionContent(section) {
+        console.log(`loadSectionContent called for: ${section}`);
         const sectionElement = document.getElementById(section);
-        if (!sectionElement) return;
+        if (!sectionElement) {
+            console.error(`Section element not found: ${section}`);
+            return;
+        }
 
-        const contentDiv = sectionElement.querySelector('.section-content');
-        if (!contentDiv) return;
+        // Find the content div - it's named like "incidents-content", "components-content", etc.
+        const contentDiv = document.getElementById(`${section}-content`);
+        if (!contentDiv) {
+            console.error(`Content div not found: ${section}-content`);
+            return;
+        }
+
+        console.log(`Found content div for ${section}:`, contentDiv);
 
         switch (section) {
+            case 'dashboard':
+                await this.loadDashboardOverview(sectionElement);
+                break;
             case 'incidents':
                 await this.loadIncidentsSection(contentDiv);
                 break;
@@ -299,16 +361,201 @@ class AdminDashboard {
     }
 
     async loadDashboardData() {
+        console.log('loadDashboardData called');
+        const dashboardSection = document.getElementById('dashboard');
+        console.log('Dashboard section found:', dashboardSection);
+        if (!dashboardSection) {
+            console.error('Dashboard section not found!');
+            return;
+        }
+        
+        // Make sure the dashboard section is visible
+        dashboardSection.style.display = 'block';
+        console.log('Dashboard section display set to block');
+        
         try {
-            await Promise.all([
-                this.loadStats(),
-                this.loadComponents(),
-                this.loadRecentIncidents(),
-                this.loadRecentActivity()
-            ]);
+            await this.loadDashboardOverview(dashboardSection);
         } catch (error) {
             console.error('Error loading dashboard data:', error);
             this.showNotification('Failed to load dashboard data', 'error');
+        }
+    }
+
+    async loadDashboardOverview(dashboardSection) {
+        console.log('loadDashboardOverview called with:', dashboardSection);
+        
+        try {
+            console.log('Loading dashboard overview...');
+            // Fetch real data from APIs
+            const [servicesResponse, incidentsResponse] = await Promise.all([
+                fetch('/api/v1/admin/services', { credentials: 'include' }),
+                fetch('/api/v1/admin/incidents', { credentials: 'include' })
+            ]);
+
+            console.log('Dashboard API responses:', {
+                services: servicesResponse.status,
+                incidents: incidentsResponse.status
+            });
+
+            const services = servicesResponse.ok ? (await servicesResponse.json()).services : [];
+            const incidents = incidentsResponse.ok ? (await incidentsResponse.json()).incidents : [];
+
+            // Calculate stats
+            const totalServices = services.length;
+            const operationalServices = services.filter(s => s.Status === 'operational').length;
+            const activeIncidents = incidents.filter(i => i.Status !== 'resolved').length;
+            const uptime = totalServices > 0 ? ((operationalServices / totalServices) * 100).toFixed(1) : 100;
+
+            // Update the existing stat cards with real data
+            const activeIncidentsElement = document.getElementById('activeIncidents');
+            if (activeIncidentsElement) {
+                activeIncidentsElement.textContent = activeIncidents;
+            }
+
+            const upcomingMaintenanceElement = document.getElementById('upcomingMaintenance');
+            if (upcomingMaintenanceElement) {
+                upcomingMaintenanceElement.textContent = '0'; // TODO: Get from maintenance API
+            }
+
+            const totalSubscribersElement = document.getElementById('totalSubscribers');
+            if (totalSubscribersElement) {
+                totalSubscribersElement.textContent = '0'; // TODO: Get from subscribers API
+            }
+
+            // Update the first stat card to show real data
+            const firstStatCard = dashboardSection.querySelector('.stat-card:first-child .stat-content h3');
+            if (firstStatCard) {
+                firstStatCard.textContent = `${operationalServices}/${totalServices} Services Operational`;
+            }
+            const firstStatCardP = dashboardSection.querySelector('.stat-card:first-child .stat-content p');
+            if (firstStatCardP) {
+                firstStatCardP.textContent = `${uptime}% uptime`;
+            }
+
+            // Update components grid
+            const componentsGrid = document.getElementById('componentsGrid');
+            if (componentsGrid) {
+                componentsGrid.innerHTML = services.slice(0, 6).map(service => `
+                    <div class="component-card">
+                        <div class="component-header">
+                            <h4>${service.Name}</h4>
+                            <span class="status-badge ${service.Status}">${service.Status}</span>
+                        </div>
+                        <p class="component-description">${service.Description || 'No description'}</p>
+                        <div class="component-meta">
+                            <span class="component-group">${service.Group || 'No Group'}</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            // Update recent incidents list
+            const recentIncidentsList = document.getElementById('recentIncidentsList');
+            if (recentIncidentsList) {
+                recentIncidentsList.innerHTML = incidents.slice(0, 5).map(incident => `
+                    <div class="incident-item">
+                        <div class="incident-header">
+                            <h4>${incident.Title}</h4>
+                            <span class="status-badge ${incident.Status}">${incident.Status}</span>
+                        </div>
+                        <p class="incident-description">${incident.Description}</p>
+                        <div class="incident-meta">
+                            <span class="incident-time">${this.formatTimeAgo(incident.CreatedAt)}</span>
+                            <span class="incident-impact">${incident.Impact} impact</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            // Update activity list
+            const activityList = document.getElementById('activityList');
+            if (activityList) {
+                const recentActivities = [
+                    {
+                        icon: 'fas fa-check-circle',
+                        type: 'operational',
+                        message: 'All systems operational',
+                        time: 'Just now'
+                    },
+                    ...incidents.slice(0, 3).map(incident => ({
+                        icon: 'fas fa-exclamation-triangle',
+                        type: 'incident',
+                        message: incident.Title,
+                        time: this.formatTimeAgo(incident.CreatedAt)
+                    }))
+                ];
+
+                activityList.innerHTML = recentActivities.map(activity => `
+                    <div class="activity-item">
+                        <div class="activity-icon ${activity.type}">
+                            <i class="${activity.icon}"></i>
+                        </div>
+                        <div class="activity-content">
+                            <p><strong>${activity.type === 'operational' ? 'System Status' : 'Incident'}</strong> ${activity.message}</p>
+                            <span class="activity-time">${activity.time}</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            // Add event listeners to quick action buttons
+            this.setupQuickActionButtons();
+
+        } catch (error) {
+            console.error('Error loading dashboard overview:', error);
+            console.error('Error details:', error.message, error.stack);
+            // Don't replace the entire dashboard, just show an error notification
+            this.showNotification('Failed to load dashboard data: ' + error.message, 'error');
+        }
+    }
+
+    setupQuickActionButtons() {
+        // Create Incident button
+        const createIncidentBtn = document.getElementById('createIncidentBtn');
+        if (createIncidentBtn) {
+            createIncidentBtn.addEventListener('click', () => {
+                this.openModal('incidentModal');
+            });
+        }
+
+        // Schedule Maintenance button
+        const scheduleMaintenanceBtn = document.getElementById('scheduleMaintenanceBtn');
+        if (scheduleMaintenanceBtn) {
+            scheduleMaintenanceBtn.addEventListener('click', () => {
+                this.openModal('maintenanceModal');
+            });
+        }
+
+        // Add Component button
+        const addComponentBtn = document.getElementById('addComponentBtn');
+        if (addComponentBtn) {
+            addComponentBtn.addEventListener('click', () => {
+                this.openModal('componentModal');
+            });
+        }
+
+        // Add Monitor button
+        const addMonitorBtn = document.getElementById('addMonitorBtn');
+        if (addMonitorBtn) {
+            addMonitorBtn.addEventListener('click', () => {
+                this.openModal('monitorModal');
+            });
+        }
+
+        // Manage Components button
+        const manageComponentsBtn = document.getElementById('manageComponentsBtn');
+        if (manageComponentsBtn) {
+            manageComponentsBtn.addEventListener('click', () => {
+                this.navigateToSection('components');
+            });
+        }
+
+        // View All Incidents button
+        const viewAllIncidentsBtn = document.getElementById('viewAllIncidentsBtn');
+        if (viewAllIncidentsBtn) {
+            viewAllIncidentsBtn.addEventListener('click', () => {
+                this.navigateToSection('incidents');
+            });
         }
     }
 
@@ -729,16 +976,31 @@ class AdminDashboard {
         `;
 
         try {
+            console.log('Loading incidents section...');
             // Fetch incidents from API
             const response = await fetch('/api/v1/admin/incidents', {
                 credentials: 'include'
             });
 
+            console.log('Incidents API response:', response.status, response.statusText);
             let incidents = [];
             if (response.ok) {
                 const data = await response.json();
-                incidents = data.incidents || [];
+                console.log('Incidents data received:', data);
+                incidents = (data.incidents || []).map(incident => ({
+                    id: incident.ID,
+                    title: incident.Title,
+                    description: incident.Description,
+                    status: incident.Status,
+                    impact: incident.Impact,
+                    created_at: incident.CreatedAt,
+                    services: incident.Services || []
+                }));
+                console.log('Incidents mapped:', incidents);
             } else {
+                console.error('Incidents API error:', response.status, response.statusText);
+                const errorText = await response.text();
+                console.error('Error response body:', errorText);
                 // Fallback to mock data if API fails
                 incidents = [
                     {
@@ -760,6 +1022,12 @@ class AdminDashboard {
                 ];
             }
         
+        // Hide the loading spinner
+        const loadingSpinner = document.getElementById('incidents-loading');
+        if (loadingSpinner) {
+            loadingSpinner.style.display = 'none';
+        }
+
         contentDiv.innerHTML = `
             <div class="section-actions">
                 <button class="btn-primary" onclick="adminDashboard.openModal('incidentModal')">
@@ -779,8 +1047,8 @@ class AdminDashboard {
                             <p><strong>Created:</strong> ${new Date(incident.created_at).toLocaleString()}</p>
                         </div>
                         <div class="incident-actions">
-                            <button class="btn-secondary" onclick="dashboard.editIncident(${incident.id})">Edit</button>
-                            <button class="btn-danger" onclick="dashboard.deleteIncident(${incident.id})">Delete</button>
+                            <button class="btn-secondary" onclick="adminDashboard.editIncident(${incident.id})">Edit</button>
+                            <button class="btn-danger" onclick="adminDashboard.deleteIncident(${incident.id})">Delete</button>
                         </div>
                     </div>
                 `).join('')}
@@ -788,6 +1056,13 @@ class AdminDashboard {
         `;
         } catch (error) {
             console.error('Error loading incidents:', error);
+            
+            // Hide the loading spinner
+            const loadingSpinner = document.getElementById('incidents-loading');
+            if (loadingSpinner) {
+                loadingSpinner.style.display = 'none';
+            }
+            
             contentDiv.innerHTML = `
                 <div class="section-actions">
                     <button class="btn-primary" onclick="adminDashboard.openModal('incidentModal')">
@@ -816,16 +1091,31 @@ class AdminDashboard {
         `;
 
         try {
+            console.log('Loading components section...');
             // Fetch components from API
             const response = await fetch('/api/v1/admin/services', {
                 credentials: 'include'
             });
 
+            console.log('Components API response:', response.status, response.statusText);
             let components = [];
             if (response.ok) {
                 const data = await response.json();
-                components = data.services || [];
+                console.log('Components data received:', data);
+                components = (data.services || []).map(service => ({
+                    id: service.ID,
+                    name: service.Name,
+                    description: service.Description,
+                    status: service.Status,
+                    group: service.Group,
+                    show_uptime: service.ShowUptime,
+                    created_at: service.CreatedAt
+                }));
+                console.log('Components mapped:', components);
             } else {
+                console.error('Components API error:', response.status, response.statusText);
+                const errorText = await response.text();
+                console.error('Error response body:', errorText);
                 // Fallback to mock data if API fails
                 components = [
                     { id: 1, name: "API", status: "operational", description: "Main API service" },
@@ -834,6 +1124,12 @@ class AdminDashboard {
                 ];
             }
         
+        // Hide the loading spinner
+        const loadingSpinner = document.getElementById('components-loading');
+        if (loadingSpinner) {
+            loadingSpinner.style.display = 'none';
+        }
+
         contentDiv.innerHTML = `
             <div class="section-actions">
                 <button class="btn-primary" onclick="adminDashboard.openModal('componentModal')">
@@ -849,8 +1145,8 @@ class AdminDashboard {
                         </div>
                         <p>${component.description}</p>
                         <div class="component-actions">
-                            <button class="btn-secondary" onclick="dashboard.editComponent(${component.id})">Edit</button>
-                            <button class="btn-danger" onclick="dashboard.deleteComponent(${component.id})">Delete</button>
+                            <button class="btn-secondary" onclick="adminDashboard.editComponent(${component.id})">Edit</button>
+                            <button class="btn-danger" onclick="adminDashboard.deleteComponent(${component.id})">Delete</button>
                         </div>
                     </div>
                 `).join('')}
@@ -858,6 +1154,13 @@ class AdminDashboard {
         `;
         } catch (error) {
             console.error('Error loading components:', error);
+            
+            // Hide the loading spinner
+            const loadingSpinner = document.getElementById('components-loading');
+            if (loadingSpinner) {
+                loadingSpinner.style.display = 'none';
+            }
+            
             contentDiv.innerHTML = `
                 <div class="section-actions">
                     <button class="btn-primary" onclick="adminDashboard.openModal('componentModal')">
@@ -873,47 +1176,121 @@ class AdminDashboard {
     }
 
     async loadMaintenanceSection(contentDiv) {
-        // Mock maintenance data
-        const mockMaintenance = [
-            {
-                id: 1,
-                title: "Database optimization",
-                description: "Scheduled database maintenance",
-                start_time: "2025-01-08T02:00:00Z",
-                end_time: "2025-01-08T04:00:00Z",
-                status: "scheduled"
-            }
-        ];
-        
+        // Show loading state
         contentDiv.innerHTML = `
             <div class="section-actions">
                 <button class="btn-primary" onclick="adminDashboard.openModal('maintenanceModal')">
                     <i class="fas fa-plus"></i> Schedule Maintenance
                 </button>
             </div>
-            <div class="maintenance-list" id="maintenanceList">
-                ${mockMaintenance.map(maintenance => `
-                    <div class="maintenance-card">
-                        <div class="maintenance-header">
-                            <h3>${maintenance.title}</h3>
-                            <span class="status-badge ${maintenance.status}">${maintenance.status}</span>
-                        </div>
-                        <p>${maintenance.description}</p>
-                        <div class="maintenance-details">
-                            <p><strong>Start:</strong> ${new Date(maintenance.start_time).toLocaleString()}</p>
-                            <p><strong>End:</strong> ${new Date(maintenance.end_time).toLocaleString()}</p>
-                        </div>
-                        <div class="maintenance-actions">
-                            <button class="btn-secondary" onclick="dashboard.editMaintenance(${maintenance.id})">Edit</button>
-                            <button class="btn-danger" onclick="dashboard.deleteMaintenance(${maintenance.id})">Delete</button>
-                        </div>
-                    </div>
-                `).join('')}
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i> Loading maintenance events...
             </div>
         `;
+
+        try {
+            console.log('Loading maintenance section...');
+            // Fetch maintenance events from API
+            const response = await fetch('/api/v1/maintenance', {
+                credentials: 'include'
+            });
+
+            console.log('Maintenance API response:', response.status, response.statusText);
+            let maintenanceEvents = [];
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Maintenance data received:', data);
+                maintenanceEvents = (data.maintenance || []).map(event => ({
+                    id: event.ID,
+                    title: event.Title,
+                    description: event.Description,
+                    start_time: event.StartAt,
+                    end_time: event.EndAt,
+                    status: event.Status,
+                    created_at: event.CreatedAt
+                }));
+                console.log('Maintenance events mapped:', maintenanceEvents);
+            } else {
+                console.error('Maintenance API error:', response.status, response.statusText);
+                const errorText = await response.text();
+                console.error('Error response body:', errorText);
+                // Fallback to mock data if API fails
+                maintenanceEvents = [
+                    {
+                        id: 1,
+                        title: "Database optimization",
+                        description: "Scheduled database maintenance",
+                        start_time: "2025-01-08T02:00:00Z",
+                        end_time: "2025-01-08T04:00:00Z",
+                        status: "scheduled"
+                    }
+                ];
+            }
+
+            // Hide the loading spinner
+            const loadingSpinner = document.getElementById('maintenance-loading');
+            if (loadingSpinner) {
+                loadingSpinner.style.display = 'none';
+            }
+
+            // Generate maintenance list HTML
+            contentDiv.innerHTML = `
+                <div class="section-actions">
+                    <button class="btn-primary" onclick="adminDashboard.openModal('maintenanceModal')">
+                        <i class="fas fa-plus"></i> Schedule Maintenance
+                    </button>
+                </div>
+                <div class="maintenance-list" id="maintenanceList">
+                    ${maintenanceEvents.length > 0 ? maintenanceEvents.map(maintenance => `
+                        <div class="maintenance-card">
+                            <div class="maintenance-header">
+                                <h3>${maintenance.title}</h3>
+                                <span class="status-badge ${maintenance.status}">${maintenance.status}</span>
+                            </div>
+                            <p>${maintenance.description}</p>
+                            <div class="maintenance-details">
+                                <p><strong>Start:</strong> ${new Date(maintenance.start_time).toLocaleString()}</p>
+                                <p><strong>End:</strong> ${new Date(maintenance.end_time).toLocaleString()}</p>
+                            </div>
+                            <div class="maintenance-actions">
+                                <button class="btn-secondary" onclick="adminDashboard.editMaintenance(${maintenance.id})">Edit</button>
+                                <button class="btn-danger" onclick="adminDashboard.deleteMaintenance(${maintenance.id})">Delete</button>
+                            </div>
+                        </div>
+                    `).join('') : `
+                        <div class="empty-state">
+                            <i class="fas fa-tools"></i>
+                            <h3>No maintenance events scheduled</h3>
+                            <p>Click "Schedule Maintenance" to create your first maintenance event.</p>
+                        </div>
+                    `}
+                </div>
+            `;
+        } catch (error) {
+            console.error('Error loading maintenance section:', error);
+            
+            // Hide the loading spinner
+            const loadingSpinner = document.getElementById('maintenance-loading');
+            if (loadingSpinner) {
+                loadingSpinner.style.display = 'none';
+            }
+            
+            contentDiv.innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Failed to load maintenance events. Please try again.
+                </div>
+            `;
+        }
     }
 
     async loadMonitorsSection(contentDiv) {
+        // Hide the loading spinner
+        const loadingSpinner = document.getElementById('monitors-loading');
+        if (loadingSpinner) {
+            loadingSpinner.style.display = 'none';
+        }
+
         // Mock monitors data
         const mockMonitors = [
             { id: 1, name: "API Health Check", type: "http", url: "https://api.example.com/health", status: "up" },
@@ -938,8 +1315,8 @@ class AdminDashboard {
                             <p><strong>Target:</strong> ${monitor.url || monitor.host}</p>
                         </div>
                         <div class="monitor-actions">
-                            <button class="btn-secondary" onclick="dashboard.editMonitor(${monitor.id})">Edit</button>
-                            <button class="btn-danger" onclick="dashboard.deleteMonitor(${monitor.id})">Delete</button>
+                            <button class="btn-secondary" onclick="adminDashboard.editMonitor(${monitor.id})">Edit</button>
+                            <button class="btn-danger" onclick="adminDashboard.deleteMonitor(${monitor.id})">Delete</button>
                         </div>
                     </div>
                 `).join('')}
@@ -948,66 +1325,657 @@ class AdminDashboard {
     }
 
     async loadSubscribersSection(contentDiv) {
-        // Mock subscribers data
-        const mockSubscribers = [
-            { id: 1, email: "admin@example.com", phone: "+1234567890", status: "active", created_at: "2025-01-01T00:00:00Z" },
-            { id: 2, email: "user@example.com", phone: "+0987654321", status: "active", created_at: "2025-01-02T00:00:00Z" }
-        ];
+        console.log('Loading subscribers section...');
         
+        // Show loading state
         contentDiv.innerHTML = `
-            <div class="section-actions">
-                <button class="btn-primary" onclick="adminDashboard.openModal('subscriberModal')">
-                    <i class="fas fa-plus"></i> Add Subscriber
-                </button>
-            </div>
-            <div class="subscribers-list" id="subscribersList">
-                ${mockSubscribers.map(subscriber => `
-                    <div class="subscriber-card">
-                        <div class="subscriber-header">
-                            <h3>${subscriber.email}</h3>
-                            <span class="status-badge ${subscriber.status}">${subscriber.status}</span>
-                        </div>
-                        <div class="subscriber-details">
-                            <p><strong>Phone:</strong> ${subscriber.phone}</p>
-                            <p><strong>Created:</strong> ${new Date(subscriber.created_at).toLocaleString()}</p>
-                        </div>
-                        <div class="subscriber-actions">
-                            <button class="btn-secondary" onclick="dashboard.editSubscriber(${subscriber.id})">Edit</button>
-                            <button class="btn-danger" onclick="dashboard.deleteSubscriber(${subscriber.id})">Delete</button>
-                        </div>
-                    </div>
-                `).join('')}
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i> Loading subscribers...
             </div>
         `;
+        
+        try {
+            // Fetch real subscribers data
+            const response = await fetch('/api/v1/admin/subscribers', { credentials: 'include' });
+            console.log('Subscribers API response:', response.status);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            console.log('Subscribers data:', data);
+            
+            const subscribers = data.subscribers || [];
+            
+            // Hide the loading spinner
+            const loadingSpinner = document.getElementById('subscribers-loading');
+            if (loadingSpinner) {
+                loadingSpinner.style.display = 'none';
+            }
+
+            contentDiv.innerHTML = `
+                <div class="section-actions">
+                    <button class="btn-primary" onclick="adminDashboard.openSubscriberModal()">
+                        <i class="fas fa-plus"></i> Add Subscriber
+                    </button>
+                </div>
+                <div class="subscribers-list" id="subscribersList">
+                    ${subscribers.length > 0 ? subscribers.map(subscriber => `
+                        <div class="subscriber-card">
+                            <div class="subscriber-header">
+                                <h3>${subscriber.Email}</h3>
+                                <span class="status-badge active">active</span>
+                            </div>
+                            <div class="subscriber-details">
+                                <p><strong>Phone:</strong> ${subscriber.Phone || 'Not provided'}</p>
+                                <p><strong>Created:</strong> ${this.formatTimeAgo(subscriber.CreatedAt)}</p>
+                                <p><strong>Services:</strong> ${subscriber.Services ? subscriber.Services.length : 0} subscribed</p>
+                            </div>
+                            <div class="subscriber-actions">
+                                <button class="btn-secondary" onclick="adminDashboard.editSubscriber(${subscriber.ID})">Edit</button>
+                                <button class="btn-danger" onclick="adminDashboard.deleteSubscriber(${subscriber.ID})">Delete</button>
+                            </div>
+                        </div>
+                    `).join('') : `
+                        <div class="empty-state">
+                            <i class="fas fa-users"></i>
+                            <h3>No subscribers yet</h3>
+                            <p>Start by adding your first subscriber to receive status updates.</p>
+                        </div>
+                    `}
+                </div>
+            `;
+            
+        } catch (error) {
+            console.error('Error loading subscribers:', error);
+            
+            // Hide the loading spinner
+            const loadingSpinner = document.getElementById('subscribers-loading');
+            if (loadingSpinner) {
+                loadingSpinner.style.display = 'none';
+            }
+            
+            contentDiv.innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Failed to load subscribers</h3>
+                    <p>${error.message}</p>
+                    <button class="btn-primary" onclick="adminDashboard.loadSubscribersSection(document.getElementById('subscribers-content'))">
+                        <i class="fas fa-refresh"></i> Retry
+                    </button>
+                </div>
+            `;
+        }
+    }
+
+    // Subscriber management methods
+    editSubscriber(subscriberId) {
+        console.log('Edit subscriber:', subscriberId);
+        // TODO: Implement edit subscriber functionality
+        this.showNotification('Edit subscriber functionality coming soon!', 'info');
+    }
+
+    async deleteSubscriber(subscriberId) {
+        console.log('Delete subscriber:', subscriberId);
+        
+        if (!confirm('Are you sure you want to delete this subscriber? This action cannot be undone.')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/v1/admin/subscribers/${subscriberId}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                this.showNotification('Subscriber deleted successfully', 'success');
+                // Reload the subscribers section
+                const contentDiv = document.getElementById('subscribers-content');
+                if (contentDiv) {
+                    await this.loadSubscribersSection(contentDiv);
+                }
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error deleting subscriber:', error);
+            this.showNotification('Failed to delete subscriber: ' + error.message, 'error');
+        }
+    }
+
+    // Component management methods
+    async editComponent(componentId) {
+        console.log('Edit component:', componentId);
+        
+        try {
+            // Fetch the component data
+            const response = await fetch(`/api/v1/admin/services/${componentId}`, {
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            const component = data.service;
+            
+            // Create and show edit modal
+            this.showEditComponentModal(component);
+            
+        } catch (error) {
+            console.error('Error fetching component:', error);
+            this.showNotification('Failed to load component data: ' + error.message, 'error');
+        }
+    }
+
+    showEditComponentModal(component) {
+        // Create modal HTML
+        const modalHTML = `
+            <div id="editComponentModal" class="modal-overlay">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Edit Component</h2>
+                        <button class="modal-close" onclick="adminDashboard.closeModal('editComponentModal')">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="editComponentForm">
+                            <input type="hidden" id="editComponentId" value="${component.ID}">
+                            
+                            <div class="form-group">
+                                <label for="editComponentName">Name</label>
+                                <input type="text" id="editComponentName" value="${component.Name}" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="editComponentDescription">Description</label>
+                                <textarea id="editComponentDescription" rows="4">${component.Description || ''}</textarea>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="editComponentStatus">Status</label>
+                                <select id="editComponentStatus" required>
+                                    <option value="operational" ${component.Status === 'operational' ? 'selected' : ''}>Operational</option>
+                                    <option value="degraded" ${component.Status === 'degraded' ? 'selected' : ''}>Degraded</option>
+                                    <option value="partial_outage" ${component.Status === 'partial_outage' ? 'selected' : ''}>Partial Outage</option>
+                                    <option value="major_outage" ${component.Status === 'major_outage' ? 'selected' : ''}>Major Outage</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="editComponentGroup">Group</label>
+                                <input type="text" id="editComponentGroup" value="${component.Group || ''}">
+                            </div>
+                            
+                            <div class="form-actions">
+                                <button type="button" class="btn-secondary" onclick="adminDashboard.closeModal('editComponentModal')">Cancel</button>
+                                <button type="submit" class="btn-primary">Update Component</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        // Add form submit handler
+        document.getElementById('editComponentForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleEditComponentSubmit();
+        });
+    }
+
+    async handleEditComponentSubmit() {
+        const componentId = document.getElementById('editComponentId').value;
+        const name = document.getElementById('editComponentName').value;
+        const description = document.getElementById('editComponentDescription').value;
+        const status = document.getElementById('editComponentStatus').value;
+        const group = document.getElementById('editComponentGroup').value;
+        
+        try {
+            const response = await fetch(`/api/v1/admin/services/${componentId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    name,
+                    description,
+                    status,
+                    group
+                })
+            });
+            
+            if (response.ok) {
+                this.showNotification('Component updated successfully', 'success');
+                this.closeModal('editComponentModal');
+                
+                // Reload the components section
+                const contentDiv = document.getElementById('components-content');
+                if (contentDiv) {
+                    await this.loadComponentsSection(contentDiv);
+                }
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error updating component:', error);
+            this.showNotification('Failed to update component: ' + error.message, 'error');
+        }
+    }
+
+    async deleteComponent(componentId) {
+        console.log('Delete component:', componentId);
+        
+        if (!confirm('Are you sure you want to delete this component? This action cannot be undone.')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/v1/admin/services/${componentId}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                this.showNotification('Component deleted successfully', 'success');
+                // Reload the components section
+                const contentDiv = document.getElementById('components-content');
+                if (contentDiv) {
+                    await this.loadComponentsSection(contentDiv);
+                }
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error deleting component:', error);
+            this.showNotification('Failed to delete component: ' + error.message, 'error');
+        }
+    }
+
+    // Incident management methods
+    async editIncident(incidentId) {
+        console.log('Edit incident:', incidentId);
+        
+        try {
+            // Fetch the incident data
+            const response = await fetch(`/api/v1/admin/incidents/${incidentId}`, {
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            const incident = data.incident;
+            
+            // Create and show edit modal
+            this.showEditIncidentModal(incident);
+            
+        } catch (error) {
+            console.error('Error fetching incident:', error);
+            this.showNotification('Failed to load incident data: ' + error.message, 'error');
+        }
+    }
+
+    showEditIncidentModal(incident) {
+        // Create modal HTML
+        const modalHTML = `
+            <div id="editIncidentModal" class="modal-overlay">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Edit Incident</h2>
+                        <button class="modal-close" onclick="adminDashboard.closeModal('editIncidentModal')">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="editIncidentForm">
+                            <input type="hidden" id="editIncidentId" value="${incident.ID}">
+                            
+                            <div class="form-group">
+                                <label for="editIncidentTitle">Title</label>
+                                <input type="text" id="editIncidentTitle" value="${incident.Title}" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="editIncidentDescription">Description</label>
+                                <textarea id="editIncidentDescription" rows="4" required>${incident.Description || ''}</textarea>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="editIncidentStatus">Status</label>
+                                <select id="editIncidentStatus" required>
+                                    <option value="investigating" ${incident.Status === 'investigating' ? 'selected' : ''}>Investigating</option>
+                                    <option value="identified" ${incident.Status === 'identified' ? 'selected' : ''}>Identified</option>
+                                    <option value="monitoring" ${incident.Status === 'monitoring' ? 'selected' : ''}>Monitoring</option>
+                                    <option value="resolved" ${incident.Status === 'resolved' ? 'selected' : ''}>Resolved</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="editIncidentImpact">Impact</label>
+                                <select id="editIncidentImpact" required>
+                                    <option value="minor" ${incident.Impact === 'minor' ? 'selected' : ''}>Minor</option>
+                                    <option value="major" ${incident.Impact === 'major' ? 'selected' : ''}>Major</option>
+                                    <option value="critical" ${incident.Impact === 'critical' ? 'selected' : ''}>Critical</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-actions">
+                                <button type="button" class="btn-secondary" onclick="adminDashboard.closeModal('editIncidentModal')">Cancel</button>
+                                <button type="submit" class="btn-primary">Update Incident</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        // Add form submit handler
+        document.getElementById('editIncidentForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleEditIncidentSubmit();
+        });
+    }
+
+    async handleEditIncidentSubmit() {
+        const incidentId = document.getElementById('editIncidentId').value;
+        const title = document.getElementById('editIncidentTitle').value;
+        const description = document.getElementById('editIncidentDescription').value;
+        const status = document.getElementById('editIncidentStatus').value;
+        const impact = document.getElementById('editIncidentImpact').value;
+        
+        try {
+            const response = await fetch(`/api/v1/admin/incidents/${incidentId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    title,
+                    description,
+                    status,
+                    impact
+                })
+            });
+            
+            if (response.ok) {
+                this.showNotification('Incident updated successfully', 'success');
+                this.closeModal('editIncidentModal');
+                
+                // Reload the incidents section
+                const contentDiv = document.getElementById('incidents-content');
+                if (contentDiv) {
+                    await this.loadIncidentsSection(contentDiv);
+                }
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error updating incident:', error);
+            this.showNotification('Failed to update incident: ' + error.message, 'error');
+        }
+    }
+
+    async deleteIncident(incidentId) {
+        console.log('Delete incident:', incidentId);
+        
+        if (!confirm('Are you sure you want to delete this incident? This action cannot be undone.')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/v1/admin/incidents/${incidentId}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                this.showNotification('Incident deleted successfully', 'success');
+                // Reload the incidents section
+                const contentDiv = document.getElementById('incidents-content');
+                if (contentDiv) {
+                    await this.loadIncidentsSection(contentDiv);
+                }
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error deleting incident:', error);
+            this.showNotification('Failed to delete incident: ' + error.message, 'error');
+        }
+    }
+
+    // Maintenance management methods
+    editMaintenance(maintenanceId) {
+        console.log('Edit maintenance:', maintenanceId);
+        // TODO: Implement edit maintenance functionality
+        this.showNotification('Edit maintenance functionality coming soon!', 'info');
+    }
+
+    async deleteMaintenance(maintenanceId) {
+        console.log('Delete maintenance:', maintenanceId);
+        
+        if (!confirm('Are you sure you want to delete this maintenance event? This action cannot be undone.')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/v1/admin/maintenance/${maintenanceId}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                this.showNotification('Maintenance event deleted successfully', 'success');
+                // Reload the maintenance section
+                const contentDiv = document.getElementById('maintenance-content');
+                if (contentDiv) {
+                    await this.loadMaintenanceSection(contentDiv);
+                }
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error deleting maintenance:', error);
+            this.showNotification('Failed to delete maintenance event: ' + error.message, 'error');
+        }
+    }
+
+    // Monitor management methods
+    async editMonitor(monitorId) {
+        console.log('Edit monitor:', monitorId);
+        try {
+            const response = await fetch(`/api/v1/admin/monitors/${monitorId}`, { credentials: 'include' });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            const data = await response.json();
+            const monitor = data.monitor;
+            this.showEditMonitorModal(monitor);
+        } catch (error) {
+            console.error('Error fetching monitor:', error);
+            this.showNotification('Failed to load monitor data: ' + error.message, 'error');
+        }
+    }
+
+    showEditMonitorModal(monitor) {
+        const modalHTML = `
+            <div id="editMonitorModal" class="modal-overlay">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Edit Monitor</h2>
+                        <button class="modal-close" onclick="adminDashboard.closeModal('editMonitorModal')">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="editMonitorForm">
+                            <input type="hidden" id="editMonitorId" value="${monitor.id}">
+                            <div class="form-group">
+                                <label for="editMonitorName">Monitor Name</label>
+                                <input type="text" id="editMonitorName" value="${monitor.name}" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="editMonitorType">Type</label>
+                                <select id="editMonitorType" required>
+                                    <option value="http" ${monitor.type === 'http' ? 'selected' : ''}>HTTP</option>
+                                    <option value="tcp" ${monitor.type === 'tcp' ? 'selected' : ''}>TCP</option>
+                                    <option value="ping" ${monitor.type === 'ping' ? 'selected' : ''}>Ping</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="editMonitorUrl">URL/Host</label>
+                                <input type="text" id="editMonitorUrl" value="${monitor.url || monitor.host}" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="editMonitorInterval">Check Interval (seconds)</label>
+                                <input type="number" id="editMonitorInterval" value="60" min="30" max="3600">
+                            </div>
+                            <div class="form-group">
+                                <label for="editMonitorTimeout">Timeout (seconds)</label>
+                                <input type="number" id="editMonitorTimeout" value="10" min="5" max="60">
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn-secondary" onclick="adminDashboard.closeModal('editMonitorModal')">Cancel</button>
+                                <button type="submit" class="btn-primary">Update Monitor</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        document.getElementById('editMonitorForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleEditMonitorSubmit();
+        });
+    }
+
+    async handleEditMonitorSubmit() {
+        const monitorId = document.getElementById('editMonitorId').value;
+        const name = document.getElementById('editMonitorName').value;
+        const type = document.getElementById('editMonitorType').value;
+        const url = document.getElementById('editMonitorUrl').value;
+        const interval = document.getElementById('editMonitorInterval').value;
+        const timeout = document.getElementById('editMonitorTimeout').value;
+        
+        try {
+            const response = await fetch(`/api/v1/admin/monitors/${monitorId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ name, type, url, interval, timeout })
+            });
+            
+            if (response.ok) {
+                this.showNotification('Monitor updated successfully', 'success');
+                this.closeModal('editMonitorModal');
+                const contentDiv = document.getElementById('monitors-content');
+                if (contentDiv) {
+                    await this.loadMonitorsSection(contentDiv);
+                }
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error updating monitor:', error);
+            this.showNotification('Failed to update monitor: ' + error.message, 'error');
+        }
+    }
+
+    async deleteMonitor(monitorId) {
+        console.log('Delete monitor:', monitorId);
+        
+        if (!confirm('Are you sure you want to delete this monitor? This action cannot be undone.')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/v1/admin/monitors/${monitorId}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                this.showNotification('Monitor deleted successfully', 'success');
+                // Reload the monitors section
+                const contentDiv = document.getElementById('monitors-content');
+                if (contentDiv) {
+                    await this.loadMonitorsSection(contentDiv);
+                }
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error deleting monitor:', error);
+            this.showNotification('Failed to delete monitor: ' + error.message, 'error');
+        }
     }
 
     async loadAnalyticsSection(contentDiv) {
-        // Mock analytics data
-        const mockAnalytics = {
-            uptime: 99.9,
-            incidents: 3,
-            subscribers: 150,
-            avgResponseTime: 120
-        };
-        
-        contentDiv.innerHTML = `
+        // Hide the loading spinner
+        const loadingSpinner = document.getElementById('analytics-loading');
+        if (loadingSpinner) {
+            loadingSpinner.style.display = 'none';
+        }
+
+        try {
+            // Fetch real analytics data from multiple endpoints
+            const [servicesResponse, incidentsResponse, subscribersResponse] = await Promise.all([
+                fetch('/api/v1/admin/services', { credentials: 'include' }),
+                fetch('/api/v1/admin/incidents', { credentials: 'include' }),
+                fetch('/api/v1/admin/subscribers', { credentials: 'include' })
+            ]);
+
+            let analytics = {
+                totalServices: 0,
+                totalIncidents: 0,
+                totalSubscribers: 0,
+                uptime: 99.9,
+                avgResponseTime: 120
+            };
+
+            if (servicesResponse.ok) {
+                const servicesData = await servicesResponse.json();
+                analytics.totalServices = servicesData.services ? servicesData.services.length : 0;
+            }
+
+            if (incidentsResponse.ok) {
+                const incidentsData = await incidentsResponse.json();
+                analytics.totalIncidents = incidentsData.incidents ? incidentsData.incidents.length : 0;
+            }
+
+            if (subscribersResponse.ok) {
+                const subscribersData = await subscribersResponse.json();
+                analytics.totalSubscribers = subscribersData.subscribers ? subscribersData.subscribers.length : 0;
+            }
+
+            contentDiv.innerHTML = `
             <div class="analytics-dashboard">
                 <div class="analytics-grid">
                     <div class="analytics-card">
                         <h3>Uptime</h3>
-                        <div class="metric-value">${mockAnalytics.uptime}%</div>
+                        <div class="metric-value">${analytics.uptime}%</div>
                     </div>
                     <div class="analytics-card">
-                        <h3>Incidents</h3>
-                        <div class="metric-value">${mockAnalytics.incidents}</div>
+                        <h3>Total Services</h3>
+                        <div class="metric-value">${analytics.totalServices}</div>
                     </div>
                     <div class="analytics-card">
-                        <h3>Subscribers</h3>
-                        <div class="metric-value">${mockAnalytics.subscribers}</div>
+                        <h3>Total Incidents</h3>
+                        <div class="metric-value">${analytics.totalIncidents}</div>
                     </div>
                     <div class="analytics-card">
-                        <h3>Avg Response Time</h3>
-                        <div class="metric-value">${mockAnalytics.avgResponseTime}ms</div>
+                        <h3>Total Subscribers</h3>
+                        <div class="metric-value">${analytics.totalSubscribers}</div>
                     </div>
                 </div>
                 <div class="analytics-charts">
@@ -1018,9 +1986,24 @@ class AdminDashboard {
                 </div>
             </div>
         `;
+        } catch (error) {
+            console.error('Error loading analytics:', error);
+            contentDiv.innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Failed to load analytics data. Please try again.
+                </div>
+            `;
+        }
     }
 
     async loadIntegrationsSection(contentDiv) {
+        // Hide the loading spinner
+        const loadingSpinner = document.getElementById('integrations-loading');
+        if (loadingSpinner) {
+            loadingSpinner.style.display = 'none';
+        }
+
         contentDiv.innerHTML = `
             <div class="integrations-grid">
                 <div class="integration-card">
@@ -1029,7 +2012,7 @@ class AdminDashboard {
                     </div>
                     <h3>Slack</h3>
                     <p>Send incident notifications to Slack channels</p>
-                    <button class="btn-secondary">Configure</button>
+                    <button class="btn-secondary" onclick="adminDashboard.configureIntegration('slack')">Configure</button>
                 </div>
                 <div class="integration-card">
                     <div class="integration-icon">
@@ -1037,7 +2020,7 @@ class AdminDashboard {
                     </div>
                     <h3>PagerDuty</h3>
                     <p>Integrate with PagerDuty for incident management</p>
-                    <button class="btn-secondary">Configure</button>
+                    <button class="btn-secondary" onclick="adminDashboard.configureIntegration('pagerduty')">Configure</button>
                 </div>
                 <div class="integration-card">
                     <div class="integration-icon">
@@ -1045,7 +2028,7 @@ class AdminDashboard {
                     </div>
                     <h3>Datadog</h3>
                     <p>Export metrics to Datadog</p>
-                    <button class="btn-secondary">Configure</button>
+                    <button class="btn-secondary" onclick="adminDashboard.configureIntegration('datadog')">Configure</button>
                 </div>
                 <div class="integration-card">
                     <div class="integration-icon">
@@ -1053,29 +2036,38 @@ class AdminDashboard {
                     </div>
                     <h3>Webhooks</h3>
                     <p>Send notifications to custom webhooks</p>
-                    <button class="btn-secondary">Configure</button>
+                    <button class="btn-secondary" onclick="adminDashboard.configureIntegration('webhooks')">Configure</button>
                 </div>
             </div>
         `;
     }
 
     async loadBrandingSection(contentDiv) {
+        // Hide the loading spinner
+        const loadingSpinner = document.getElementById('branding-loading');
+        if (loadingSpinner) {
+            loadingSpinner.style.display = 'none';
+        }
+
         contentDiv.innerHTML = `
             <div class="branding-settings">
                 <div class="branding-section">
                     <h3>Custom Domain</h3>
                     <p>Set up a custom domain for your status page</p>
                     <div class="form-group">
-                        <input type="text" placeholder="status.yourcompany.com" class="form-input">
-                        <button class="btn-primary">Save</button>
+                        <input type="text" id="customDomain" placeholder="status.yourcompany.com" class="form-input">
+                        <button class="btn-primary" onclick="adminDashboard.saveCustomDomain()">Save Domain</button>
                     </div>
                 </div>
                 <div class="branding-section">
                     <h3>Logo</h3>
                     <p>Upload your company logo</p>
                     <div class="logo-upload">
-                        <input type="file" accept="image/*" class="form-input">
-                        <button class="btn-primary">Upload</button>
+                        <input type="file" id="logoUpload" accept="image/*" class="form-input">
+                        <button class="btn-primary" onclick="adminDashboard.uploadLogo()">Upload Logo</button>
+                    </div>
+                    <div id="logoPreview" class="logo-preview" style="display: none;">
+                        <img id="logoImage" src="" alt="Logo Preview" style="max-width: 200px; max-height: 100px;">
                     </div>
                 </div>
                 <div class="branding-section">
@@ -1084,26 +2076,501 @@ class AdminDashboard {
                     <div class="color-picker">
                         <div class="color-option">
                             <label>Primary Color</label>
-                            <input type="color" value="#0052cc" class="form-input">
+                            <input type="color" id="primaryColor" value="#0052cc" class="form-input">
                         </div>
                         <div class="color-option">
                             <label>Secondary Color</label>
-                            <input type="color" value="#f4f5f7" class="form-input">
+                            <input type="color" id="secondaryColor" value="#f4f5f7" class="form-input">
+                        </div>
+                        <div class="color-option">
+                            <label>Accent Color</label>
+                            <input type="color" id="accentColor" value="#36b37e" class="form-input">
                         </div>
                     </div>
+                    <button class="btn-primary" onclick="adminDashboard.saveColors()">Save Colors</button>
+                </div>
+                <div class="branding-section">
+                    <h3>Custom CSS</h3>
+                    <p>Add custom CSS to style your status page</p>
+                    <div class="form-group">
+                        <textarea id="customCSS" placeholder="/* Add your custom CSS here */" rows="10" class="form-input"></textarea>
+                        <button class="btn-primary" onclick="adminDashboard.saveCustomCSS()">Save CSS</button>
+                    </div>
+                </div>
+                <div class="branding-section">
+                    <h3>Page Title & Description</h3>
+                    <p>Customize your status page title and description</p>
+                    <div class="form-group">
+                        <label for="pageTitle">Page Title</label>
+                        <input type="text" id="pageTitle" placeholder="Service Status" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="pageDescription">Page Description</label>
+                        <textarea id="pageDescription" placeholder="Real-time status of our services" rows="3" class="form-input"></textarea>
+                    </div>
+                    <button class="btn-primary" onclick="adminDashboard.savePageSettings()">Save Settings</button>
                 </div>
             </div>
         `;
     }
 
+    // Branding management methods
+    async saveCustomDomain() {
+        const domain = document.getElementById('customDomain').value;
+        if (!domain) {
+            this.showNotification('Please enter a domain', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/v1/admin/branding/domain', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ domain: domain })
+            });
+
+            if (response.ok) {
+                this.showNotification('Custom domain saved successfully', 'success');
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error saving domain:', error);
+            this.showNotification('Failed to save domain: ' + error.message, 'error');
+        }
+    }
+
+    async uploadLogo() {
+        const fileInput = document.getElementById('logoUpload');
+        const file = fileInput.files[0];
+        
+        if (!file) {
+            this.showNotification('Please select a file to upload', 'error');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('logo', file);
+
+        try {
+            const response = await fetch('/api/v1/admin/branding/logo', {
+                method: 'POST',
+                credentials: 'include',
+                body: formData
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                this.showNotification('Logo uploaded successfully', 'success');
+                
+                // Show preview
+                const preview = document.getElementById('logoPreview');
+                const image = document.getElementById('logoImage');
+                image.src = result.logo_url;
+                preview.style.display = 'block';
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error uploading logo:', error);
+            this.showNotification('Failed to upload logo: ' + error.message, 'error');
+        }
+    }
+
+    async saveColors() {
+        const primaryColor = document.getElementById('primaryColor').value;
+        const secondaryColor = document.getElementById('secondaryColor').value;
+        const accentColor = document.getElementById('accentColor').value;
+
+        try {
+            const response = await fetch('/api/v1/admin/branding/colors', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    primary: primaryColor,
+                    secondary: secondaryColor,
+                    accent: accentColor
+                })
+            });
+
+            if (response.ok) {
+                this.showNotification('Colors saved successfully', 'success');
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error saving colors:', error);
+            this.showNotification('Failed to save colors: ' + error.message, 'error');
+        }
+    }
+
+    async saveCustomCSS() {
+        const customCSS = document.getElementById('customCSS').value;
+
+        try {
+            const response = await fetch('/api/v1/admin/branding/css', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ css: customCSS })
+            });
+
+            if (response.ok) {
+                this.showNotification('Custom CSS saved successfully', 'success');
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error saving CSS:', error);
+            this.showNotification('Failed to save CSS: ' + error.message, 'error');
+        }
+    }
+
+    async savePageSettings() {
+        const pageTitle = document.getElementById('pageTitle').value;
+        const pageDescription = document.getElementById('pageDescription').value;
+
+        if (!pageTitle) {
+            this.showNotification('Please enter a page title', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/v1/admin/branding/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    title: pageTitle,
+                    description: pageDescription
+                })
+            });
+
+            if (response.ok) {
+                this.showNotification('Page settings saved successfully', 'success');
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error saving page settings:', error);
+            this.showNotification('Failed to save page settings: ' + error.message, 'error');
+        }
+    }
+
+    // Subscriber management methods
+    openSubscriberModal() {
+        const modalHTML = `
+            <div id="subscriberModal" class="modal-overlay">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Add New Subscriber</h2>
+                        <button class="modal-close" onclick="adminDashboard.closeModal('subscriberModal')">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="subscriberForm">
+                            <div class="form-group">
+                                <label for="subscriberEmail">Email Address</label>
+                                <input type="email" id="subscriberEmail" placeholder="user@example.com" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="subscriberName">Name (Optional)</label>
+                                <input type="text" id="subscriberName" placeholder="John Doe">
+                            </div>
+                            <div class="form-group">
+                                <label for="subscriberServices">Services to Subscribe</label>
+                                <div id="subscriberServicesList" class="checkbox-list">
+                                    <!-- Services will be loaded here -->
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="subscriberActive" checked> Active subscription
+                                </label>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn-secondary" onclick="adminDashboard.closeModal('subscriberModal')">Cancel</button>
+                                <button type="submit" class="btn-primary">Add Subscriber</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        // Load services for the checkbox list
+        this.loadServicesForSubscriberModal();
+        
+        // Add form submission handler
+        document.getElementById('subscriberForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleSubscriberSubmit();
+        });
+    }
+
+    async loadServicesForSubscriberModal() {
+        try {
+            const response = await fetch('/api/v1/admin/services', { credentials: 'include' });
+            if (response.ok) {
+                const data = await response.json();
+                const services = data.services || [];
+                
+                const servicesList = document.getElementById('subscriberServicesList');
+                servicesList.innerHTML = services.map(service => `
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="services" value="${service.ID}">
+                        ${service.Name}
+                    </label>
+                `).join('');
+            }
+        } catch (error) {
+            console.error('Error loading services for subscriber modal:', error);
+        }
+    }
+
+    async handleSubscriberSubmit() {
+        const email = document.getElementById('subscriberEmail').value;
+        const name = document.getElementById('subscriberName').value;
+        const active = document.getElementById('subscriberActive').checked;
+        
+        // Get selected services
+        const selectedServices = Array.from(document.querySelectorAll('input[name="services"]:checked'))
+            .map(checkbox => checkbox.value);
+        
+        try {
+            const response = await fetch('/api/v1/admin/subscribers', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    email: email,
+                    name: name,
+                    active: active,
+                    service_ids: selectedServices
+                })
+            });
+            
+            if (response.ok) {
+                this.showNotification('Subscriber added successfully', 'success');
+                this.closeModal('subscriberModal');
+                // Reload the subscribers section
+                const contentDiv = document.getElementById('subscribers-content');
+                if (contentDiv) {
+                    await this.loadSubscribersSection(contentDiv);
+                }
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error adding subscriber:', error);
+            this.showNotification('Failed to add subscriber: ' + error.message, 'error');
+        }
+    }
+
+    // User management methods
+    openUserModal() {
+        const modalHTML = `
+            <div id="userModal" class="modal-overlay">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Add New User</h2>
+                        <button class="modal-close" onclick="adminDashboard.closeModal('userModal')">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="userForm">
+                            <div class="form-group">
+                                <label for="userEmail">Email Address</label>
+                                <input type="email" id="userEmail" placeholder="user@example.com" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="userName">Full Name</label>
+                                <input type="text" id="userName" placeholder="John Doe" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="userPassword">Password</label>
+                                <input type="password" id="userPassword" placeholder="Enter password" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="userRole">Role</label>
+                                <select id="userRole" required>
+                                    <option value="admin">Admin</option>
+                                    <option value="user">User</option>
+                                    <option value="viewer">Viewer</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="userActive" checked> Active user
+                                </label>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn-secondary" onclick="adminDashboard.closeModal('userModal')">Cancel</button>
+                                <button type="submit" class="btn-primary">Add User</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        // Add form submission handler
+        document.getElementById('userForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleUserSubmit();
+        });
+    }
+
+    async handleUserSubmit() {
+        const email = document.getElementById('userEmail').value;
+        const name = document.getElementById('userName').value;
+        const password = document.getElementById('userPassword').value;
+        const role = document.getElementById('userRole').value;
+        const active = document.getElementById('userActive').checked;
+        
+        try {
+            const response = await fetch('/api/v1/admin/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    email: email,
+                    name: name,
+                    password: password,
+                    role: role,
+                    active: active
+                })
+            });
+            
+            if (response.ok) {
+                this.showNotification('User added successfully', 'success');
+                this.closeModal('userModal');
+                // Reload the users section
+                const contentDiv = document.getElementById('users-content');
+                if (contentDiv) {
+                    await this.loadUsersSection(contentDiv);
+                }
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error adding user:', error);
+            this.showNotification('Failed to add user: ' + error.message, 'error');
+        }
+    }
+
+    // Integration management methods
+    configureIntegration(integrationType) {
+        console.log('Configure integration:', integrationType);
+        
+        // Create a modal for integration configuration
+        const modalHTML = `
+            <div id="integrationModal" class="modal-overlay">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Configure ${integrationType.charAt(0).toUpperCase() + integrationType.slice(1)} Integration</h2>
+                        <button class="modal-close" onclick="adminDashboard.closeModal('integrationModal')">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="integrationForm">
+                            <div class="form-group">
+                                <label for="integrationName">Integration Name</label>
+                                <input type="text" id="integrationName" value="${integrationType}" readonly class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label for="webhookUrl">Webhook URL</label>
+                                <input type="url" id="webhookUrl" placeholder="https://hooks.slack.com/services/..." class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label for="apiKey">API Key</label>
+                                <input type="password" id="apiKey" placeholder="Enter API key" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label for="channel">Channel/Endpoint</label>
+                                <input type="text" id="channel" placeholder="#general or endpoint name" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="enabled" checked> Enable integration
+                                </label>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn-secondary" onclick="adminDashboard.closeModal('integrationModal')">Cancel</button>
+                                <button type="submit" class="btn-primary">Save Configuration</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        // Add form submission handler
+        document.getElementById('integrationForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleIntegrationSubmit(integrationType);
+        });
+
+        // Add click outside to close functionality
+        const modal = document.getElementById('integrationModal');
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeModal('integrationModal');
+            }
+        });
+    }
+
+    async handleIntegrationSubmit(integrationType) {
+        const webhookUrl = document.getElementById('webhookUrl').value;
+        const apiKey = document.getElementById('apiKey').value;
+        const channel = document.getElementById('channel').value;
+        const enabled = document.getElementById('enabled').checked;
+        
+        try {
+            const response = await fetch('/api/v1/admin/integrations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    type: integrationType,
+                    webhook_url: webhookUrl,
+                    api_key: apiKey,
+                    channel: channel,
+                    enabled: enabled
+                })
+            });
+            
+            if (response.ok) {
+                this.showNotification(`${integrationType.charAt(0).toUpperCase() + integrationType.slice(1)} integration configured successfully`, 'success');
+                this.closeModal('integrationModal');
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error configuring integration:', error);
+            this.showNotification('Failed to configure integration: ' + error.message, 'error');
+        }
+    }
+
     async loadUsersSection(contentDiv) {
+        // Hide the loading spinner
+        const loadingSpinner = document.getElementById('users-loading');
+        if (loadingSpinner) {
+            loadingSpinner.style.display = 'none';
+        }
+
         try {
             const response = await fetch('/api/v1/admin/users', { credentials: 'include' });
             const users = await response.json();
             
             contentDiv.innerHTML = `
                 <div class="section-actions">
-                    <button class="btn-primary" onclick="adminDashboard.openModal('userModal')">
+                    <button class="btn-primary" onclick="adminDashboard.openUserModal()">
                         <i class="fas fa-plus"></i> Add User
                     </button>
                 </div>
@@ -1115,6 +2582,12 @@ class AdminDashboard {
                 </div>
             `;
         } catch (error) {
+            // Hide the loading spinner
+            const loadingSpinner = document.getElementById('users-loading');
+            if (loadingSpinner) {
+                loadingSpinner.style.display = 'none';
+            }
+            
             contentDiv.innerHTML = `<div class="error-state">Failed to load users: ${error.message}</div>`;
         }
     }
@@ -1207,14 +2680,26 @@ class AdminDashboard {
             this.loadComponentsSection(contentDiv);
         }
     }
-}
 
-// Initialize the dashboard when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM loaded, initializing AdminDashboard...');
-    window.adminDashboard = new AdminDashboard();
-    console.log('AdminDashboard initialized');
-});
+    formatTimeAgo(dateString) {
+        const now = new Date();
+        const date = new Date(dateString);
+        const diffInSeconds = Math.floor((now - date) / 1000);
+        
+        if (diffInSeconds < 60) {
+            return `${diffInSeconds} seconds ago`;
+        } else if (diffInSeconds < 3600) {
+            const minutes = Math.floor(diffInSeconds / 60);
+            return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+        } else if (diffInSeconds < 86400) {
+            const hours = Math.floor(diffInSeconds / 3600);
+            return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+        } else {
+            const days = Math.floor(diffInSeconds / 86400);
+            return `${days} day${days > 1 ? 's' : ''} ago`;
+        }
+    }
+}
 
 // Export for global access
 window.AdminDashboard = AdminDashboard;

@@ -583,5 +583,12 @@
     </div>
 
     <script src="/static/admin.js"></script>
+    <script>
+        // Initialize the admin dashboard when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, initializing AdminDashboard...');
+            window.adminDashboard = new AdminDashboard();
+        });
+    </script>
 </body>
 </html>

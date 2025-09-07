@@ -1,0 +1,86 @@
+{
+  "default_gateway": "stripe",
+  "currency": "USD",
+  "retry_settings": {
+    "max_retries": 5,
+    "retry_interval": 24,
+    "backoff_factor": 1.5,
+    "max_retry_days": 7
+  },
+  "webhook_settings": {
+    "timeout_seconds": 30,
+    "max_retries": 3,
+    "retry_interval": 60,
+    "secret_key": ""
+  },
+  "gateways": [
+    {
+      "name": "stripe",
+      "type": "stripe",
+      "is_enabled": true,
+      "is_default": true,
+      "credentials": {
+        "secret_key": "",
+        "publishable_key": "",
+        "webhook_secret": ""
+      },
+      "settings": {
+        "api_version": "2023-10-16",
+        "test_mode": "true"
+      },
+      "supported_methods": ["card", "upi", "netbanking", "wallet"],
+      "webhook_url": "/api/v1/webhooks/stripe"
+    },
+    {
+      "name": "razorpay",
+      "type": "razorpay",
+      "is_enabled": true,
+      "is_default": false,
+      "credentials": {
+        "key_id": "",
+        "key_secret": "",
+        "webhook_secret": ""
+      },
+      "settings": {
+        "api_version": "v1",
+        "test_mode": "true"
+      },
+      "supported_methods": ["card", "upi", "netbanking", "wallet", "emi"],
+      "webhook_url": "/api/v1/webhooks/razorpay"
+    },
+    {
+      "name": "payu",
+      "type": "payu",
+      "is_enabled": true,
+      "is_default": false,
+      "credentials": {
+        "merchant_key": "",
+        "merchant_salt": "",
+        "webhook_secret": ""
+      },
+      "settings": {
+        "api_version": "v1",
+        "test_mode": "true"
+      },
+      "supported_methods": ["card", "upi", "netbanking", "wallet"],
+      "webhook_url": "/api/v1/webhooks/payu"
+    },
+    {
+      "name": "paypal",
+      "type": "paypal",
+      "is_enabled": true,
+      "is_default": false,
+      "credentials": {
+        "client_id": "",
+        "client_secret": "",
+        "webhook_id": ""
+      },
+      "settings": {
+        "api_version": "v2",
+        "test_mode": "true"
+      },
+      "supported_methods": ["card", "paypal"],
+      "webhook_url": "/api/v1/webhooks/paypal"
+    }
+  ]
+}

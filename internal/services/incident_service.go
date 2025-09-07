@@ -38,3 +38,21 @@ func (s *IncidentService) GetIncidentByID(id uint) (*models.Incident, error) {
 	}
 	return &incident, nil
 }
+
+// GetIncidentsByTenantID retrieves all incidents for a specific tenant
+func (s *IncidentService) GetIncidentsByTenantID(tenantID uint) ([]models.Incident, error) {
+	var incidents []models.Incident
+	if err := database.DB.Where("tenant_id = ?", tenantID).Preload("Services").Order("created_at DESC").Find(&incidents).Error; err != nil {
+		return nil, err
+	}
+	return incidents, nil
+}
+
+// GetActiveIncidentsByTenantID retrieves active incidents for a specific tenant
+func (s *IncidentService) GetActiveIncidentsByTenantID(tenantID uint) ([]models.Incident, error) {
+	var incidents []models.Incident
+	if err := database.DB.Where("tenant_id = ? AND status IN ?", tenantID, []string{"investigating", "identified", "monitoring"}).Preload("Services").Order("created_at DESC").Find(&incidents).Error; err != nil {
+		return nil, err
+	}
+	return incidents, nil
+}

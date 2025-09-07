@@ -392,3 +392,21 @@ func (s *BrandingService) GetBrandingAnalytics(tenantID uint, days int) ([]Brand
 
 	return analytics, err
 }
+
+// GetBrandingByTenantID retrieves branding information for a specific tenant
+func (s *BrandingService) GetBrandingByTenantID(tenantID uint) (*models.Branding, error) {
+	var branding models.Branding
+	if err := s.db.Where("tenant_id = ?", tenantID).First(&branding).Error; err != nil {
+		return nil, err
+	}
+	return &branding, nil
+}
+
+// UpdateBranding updates branding information for a tenant
+func (s *BrandingService) UpdateBranding(branding *models.Branding) error {
+	if err := s.db.Save(branding).Error; err != nil {
+		logger.Error("Failed to update branding", zap.Error(err))
+		return err
+	}
+	return nil
+}

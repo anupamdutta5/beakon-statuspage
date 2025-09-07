@@ -72,6 +72,23 @@ func (s *SubscriberService) GetAllSubscribers() ([]models.Subscriber, error) {
 	return subscribers, nil
 }
 
+// GetSubscribersByTenantID retrieves all subscribers for a specific tenant
+func (s *SubscriberService) GetSubscribersByTenantID(tenantID uint) ([]models.Subscriber, error) {
+	var subscribers []models.Subscriber
+	if err := database.DB.Where("tenant_id = ?", tenantID).Preload("Services").Find(&subscribers).Error; err != nil {
+		return nil, err
+	}
+	return subscribers, nil
+}
+
+// CreateSubscriber creates a new subscriber
+func (s *SubscriberService) CreateSubscriber(subscriber *models.Subscriber) error {
+	if err := database.DB.Create(subscriber).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
 // GetSubscribersForServices returns all subscribers for a given list of service IDs.
 func (s *SubscriberService) GetSubscribersForServices(serviceIDs []uint) ([]models.Subscriber, error) {
 	var subscribers []models.Subscriber

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="page-title">Status Page</title>
+    <link rel="stylesheet" href="/static/tenant-status.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <meta name="description" content="Real-time status updates and incident reports">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <img id="logo" src="" alt="Logo" style="display: none;">
+                    <h1 id="company-name">Company Name</h1>
+                </div>
+                <div class="header-actions">
+                    <a href="/admin" class="admin-link">
+                        <i class="fas fa-cog"></i> Admin
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+        <div class="container">
+            <!-- Status Overview -->
+            <section class="status-overview">
+                <div class="status-indicator" id="overall-status">
+                    <div class="status-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="status-text">
+                        <h2>All Systems Operational</h2>
+                        <p>All services are running normally</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Services Status -->
+            <section class="services-section">
+                <h2>Services</h2>
+                <div class="services-grid" id="services-grid">
+                    <!-- Services will be loaded here -->
+                </div>
+            </section>
+
+            <!-- Incidents -->
+            <section class="incidents-section">
+                <h2>Recent Incidents</h2>
+                <div class="incidents-list" id="incidents-list">
+                    <!-- Incidents will be loaded here -->
+                </div>
+            </section>
+
+            <!-- Maintenance -->
+            <section class="maintenance-section">
+                <h2>Scheduled Maintenance</h2>
+                <div class="maintenance-list" id="maintenance-list">
+                    <!-- Maintenance will be loaded here -->
+                </div>
+            </section>
+
+            <!-- Subscribe -->
+            <section class="subscribe-section">
+                <div class="subscribe-card">
+                    <h3>Stay Updated</h3>
+                    <p>Get notified when we post status updates</p>
+                    <form id="subscribe-form" class="subscribe-form">
+                        <input type="email" id="email" name="email" placeholder="Enter your email" required>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-bell"></i> Subscribe
+                        </button>
+                    </form>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-left">
+                    <p id="footer-text">© 2024 Company Name. All rights reserved.</p>
+                </div>
+                <div class="footer-right">
+                    <div class="uptime-stats">
+                        <span class="uptime-label">Uptime (30 days):</span>
+                        <span class="uptime-value" id="uptime-value">99.9%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Incident Modal -->
+    <div id="incident-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="incident-modal-title">Incident Details</h3>
+                <button class="modal-close" onclick="closeIncidentModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="incident-modal-body">
+                <!-- Incident details will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div id="notification" class="notification">
+        <i class="fas fa-check-circle"></i>
+        <span id="notification-text">Success!</span>
+    </div>
+
+    <script src="/static/tenant-status.js"></script>
+</body>
+</html>

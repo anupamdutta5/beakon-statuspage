@@ -51,3 +51,12 @@ func (s *StatusService) UpdateService(service *models.Service) (*models.Service,
 func (s *StatusService) DeleteService(id uint) error {
 	return database.DB.Delete(&models.Service{}, id).Error
 }
+
+// GetServicesByTenantID retrieves all services for a specific tenant.
+func (s *StatusService) GetServicesByTenantID(tenantID uint) ([]models.Service, error) {
+	var services []models.Service
+	if err := database.DB.Where("tenant_id = ?", tenantID).Find(&services).Error; err != nil {
+		return nil, err
+	}
+	return services, nil
+}

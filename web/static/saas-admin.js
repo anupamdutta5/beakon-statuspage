@@ -9,8 +9,65 @@ class SaaSAdminDashboard {
 
     init() {
         this.setupEventListeners();
-        this.loadOverviewData();
         this.setupModals();
+        
+        // Check authentication first
+        this.checkAuthentication().then(() => {
+            // Check for initial hash and navigate accordingly
+            setTimeout(() => {
+                const initialHash = window.location.hash.substring(1);
+                console.log('Initial hash:', initialHash);
+                
+                if (initialHash && initialHash !== 'overview') {
+                    // Navigate to the specified section
+                    this.showSection(initialHash);
+                } else {
+                    // Default to overview
+                    this.loadOverviewData();
+                }
+            }, 100);
+        }).catch(() => {
+            // Redirect to login if not authenticated
+            window.location.href = '/admin/login';
+        });
+    }
+
+    async checkAuthentication() {
+        try {
+            const response = await fetch('/api/v1/admin/saas/admin/settings', { 
+                credentials: 'include',
+                method: 'GET'
+            });
+            
+            if (response.status === 401 || response.status === 403) {
+                throw new Error('Not authenticated');
+            }
+            
+            return true;
+        } catch (error) {
+            console.error('Authentication check failed:', error);
+            throw error;
+        }
+    }
+
+    async authenticatedFetch(url, options = {}) {
+        const defaultOptions = {
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        };
+
+        const response = await fetch(url, { ...defaultOptions, ...options });
+        
+        if (response.status === 401 || response.status === 403) {
+            // Redirect to login if not authenticated
+            window.location.href = '/admin/login';
+            throw new Error('Authentication required');
+        }
+        
+        return response;
     }
 
     setupEventListeners() {
@@ -39,6 +96,22 @@ class SaaSAdminDashboard {
                 sidebar.classList.toggle('open');
             });
         }
+
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth <= 768 && sidebar.classList.contains('open')) {
+                if (!sidebar.contains(e.target) && !sidebarToggle.contains(e.target)) {
+                    sidebar.classList.remove('open');
+                }
+            }
+        });
+
+        // Close sidebar when window is resized to desktop size
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768) {
+                sidebar.classList.remove('open');
+            }
+        });
 
         // Quick action buttons
         document.getElementById('createTenantBtn')?.addEventListener('click', () => {
@@ -96,6 +169,18 @@ class SaaSAdminDashboard {
         document.getElementById('analyticsDateRange')?.addEventListener('change', (e) => {
             this.loadAnalyticsData();
         });
+
+        // Handle hash changes (for refresh navigation)
+        window.addEventListener('hashchange', (e) => {
+            const newHash = window.location.hash.substring(1);
+            console.log('Hash changed to:', newHash);
+            if (newHash) {
+                this.showSection(newHash);
+            } else {
+                // If no hash, go to overview
+                this.loadOverviewData();
+            }
+        });
     }
 
     setupModals() {
@@ -120,6 +205,12 @@ class SaaSAdminDashboard {
     }
 
     showSection(section) {
+        // Update URL hash
+        if (window.location.hash !== `#${section}`) {
+            window.location.hash = `#${section}`;
+            console.log('Updated URL hash to:', `#${section}`);
+        }
+
         // Hide all sections (both dashboard-content and content-section)
         document.querySelectorAll('.dashboard-content, .content-section').forEach(content => {
             content.style.display = 'none';
@@ -237,7 +328,7 @@ class SaaSAdminDashboard {
 
     async loadOverviewMetrics() {
         try {
-            const response = await fetch('/api/v1/saas/admin/metrics', { credentials: 'include' });
+            const response = await fetch('/api/v1/admin/saas/admin/metrics', { credentials: 'include' });
             const metrics = await response.json();
 
             document.getElementById('totalTenants').textContent = metrics.total_tenants || 0;
@@ -251,7 +342,7 @@ class SaaSAdminDashboard {
 
     async loadRecentActivity() {
         try {
-            const response = await fetch('/api/v1/saas/admin/activity', { credentials: 'include' });
+            const response = await fetch('/api/v1/admin/saas/admin/activity', { credentials: 'include' });
             const activities = await response.json();
 
             const activityList = document.getElementById('recentActivityList');
@@ -310,7 +401,7 @@ class SaaSAdminDashboard {
 
     async loadPlanDistribution() {
         try {
-            const response = await fetch('/api/v1/saas/admin/plan-distribution', { credentials: 'include' });
+            const response = await fetch('/api/v1/admin/saas/admin/plan-distribution', { credentials: 'include' });
             const distribution = await response.json();
 
             const planStats = document.getElementById('planStats');
@@ -352,7 +443,7 @@ class SaaSAdminDashboard {
 
     async loadOverviewCharts() {
         try {
-            const response = await fetch('/api/v1/saas/admin/charts/overview', { credentials: 'include' });
+            const response = await fetch('/api/v1/admin/saas/admin/charts/overview', { credentials: 'include' });
             const chartData = await response.json();
 
             this.createRevenueChart(chartData.revenue);
@@ -443,13 +534,25 @@ class SaaSAdminDashboard {
     }
 
     async loadTenantsData() {
-        // Mock tenants data
-        const mockTenants = [
-            { id: 1, name: "Acme Corp", domain: "acme.statuspage.com", status: "active", created_at: "2025-01-01T00:00:00Z" },
-            { id: 2, name: "TechStart Inc", domain: "techstart.statuspage.com", status: "active", created_at: "2025-01-02T00:00:00Z" }
-        ];
-
-        this.renderTenantsTable(mockTenants);
+        try {
+            const response = await this.authenticatedFetch('/api/v1/admin/saas/admin/tenants');
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            const data = await response.json();
+            const tenants = data.tenants || [];
+            this.renderTenantsTable(tenants);
+        } catch (error) {
+            console.error('Error loading tenants:', error);
+            const table = document.getElementById('tenantsTable');
+            if (table) {
+                table.innerHTML = `<div class="error-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>Error loading tenants data. Please try again.</p>
+                    <button class="btn-primary" onclick="saasAdmin.loadTenantsData()">Retry</button>
+                </div>`;
+            }
+        }
     }
 
     renderTenantsTable(tenants) {
@@ -479,34 +582,34 @@ class SaaSAdminDashboard {
     createTenantRow(tenant) {
         const row = document.createElement('tr');
         
-        const createdAt = new Date(tenant.created_at).toLocaleDateString();
+        const createdAt = new Date(tenant.CreatedAt).toLocaleDateString();
         
         row.innerHTML = `
             <td>
                 <div class="tenant-info">
-                    <strong>${tenant.name}</strong>
-                    <small>${tenant.contact_email}</small>
+                    <strong>${tenant.Name}</strong>
+                    <small>${tenant.ContactEmail || tenant.BillingEmail || 'No email'}</small>
                 </div>
             </td>
             <td>
-                <code>${tenant.slug}</code>
+                <code>${tenant.Slug}</code>
             </td>
             <td>
-                <span class="plan-badge ${tenant.plan}">${tenant.plan}</span>
+                <span class="plan-badge ${tenant.Plan}">${tenant.Plan}</span>
             </td>
             <td>
-                <span class="status-badge ${tenant.status}">${tenant.status}</span>
+                <span class="status-badge ${tenant.Status}">${tenant.Status}</span>
             </td>
             <td>${createdAt}</td>
             <td>
                 <div class="action-buttons">
-                    <button class="action-btn edit" onclick="saasAdmin.editTenant(${tenant.id})">
+                    <button class="action-btn edit" onclick="saasAdmin.editTenant(${tenant.ID})">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="action-btn suspend" onclick="saasAdmin.suspendTenant(${tenant.id})">
+                    <button class="action-btn suspend" onclick="saasAdmin.suspendTenant(${tenant.ID})">
                         <i class="fas fa-ban"></i>
                     </button>
-                    <button class="action-btn delete" onclick="saasAdmin.deleteTenant(${tenant.id})">
+                    <button class="action-btn delete" onclick="saasAdmin.deleteTenant(${tenant.ID})">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -537,13 +640,25 @@ class SaaSAdminDashboard {
     }
 
     async loadSubscriptionsData() {
-        // Mock subscriptions data
-        const mockSubscriptions = [
-            { id: 1, tenant_name: "Acme Corp", plan_name: "Pro", status: "active", created_at: "2025-01-01T00:00:00Z" },
-            { id: 2, tenant_name: "TechStart Inc", plan_name: "Basic", status: "active", created_at: "2025-01-02T00:00:00Z" }
-        ];
-
-        this.renderSubscriptionsTable(mockSubscriptions);
+        try {
+            const response = await fetch('/api/v1/admin/saas/admin/subscriptions', { credentials: 'include' });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            const data = await response.json();
+            const subscriptions = data.subscriptions || [];
+            this.renderSubscriptionsTable(subscriptions);
+        } catch (error) {
+            console.error('Error loading subscriptions:', error);
+            const table = document.getElementById('subscriptionsTable');
+            if (table) {
+                table.innerHTML = `<div class="error-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>Error loading subscriptions data. Please try again.</p>
+                    <button class="btn-primary" onclick="saasAdmin.loadSubscriptionsData()">Retry</button>
+                </div>`;
+            }
+        }
     }
 
     renderSubscriptionsTable(subscriptions) {
@@ -573,30 +688,30 @@ class SaaSAdminDashboard {
     createSubscriptionRow(subscription) {
         const row = document.createElement('tr');
         
-        const nextBilling = subscription.current_period_end ? 
-            new Date(subscription.current_period_end).toLocaleDateString() : 'N/A';
+        const nextBilling = subscription.CurrentPeriodEnd ? 
+            new Date(subscription.CurrentPeriodEnd).toLocaleDateString() : 'N/A';
         
         row.innerHTML = `
             <td>
                 <div class="tenant-info">
-                    <strong>${subscription.tenant_name}</strong>
-                    <small>${subscription.tenant_slug}</small>
+                    <strong>${subscription.Tenant?.Name || 'Unknown Tenant'}</strong>
+                    <small>${subscription.Tenant?.Slug || 'No slug'}</small>
                 </div>
             </td>
             <td>
-                <span class="plan-badge ${subscription.plan_slug}">${subscription.plan_name}</span>
+                <span class="plan-badge ${subscription.Plan?.Slug || 'unknown'}">${subscription.Plan?.Name || 'Unknown Plan'}</span>
             </td>
             <td>
-                <span class="status-badge ${subscription.status}">${subscription.status}</span>
+                <span class="status-badge ${subscription.Status}">${subscription.Status}</span>
             </td>
-            <td>$${subscription.plan_price}</td>
+            <td>$${subscription.Plan?.Price || 0}</td>
             <td>${nextBilling}</td>
             <td>
                 <div class="action-buttons">
-                    <button class="action-btn edit" onclick="saasAdmin.editSubscription(${subscription.id})">
+                    <button class="action-btn edit" onclick="saasAdmin.editSubscription(${subscription.ID})">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="action-btn suspend" onclick="saasAdmin.cancelSubscription(${subscription.id})">
+                    <button class="action-btn suspend" onclick="saasAdmin.cancelSubscription(${subscription.ID})">
                         <i class="fas fa-ban"></i>
                     </button>
                 </div>
@@ -607,14 +722,32 @@ class SaaSAdminDashboard {
     }
 
     async loadPlansData() {
-        // Mock plans data
-        const mockPlans = [
-            { id: 1, name: "Basic", price: 9.99, features: ["1 Status Page", "Email Notifications"], status: "active" },
-            { id: 2, name: "Pro", price: 29.99, features: ["5 Status Pages", "Email & SMS", "Custom Domain"], status: "active" },
-            { id: 3, name: "Enterprise", price: 99.99, features: ["Unlimited Pages", "All Notifications", "White Label"], status: "active" }
-        ];
-
-        this.renderPlansGrid(mockPlans);
+        try {
+            const response = await fetch('/api/v1/admin/saas/admin/plans', { credentials: 'include' });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            const plans = data.plans || [];
+            
+            this.renderPlansGrid(plans);
+        } catch (error) {
+            console.error('Error loading plans:', error);
+            
+            // Show error state
+            const grid = document.getElementById('plansGrid');
+            if (grid) {
+                grid.innerHTML = `
+                    <div class="error-state">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <h3>Error loading plans data</h3>
+                        <p>Please try again</p>
+                        <button class="btn-primary" onclick="saasAdmin.loadPlansData()">Retry</button>
+                    </div>
+                `;
+            }
+        }
     }
 
     renderPlansGrid(plans) {
@@ -643,38 +776,53 @@ class SaaSAdminDashboard {
         const card = document.createElement('div');
         card.className = 'plan-card';
         
-        if (plan.slug === 'pro') {
+        if (plan.Slug === 'pro') {
             card.classList.add('popular');
         }
         
-        const features = JSON.parse(plan.features || '[]');
+        // Build features list from boolean fields
+        const features = [];
+        if (plan.CustomDomain) features.push('Custom Domain');
+        if (plan.WhiteLabel) features.push('White Label');
+        if (plan.API) features.push('API Access');
+        if (plan.Integrations) features.push('Integrations');
+        if (plan.Analytics) features.push('Analytics');
+        
         const featuresList = features.map(feature => 
-            `<li><i class="fas fa-check"></i> ${feature.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</li>`
+            `<li><i class="fas fa-check"></i> ${feature}</li>`
         ).join('');
         
         card.innerHTML = `
             <div class="plan-header">
-                <h3 class="plan-name">${plan.name}</h3>
+                <h3 class="plan-name">${plan.Name}</h3>
                 <div class="plan-price">
-                    <span class="currency">$</span>${plan.price}
-                    <span class="period">/${plan.billing_interval}</span>
+                    <span class="currency">$</span>${plan.Price}
+                    <span class="period">/${plan.BillingInterval}</span>
                 </div>
-                <p class="plan-description">${plan.description}</p>
+                <p class="plan-description">${plan.Description || 'No description available'}</p>
             </div>
             
             <div class="plan-limits">
                 <h4>Limits</h4>
                 <div class="limit">
                     <span>Services</span>
-                    <span>${plan.max_services === -1 ? 'Unlimited' : plan.max_services}</span>
+                    <span>${plan.MaxServices === -1 ? 'Unlimited' : plan.MaxServices}</span>
                 </div>
                 <div class="limit">
                     <span>Monitors</span>
-                    <span>${plan.max_monitors === -1 ? 'Unlimited' : plan.max_monitors}</span>
+                    <span>${plan.MaxMonitors === -1 ? 'Unlimited' : plan.MaxMonitors}</span>
                 </div>
                 <div class="limit">
                     <span>Subscribers</span>
-                    <span>${plan.max_subscribers === -1 ? 'Unlimited' : plan.max_subscribers}</span>
+                    <span>${plan.MaxSubscribers === -1 ? 'Unlimited' : plan.MaxSubscribers}</span>
+                </div>
+                <div class="limit">
+                    <span>Incidents</span>
+                    <span>${plan.MaxIncidents === -1 ? 'Unlimited' : plan.MaxIncidents}</span>
+                </div>
+                <div class="limit">
+                    <span>Maintenance</span>
+                    <span>${plan.MaxMaintenance === -1 ? 'Unlimited' : plan.MaxMaintenance}</span>
                 </div>
             </div>
             
@@ -683,11 +831,14 @@ class SaaSAdminDashboard {
             </ul>
             
             <div class="plan-actions">
-                <button class="btn-secondary" onclick="saasAdmin.editPlan(${plan.id})">
+                <button class="btn-secondary" onclick="saasAdmin.editPlan(${plan.ID})">
                     <i class="fas fa-edit"></i> Edit Plan
                 </button>
-                <button class="btn-primary" onclick="saasAdmin.duplicatePlan(${plan.id})">
+                <button class="btn-primary" onclick="saasAdmin.duplicatePlan(${plan.ID})">
                     <i class="fas fa-copy"></i> Duplicate
+                </button>
+                <button class="btn-danger" onclick="saasAdmin.deletePlan(${plan.ID})">
+                    <i class="fas fa-trash"></i> Delete
                 </button>
             </div>
         `;
@@ -696,21 +847,34 @@ class SaaSAdminDashboard {
     }
 
     async loadBillingData() {
-        // Mock billing data
-        const mockStats = {
-            totalRevenue: 1250.00,
-            monthlyRecurringRevenue: 1250.00,
-            activeSubscriptions: 15,
-            churnRate: 2.5
-        };
-        
-        const mockEvents = [
-            { id: 1, tenant_name: "Acme Corp", amount: 29.99, type: "subscription", created_at: "2025-01-07T10:00:00Z" },
-            { id: 2, tenant_name: "TechStart Inc", amount: 9.99, type: "subscription", created_at: "2025-01-07T09:00:00Z" }
-        ];
+        try {
+            // Load billing stats
+            const statsResponse = await fetch('/api/v1/admin/saas/admin/billing/stats', { credentials: 'include' });
+            if (!statsResponse.ok) {
+                throw new Error(`HTTP ${statsResponse.status}: ${statsResponse.statusText}`);
+            }
+            const statsData = await statsResponse.json();
+            this.renderBillingStats(statsData.stats);
 
-        this.renderBillingStats(mockStats);
-        this.renderBillingEvents(mockEvents);
+            // Load billing events
+            const eventsResponse = await fetch('/api/v1/admin/saas/admin/billing/events', { credentials: 'include' });
+            if (!eventsResponse.ok) {
+                throw new Error(`HTTP ${eventsResponse.status}: ${eventsResponse.statusText}`);
+            }
+            const eventsData = await eventsResponse.json();
+            this.renderBillingEvents(eventsData.events);
+
+        } catch (error) {
+            console.error('Error loading billing data:', error);
+            const content = document.getElementById('billing-content');
+            if (content) {
+                content.innerHTML = `<div class="error-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>Error loading billing data. Please try again.</p>
+                    <button class="btn-primary" onclick="saasAdmin.loadBillingData()">Retry</button>
+                </div>`;
+            }
+        }
     }
 
     renderBillingStats(stats) {
@@ -768,16 +932,28 @@ class SaaSAdminDashboard {
     }
 
     async loadAnalyticsData() {
-        // Mock analytics data
-        const mockAnalytics = {
-            usage_metrics: { total_tenants: 15, active_tenants: 12, total_revenue: 1250.00 },
-            api_usage: { requests: 15000, errors: 25, avg_response_time: 120 },
-            page_views: { total: 50000, unique: 2500, bounce_rate: 35.5 }
-        };
-
-        this.createUsageMetricsChart(mockAnalytics.usage_metrics);
-        this.createApiUsageChart(mockAnalytics.api_usage);
-        this.createPageViewsChart(mockAnalytics.page_views);
+        try {
+            const response = await this.authenticatedFetch('/api/v1/admin/saas/admin/analytics');
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            const data = await response.json();
+            const analytics = data.analytics;
+            
+            this.createUsageMetricsChart(analytics.usage_metrics);
+            this.createApiUsageChart(analytics.api_usage);
+            this.createPageViewsChart(analytics.page_views);
+        } catch (error) {
+            console.error('Error loading analytics:', error);
+            const content = document.getElementById('analytics-content');
+            if (content) {
+                content.innerHTML = `<div class="error-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>Error loading analytics data. Please try again.</p>
+                    <button class="btn-primary" onclick="saasAdmin.loadAnalyticsData()">Retry</button>
+                </div>`;
+            }
+        }
     }
 
     createUsageMetricsChart(data) {
@@ -788,45 +964,65 @@ class SaaSAdminDashboard {
             this.charts.usageMetrics.destroy();
         }
 
+        // Create simple bar chart with the actual data
         this.charts.usageMetrics = new Chart(ctx, {
-            type: 'line',
+            type: 'bar',
             data: {
-                labels: data.labels || [],
-                datasets: [
-                    {
-                        label: 'Services',
-                        data: data.services || [],
-                        borderColor: '#667eea',
-                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                        tension: 0.4
-                    },
-                    {
-                        label: 'Monitors',
-                        data: data.monitors || [],
-                        borderColor: '#4facfe',
-                        backgroundColor: 'rgba(79, 172, 254, 0.1)',
-                        tension: 0.4
-                    },
-                    {
-                        label: 'Subscribers',
-                        data: data.subscribers || [],
-                        borderColor: '#43e97b',
-                        backgroundColor: 'rgba(67, 233, 123, 0.1)',
-                        tension: 0.4
-                    }
-                ]
+                labels: ['Total Tenants', 'Active Tenants', 'Total Services', 'Total Incidents', 'Total Subscribers'],
+                datasets: [{
+                    label: 'Count',
+                    data: [
+                        data.total_tenants || 0,
+                        data.active_tenants || 0,
+                        data.total_services || 0,
+                        data.total_incidents || 0,
+                        data.total_subscribers || 0
+                    ],
+                    backgroundColor: [
+                        '#667eea',
+                        '#4facfe',
+                        '#43e97b',
+                        '#f093fb',
+                        '#f5576c'
+                    ],
+                    borderColor: [
+                        '#667eea',
+                        '#4facfe',
+                        '#43e97b',
+                        '#f093fb',
+                        '#f5576c'
+                    ],
+                    borderWidth: 1
+                }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                aspectRatio: 2,
                 plugins: {
                     legend: {
-                        position: 'top'
+                        display: false
                     }
                 },
                 scales: {
                     y: {
-                        beginAtZero: true
+                        beginAtZero: true,
+                        grid: {
+                            display: true
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                },
+                layout: {
+                    padding: {
+                        top: 10,
+                        bottom: 10,
+                        left: 10,
+                        right: 10
                     }
                 }
             }
@@ -844,14 +1040,14 @@ class SaaSAdminDashboard {
         this.charts.apiUsage = new Chart(ctx, {
             type: 'doughnut',
             data: {
-                labels: data.labels || [],
+                labels: ['Successful Requests', 'Failed Requests'],
                 datasets: [{
-                    data: data.values || [],
+                    data: [
+                        (data.requests || 0) - (data.errors || 0),
+                        data.errors || 0
+                    ],
                     backgroundColor: [
-                        '#667eea',
-                        '#4facfe',
                         '#43e97b',
-                        '#f093fb',
                         '#f5576c'
                     ]
                 }]
@@ -859,9 +1055,18 @@ class SaaSAdminDashboard {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                aspectRatio: 1,
                 plugins: {
                     legend: {
                         position: 'bottom'
+                    }
+                },
+                layout: {
+                    padding: {
+                        top: 10,
+                        bottom: 10,
+                        left: 10,
+                        right: 10
                     }
                 }
             }
@@ -879,18 +1084,31 @@ class SaaSAdminDashboard {
         this.charts.pageViews = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: data.labels || [],
+                labels: ['Total Page Views', 'Unique Visitors', 'Bounce Rate %'],
                 datasets: [{
-                    label: 'Page Views',
-                    data: data.values || [],
-                    backgroundColor: '#f093fb',
-                    borderColor: '#f5576c',
+                    label: 'Count',
+                    data: [
+                        data.total || 0,
+                        data.unique || 0,
+                        data.bounce_rate || 0
+                    ],
+                    backgroundColor: [
+                        '#f093fb',
+                        '#f5576c',
+                        '#667eea'
+                    ],
+                    borderColor: [
+                        '#f093fb',
+                        '#f5576c',
+                        '#667eea'
+                    ],
                     borderWidth: 1
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                aspectRatio: 1.5,
                 plugins: {
                     legend: {
                         display: false
@@ -898,7 +1116,23 @@ class SaaSAdminDashboard {
                 },
                 scales: {
                     y: {
-                        beginAtZero: true
+                        beginAtZero: true,
+                        grid: {
+                            display: true
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                },
+                layout: {
+                    padding: {
+                        top: 10,
+                        bottom: 10,
+                        left: 10,
+                        right: 10
                     }
                 }
             }
@@ -906,28 +1140,29 @@ class SaaSAdminDashboard {
     }
 
     async loadSettingsData() {
-        // Mock settings data
-        const mockSettings = {
-            general: {
-                site_name: "StatusPage SaaS",
-                contact_email: "admin@statuspage.com",
-                max_tenants: 1000
-            },
-            feature_flags: {
-                enable_white_label: true,
-                enable_custom_domains: true,
-                enable_api_access: true
-            },
-            billing: {
-                stripe_public_key: "pk_test_...",
-                stripe_secret_key: "sk_test_...",
-                default_currency: "USD"
+        try {
+            const response = await this.authenticatedFetch('/api/v1/admin/saas/admin/settings');
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-        };
-
-        this.renderGeneralSettings(mockSettings.general);
-        this.renderFeatureFlags(mockSettings.feature_flags);
-        this.renderBillingSettings(mockSettings.billing);
+            const data = await response.json();
+            const settings = data.settings;
+            
+            this.renderGeneralSettings(settings.general);
+            this.renderFeatureFlags(settings.feature_flags);
+            this.renderBillingSettings(settings.billing);
+            this.renderSecuritySettings(settings.security);
+        } catch (error) {
+            console.error('Error loading settings:', error);
+            const content = document.getElementById('settings-content');
+            if (content) {
+                content.innerHTML = `<div class="error-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>Error loading settings data. Please try again.</p>
+                    <button class="btn-primary" onclick="saasAdmin.loadSettingsData()">Retry</button>
+                </div>`;
+            }
+        }
     }
 
     renderGeneralSettings(settings) {
@@ -936,8 +1171,12 @@ class SaaSAdminDashboard {
 
         container.innerHTML = '';
 
-        settings.forEach(setting => {
-            const settingElement = this.createSettingElement(setting);
+        Object.entries(settings).forEach(([key, value]) => {
+            const settingElement = this.createSettingElement({
+                key: key,
+                value: value,
+                type: typeof value === 'boolean' ? 'boolean' : 'text'
+            });
             container.appendChild(settingElement);
         });
     }
@@ -969,8 +1208,12 @@ class SaaSAdminDashboard {
 
         container.innerHTML = '';
 
-        flags.forEach(flag => {
-            const flagElement = this.createFeatureFlagElement(flag);
+        Object.entries(flags).forEach(([key, value]) => {
+            const flagElement = this.createFeatureFlagElement({
+                key: key,
+                value: value,
+                type: 'boolean'
+            });
             container.appendChild(flagElement);
         });
     }
@@ -999,20 +1242,52 @@ class SaaSAdminDashboard {
 
         container.innerHTML = '';
 
-        settings.forEach(setting => {
-            const settingElement = this.createSettingElement(setting);
+        Object.entries(settings).forEach(([key, value]) => {
+            const settingElement = this.createSettingElement({
+                key: key,
+                value: value,
+                type: typeof value === 'boolean' ? 'boolean' : 'text'
+            });
+            container.appendChild(settingElement);
+        });
+    }
+
+    renderSecuritySettings(settings) {
+        const container = document.getElementById('securitySettings');
+        if (!container) return;
+
+        container.innerHTML = '';
+
+        Object.entries(settings).forEach(([key, value]) => {
+            const settingElement = this.createSettingElement({
+                key: key,
+                value: value,
+                type: typeof value === 'boolean' ? 'boolean' : 'text'
+            });
             container.appendChild(settingElement);
         });
     }
 
     async loadNotificationsData() {
-        // Mock notifications data
-        const mockNotifications = [
-            { id: 1, type: "email", status: "active", created_at: "2025-01-01T00:00:00Z" },
-            { id: 2, type: "sms", status: "active", created_at: "2025-01-02T00:00:00Z" }
-        ];
-
-        this.renderNotificationsList(mockNotifications);
+        try {
+            const response = await this.authenticatedFetch('/api/v1/admin/saas/admin/notifications');
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            const data = await response.json();
+            const notifications = data.notifications || [];
+            this.renderNotificationsList(notifications);
+        } catch (error) {
+            console.error('Error loading notifications:', error);
+            const container = document.getElementById('notificationsList');
+            if (container) {
+                container.innerHTML = `<div class="error-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>Error loading notifications data. Please try again.</p>
+                    <button class="btn-primary" onclick="saasAdmin.loadNotificationsData()">Retry</button>
+                </div>`;
+            }
+        }
     }
 
     renderNotificationsList(notifications) {
@@ -1039,25 +1314,201 @@ class SaaSAdminDashboard {
 
     createNotificationElement(notification) {
         const div = document.createElement('div');
-        div.className = `notification-item ${notification.type}`;
+        div.className = `notification-item ${notification.Type} ${notification.IsActive ? 'active' : 'inactive'}`;
 
-        const startDate = new Date(notification.start_at).toLocaleDateString();
-        const endDate = notification.end_at ? new Date(notification.end_at).toLocaleDateString() : 'No end date';
+        const startDate = new Date(notification.StartAt).toLocaleDateString();
+        const endDate = notification.EndAt ? new Date(notification.EndAt).toLocaleDateString() : 'No end date';
+        const createdDate = new Date(notification.CreatedAt).toLocaleDateString();
 
         div.innerHTML = `
             <div class="notification-header">
-                <h4 class="notification-title">${notification.title}</h4>
-                <span class="notification-type ${notification.type}">${notification.type}</span>
+                <h4 class="notification-title">${notification.Title}</h4>
+                <div class="notification-badges">
+                    <span class="notification-type ${notification.Type}">${notification.Type}</span>
+                    <span class="notification-status ${notification.IsActive ? 'active' : 'inactive'}">${notification.IsActive ? 'Active' : 'Inactive'}</span>
+                </div>
             </div>
-            <p class="notification-message">${notification.message}</p>
+            <p class="notification-message">${notification.Message}</p>
             <div class="notification-meta">
-                <span>Start: ${startDate}</span>
-                <span>End: ${endDate}</span>
-                <span>Status: ${notification.is_active ? 'Active' : 'Inactive'}</span>
+                <span><i class="fas fa-calendar"></i> Start: ${startDate}</span>
+                <span><i class="fas fa-calendar"></i> End: ${endDate}</span>
+                <span><i class="fas fa-clock"></i> Created: ${createdDate}</span>
+            </div>
+            <div class="notification-actions">
+                <button class="action-btn edit" onclick="saasAdmin.editNotification(${notification.ID})" title="Edit">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="action-btn toggle" onclick="saasAdmin.toggleNotification(${notification.ID}, ${!notification.IsActive})" title="${notification.IsActive ? 'Deactivate' : 'Activate'}">
+                    <i class="fas fa-${notification.IsActive ? 'pause' : 'play'}"></i>
+                </button>
+                <button class="action-btn delete" onclick="saasAdmin.deleteNotification(${notification.ID})" title="Delete">
+                    <i class="fas fa-trash"></i>
+                </button>
             </div>
         `;
 
         return div;
+    }
+
+    // Notification Management Functions
+    showCreateNotificationForm() {
+        this.openModal('notificationModal');
+    }
+
+    async editNotification(id) {
+        try {
+            const response = await this.authenticatedFetch(`/api/v1/admin/saas/admin/notifications/${id}`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            const data = await response.json();
+            this.showEditNotificationModal(data.notification);
+        } catch (error) {
+            console.error('Error fetching notification:', error);
+            this.showNotification('Failed to fetch notification details', 'error');
+        }
+    }
+
+    showEditNotificationModal(notification) {
+        // Create edit modal if it doesn't exist
+        this.createEditNotificationModal();
+        
+        // Populate the form with notification data
+        document.getElementById('editNotificationTitle').value = notification.Title;
+        document.getElementById('editNotificationMessage').value = notification.Message;
+        document.getElementById('editNotificationType').value = notification.Type;
+        document.getElementById('editNotificationStartAt').value = new Date(notification.StartAt).toISOString().slice(0, 16);
+        document.getElementById('editNotificationEndAt').value = notification.EndAt ? new Date(notification.EndAt).toISOString().slice(0, 16) : '';
+        document.getElementById('editNotificationModal').dataset.notificationId = notification.ID;
+        
+        this.openModal('editNotificationModal');
+    }
+
+    createEditNotificationModal() {
+        if (document.getElementById('editNotificationModal')) return;
+
+        const modal = document.createElement('div');
+        modal.id = 'editNotificationModal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Edit System Notification</h2>
+                    <span class="close-button">&times;</span>
+                </div>
+                <form id="editNotificationForm">
+                    <div class="form-group">
+                        <label for="editNotificationTitle">Title</label>
+                        <input type="text" id="editNotificationTitle" name="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editNotificationMessage">Message</label>
+                        <textarea id="editNotificationMessage" name="message" rows="4" required></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editNotificationType">Type</label>
+                            <select id="editNotificationType" name="type" required>
+                                <option value="info">Info</option>
+                                <option value="warning">Warning</option>
+                                <option value="error">Error</option>
+                                <option value="success">Success</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="editNotificationStartAt">Start Date</label>
+                            <input type="datetime-local" id="editNotificationStartAt" name="start_at" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="editNotificationEndAt">End Date (optional)</label>
+                        <input type="datetime-local" id="editNotificationEndAt" name="end_at">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" onclick="saasAdmin.closeModal('editNotificationModal')">Cancel</button>
+                        <button type="submit" class="btn-primary">Update Notification</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Add form submit handler
+        document.getElementById('editNotificationForm').addEventListener('submit', (e) => this.handleEditNotificationSubmit(e));
+    }
+
+    async handleEditNotificationSubmit(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const notificationId = document.getElementById('editNotificationModal').dataset.notificationId;
+        
+        const notificationData = {
+            title: formData.get('title'),
+            message: formData.get('message'),
+            type: formData.get('type'),
+            start_at: new Date(formData.get('start_at')).toISOString(),
+            end_at: formData.get('end_at') ? new Date(formData.get('end_at')).toISOString() : ''
+        };
+
+        try {
+            const response = await this.authenticatedFetch(`/api/v1/admin/saas/admin/notifications/${notificationId}`, {
+                method: 'PUT',
+                body: JSON.stringify(notificationData)
+            });
+
+            if (response.ok) {
+                this.showNotification('Notification updated successfully', 'success');
+                this.closeModal('editNotificationModal');
+                this.loadNotificationsData();
+            } else {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to update notification');
+            }
+        } catch (error) {
+            this.showNotification(error.message, 'error');
+        }
+    }
+
+    async toggleNotification(id, isActive) {
+        try {
+            const response = await this.authenticatedFetch(`/api/v1/admin/saas/admin/notifications/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ is_active: isActive })
+            });
+
+            if (response.ok) {
+                this.showNotification(`Notification ${isActive ? 'activated' : 'deactivated'} successfully`, 'success');
+                this.loadNotificationsData();
+            } else {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to toggle notification');
+            }
+        } catch (error) {
+            this.showNotification(error.message, 'error');
+        }
+    }
+
+    async deleteNotification(id) {
+        if (!confirm('Are you sure you want to delete this notification? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            const response = await this.authenticatedFetch(`/api/v1/admin/saas/admin/notifications/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                this.showNotification('Notification deleted successfully', 'success');
+                this.loadNotificationsData();
+            } else {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to delete notification');
+            }
+        } catch (error) {
+            this.showNotification(error.message, 'error');
+        }
     }
 
     // Modal Management
@@ -1099,7 +1550,7 @@ class SaaSAdminDashboard {
         };
 
         try {
-            const response = await fetch('/api/v1/saas/admin/tenants', {
+            const response = await fetch('/api/v1/admin/saas/admin/tenants', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1137,12 +1588,20 @@ class SaaSAdminDashboard {
             max_services: parseInt(formData.get('max_services')),
             max_monitors: parseInt(formData.get('max_monitors')),
             max_subscribers: parseInt(formData.get('max_subscribers')),
+            max_incidents: 50, // Default value
+            max_maintenance: 20, // Default value
             support: formData.get('support'),
-            features: JSON.stringify(features)
+            is_active: true,
+            // Convert features array to boolean fields
+            custom_domain: features.includes('custom_domain'),
+            white_label: features.includes('white_label'),
+            api: features.includes('api_access'),
+            integrations: features.includes('integrations'),
+            analytics: features.includes('analytics')
         };
 
         try {
-            const response = await fetch('/api/v1/saas/admin/plans', {
+            const response = await fetch('/api/v1/admin/saas/admin/plans', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1172,17 +1631,13 @@ class SaaSAdminDashboard {
             title: formData.get('title'),
             message: formData.get('message'),
             type: formData.get('type'),
-            start_at: formData.get('start_at'),
-            end_at: formData.get('end_at') || null
+            start_at: new Date(formData.get('start_at')).toISOString(),
+            end_at: formData.get('end_at') ? new Date(formData.get('end_at')).toISOString() : ''
         };
 
         try {
-            const response = await fetch('/api/v1/saas/admin/notifications', {
+            const response = await this.authenticatedFetch('/api/v1/admin/saas/admin/notifications', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include',
                 body: JSON.stringify(notificationData)
             });
 
@@ -1256,9 +1711,185 @@ class SaaSAdminDashboard {
     }
 
     // Action Methods (to be implemented)
-    editTenant(id) {
+    async editTenant(id) {
         console.log('Edit tenant:', id);
-        // Implementation for editing tenant
+        
+        try {
+            // Fetch the tenant data
+            const response = await fetch(`/api/v1/admin/saas/admin/tenants/${id}`, {
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            const tenant = data.tenant;
+            
+            // Show the edit modal with pre-populated data
+            this.showEditTenantModal(tenant);
+            
+        } catch (error) {
+            console.error('Error fetching tenant:', error);
+            this.showNotification('Failed to load tenant data: ' + error.message, 'error');
+        }
+    }
+
+    showEditTenantModal(tenant) {
+        // Create edit modal if it doesn't exist
+        let editModal = document.getElementById('editTenantModal');
+        if (!editModal) {
+            editModal = this.createEditTenantModal();
+            document.body.appendChild(editModal);
+        }
+
+        // Populate the form with tenant data
+        document.getElementById('editTenantName').value = tenant.Name || '';
+        document.getElementById('editTenantSlug').value = tenant.Slug || '';
+        document.getElementById('editTenantDomain').value = tenant.Domain || '';
+        document.getElementById('editTenantSubdomain').value = tenant.Subdomain || '';
+        document.getElementById('editTenantBillingEmail').value = tenant.BillingEmail || '';
+        document.getElementById('editTenantContactEmail').value = tenant.ContactEmail || '';
+        document.getElementById('editTenantPlan').value = tenant.Plan || 'free';
+        document.getElementById('editTenantStatus').value = tenant.Status || 'active';
+
+        // Store the tenant ID for the form submission
+        editModal.dataset.tenantId = tenant.ID;
+
+        // Show the modal
+        this.openModal('editTenantModal');
+    }
+
+    createEditTenantModal() {
+        const modal = document.createElement('div');
+        modal.id = 'editTenantModal';
+        modal.className = 'modal';
+        
+        modal.innerHTML = `
+            <div class="modal-content large">
+                <div class="modal-header">
+                    <h2>Edit Tenant</h2>
+                    <span class="close-button">&times;</span>
+                </div>
+                <form id="editTenantForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editTenantName">Tenant Name</label>
+                            <input type="text" id="editTenantName" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editTenantSlug">Slug</label>
+                            <input type="text" id="editTenantSlug" name="slug" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editTenantDomain">Domain</label>
+                            <input type="text" id="editTenantDomain" name="domain" placeholder="example.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="editTenantSubdomain">Subdomain</label>
+                            <input type="text" id="editTenantSubdomain" name="subdomain" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editTenantBillingEmail">Billing Email</label>
+                            <input type="email" id="editTenantBillingEmail" name="billing_email">
+                        </div>
+                        <div class="form-group">
+                            <label for="editTenantContactEmail">Contact Email</label>
+                            <input type="email" id="editTenantContactEmail" name="contact_email">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editTenantPlan">Plan</label>
+                            <select id="editTenantPlan" name="plan" required>
+                                <option value="free">Free</option>
+                                <option value="pro">Pro</option>
+                                <option value="enterprise">Enterprise</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="editTenantStatus">Status</label>
+                            <select id="editTenantStatus" name="status" required>
+                                <option value="active">Active</option>
+                                <option value="suspended">Suspended</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" id="cancelEditTenant">Cancel</button>
+                        <button type="submit" class="btn-primary">Update Tenant</button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        // Add event listeners
+        modal.querySelector('#cancelEditTenant').addEventListener('click', () => {
+            this.closeModal('editTenantModal');
+        });
+
+        modal.querySelector('#editTenantForm').addEventListener('submit', (e) => {
+            this.handleEditTenantSubmit(e);
+        });
+
+        // Add modal close functionality
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeModal('editTenantModal');
+            }
+        });
+
+        modal.querySelector('.close-button').addEventListener('click', () => {
+            this.closeModal('editTenantModal');
+        });
+
+        return modal;
+    }
+
+    async handleEditTenantSubmit(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const tenantId = document.getElementById('editTenantModal').dataset.tenantId;
+        
+        const tenantData = {
+            name: formData.get('name'),
+            slug: formData.get('slug'),
+            domain: formData.get('domain'),
+            subdomain: formData.get('subdomain'),
+            billing_email: formData.get('billing_email'),
+            contact_email: formData.get('contact_email'),
+            plan: formData.get('plan'),
+            status: formData.get('status')
+        };
+
+        try {
+            const response = await fetch(`/api/v1/admin/saas/admin/tenants/${tenantId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify(tenantData)
+            });
+
+            if (response.ok) {
+                this.showNotification('Tenant updated successfully', 'success');
+                this.closeModal('editTenantModal');
+                this.loadTenantsData();
+            } else {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to update tenant');
+            }
+        } catch (error) {
+            this.showNotification(error.message, 'error');
+        }
     }
 
     suspendTenant(id) {
@@ -1266,33 +1897,486 @@ class SaaSAdminDashboard {
         // Implementation for suspending tenant
     }
 
-    deleteTenant(id) {
-        if (confirm('Are you sure you want to delete this tenant? This action cannot be undone.')) {
-            console.log('Delete tenant:', id);
-            // Implementation for deleting tenant
+    async deleteTenant(id) {
+        if (!confirm('Are you sure you want to delete this tenant? This action cannot be undone.')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/v1/admin/saas/admin/tenants/${id}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                this.showNotification('Tenant deleted successfully', 'success');
+                this.loadTenantsData(); // Reload the tenants list
+            } else {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to delete tenant');
+            }
+        } catch (error) {
+            console.error('Error deleting tenant:', error);
+            this.showNotification('Failed to delete tenant: ' + error.message, 'error');
         }
     }
 
-    editSubscription(id) {
+    async editSubscription(id) {
         console.log('Edit subscription:', id);
-        // Implementation for editing subscription
-    }
-
-    cancelSubscription(id) {
-        if (confirm('Are you sure you want to cancel this subscription?')) {
-            console.log('Cancel subscription:', id);
-            // Implementation for cancelling subscription
+        
+        try {
+            // Fetch the subscription data
+            const response = await fetch(`/api/v1/admin/saas/admin/subscriptions/${id}`, {
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            const subscription = data.subscription;
+            
+            // Show the edit modal with pre-populated data
+            this.showEditSubscriptionModal(subscription);
+            
+        } catch (error) {
+            console.error('Error fetching subscription:', error);
+            this.showNotification('Failed to load subscription data: ' + error.message, 'error');
         }
     }
 
-    editPlan(id) {
-        console.log('Edit plan:', id);
-        // Implementation for editing plan
+    showEditSubscriptionModal(subscription) {
+        // Create edit modal if it doesn't exist
+        let editModal = document.getElementById('editSubscriptionModal');
+        if (!editModal) {
+            editModal = this.createEditSubscriptionModal();
+            document.body.appendChild(editModal);
+        }
+
+        // Populate the form with subscription data
+        document.getElementById('editSubscriptionStatus').value = subscription.Status || 'active';
+        document.getElementById('editSubscriptionCancelAtPeriodEnd').checked = subscription.CancelAtPeriodEnd || false;
+
+        // Store the subscription ID for the form submission
+        editModal.dataset.subscriptionId = subscription.ID;
+
+        // Show the modal
+        this.openModal('editSubscriptionModal');
     }
 
-    duplicatePlan(id) {
+    createEditSubscriptionModal() {
+        const modal = document.createElement('div');
+        modal.id = 'editSubscriptionModal';
+        modal.className = 'modal';
+        
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Edit Subscription</h2>
+                    <span class="close-button">&times;</span>
+                </div>
+                <form id="editSubscriptionForm">
+                    <div class="form-group">
+                        <label for="editSubscriptionStatus">Status</label>
+                        <select id="editSubscriptionStatus" name="status" required>
+                            <option value="active">Active</option>
+                            <option value="cancelled">Cancelled</option>
+                            <option value="past_due">Past Due</option>
+                            <option value="trialing">Trialing</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="editSubscriptionCancelAtPeriodEnd" name="cancel_at_period_end">
+                            Cancel at period end
+                        </label>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" id="cancelEditSubscription">Cancel</button>
+                        <button type="submit" class="btn-primary">Update Subscription</button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        // Add event listeners
+        modal.querySelector('#cancelEditSubscription').addEventListener('click', () => {
+            this.closeModal('editSubscriptionModal');
+        });
+
+        modal.querySelector('#editSubscriptionForm').addEventListener('submit', (e) => {
+            this.handleEditSubscriptionSubmit(e);
+        });
+
+        // Add modal close functionality
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeModal('editSubscriptionModal');
+            }
+        });
+
+        modal.querySelector('.close-button').addEventListener('click', () => {
+            this.closeModal('editSubscriptionModal');
+        });
+
+        return modal;
+    }
+
+    async handleEditSubscriptionSubmit(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const subscriptionId = document.getElementById('editSubscriptionModal').dataset.subscriptionId;
+        
+        const subscriptionData = {
+            status: formData.get('status'),
+            cancel_at_period_end: formData.get('cancel_at_period_end') === 'on'
+        };
+
+        try {
+            const response = await fetch(`/api/v1/admin/saas/admin/subscriptions/${subscriptionId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify(subscriptionData)
+            });
+
+            if (response.ok) {
+                this.showNotification('Subscription updated successfully', 'success');
+                this.closeModal('editSubscriptionModal');
+                this.loadSubscriptionsData();
+            } else {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to update subscription');
+            }
+        } catch (error) {
+            this.showNotification(error.message, 'error');
+        }
+    }
+
+    async cancelSubscription(id) {
+        if (!confirm('Are you sure you want to cancel this subscription? This action cannot be undone.')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/v1/admin/saas/admin/subscriptions/${id}/cancel`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                this.showNotification('Subscription cancelled successfully', 'success');
+                this.loadSubscriptionsData(); // Reload the subscriptions list
+            } else {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to cancel subscription');
+            }
+        } catch (error) {
+            console.error('Error cancelling subscription:', error);
+            this.showNotification('Failed to cancel subscription: ' + error.message, 'error');
+        }
+    }
+
+    async editPlan(id) {
+        console.log('Edit plan:', id);
+        
+        try {
+            // Fetch the plan data
+            const response = await fetch(`/api/v1/admin/saas/admin/plans/${id}`, {
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            const plan = data.plan;
+            
+            // Show the edit modal with pre-populated data
+            this.showEditPlanModal(plan);
+            
+        } catch (error) {
+            console.error('Error fetching plan:', error);
+            this.showNotification('Failed to load plan data: ' + error.message, 'error');
+        }
+    }
+
+    showEditPlanModal(plan) {
+        // Create edit modal if it doesn't exist
+        let editModal = document.getElementById('editPlanModal');
+        if (!editModal) {
+            editModal = this.createEditPlanModal();
+            document.body.appendChild(editModal);
+        }
+
+        // Populate the form with plan data
+        document.getElementById('editPlanName').value = plan.Name || '';
+        document.getElementById('editPlanSlug').value = plan.Slug || '';
+        document.getElementById('editPlanDescription').value = plan.Description || '';
+        document.getElementById('editPlanPrice').value = plan.Price || 0;
+        document.getElementById('editPlanBillingInterval').value = plan.BillingInterval || 'monthly';
+        document.getElementById('editPlanMaxServices').value = plan.MaxServices || 5;
+        document.getElementById('editPlanMaxMonitors').value = plan.MaxMonitors || 10;
+        document.getElementById('editPlanMaxSubscribers').value = plan.MaxSubscribers || 100;
+        document.getElementById('editPlanSupport').value = plan.Support || 'email';
+        
+        // Set feature checkboxes
+        document.getElementById('editPlanCustomDomain').checked = plan.CustomDomain || false;
+        document.getElementById('editPlanWhiteLabel').checked = plan.WhiteLabel || false;
+        document.getElementById('editPlanAPI').checked = plan.API || false;
+        document.getElementById('editPlanIntegrations').checked = plan.Integrations || false;
+        document.getElementById('editPlanAnalytics').checked = plan.Analytics || false;
+
+        // Store the plan ID for the form submission
+        editModal.dataset.planId = plan.ID;
+
+        // Show the modal
+        this.openModal('editPlanModal');
+    }
+
+    createEditPlanModal() {
+        const modal = document.createElement('div');
+        modal.id = 'editPlanModal';
+        modal.className = 'modal';
+        
+        modal.innerHTML = `
+            <div class="modal-content large">
+                <div class="modal-header">
+                    <h2>Edit Subscription Plan</h2>
+                    <span class="close-button">&times;</span>
+                </div>
+                <form id="editPlanForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editPlanName">Plan Name</label>
+                            <input type="text" id="editPlanName" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editPlanSlug">Slug</label>
+                            <input type="text" id="editPlanSlug" name="slug" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="editPlanDescription">Description</label>
+                        <textarea id="editPlanDescription" name="description" rows="3"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editPlanPrice">Price (USD)</label>
+                            <input type="number" id="editPlanPrice" name="price" step="0.01" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editPlanBillingInterval">Billing Interval</label>
+                            <select id="editPlanBillingInterval" name="billing_interval" required>
+                                <option value="monthly">Monthly</option>
+                                <option value="yearly">Yearly</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editPlanMaxServices">Max Services</label>
+                            <input type="number" id="editPlanMaxServices" name="max_services" min="-1" value="5">
+                        </div>
+                        <div class="form-group">
+                            <label for="editPlanMaxMonitors">Max Monitors</label>
+                            <input type="number" id="editPlanMaxMonitors" name="max_monitors" min="-1" value="10">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editPlanMaxSubscribers">Max Subscribers</label>
+                            <input type="number" id="editPlanMaxSubscribers" name="max_subscribers" min="-1" value="100">
+                        </div>
+                        <div class="form-group">
+                            <label for="editPlanSupport">Support Level</label>
+                            <select id="editPlanSupport" name="support" required>
+                                <option value="email">Email</option>
+                                <option value="chat">Chat</option>
+                                <option value="phone">Phone</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Features</label>
+                        <div class="checkbox-group">
+                            <label><input type="checkbox" id="editPlanCustomDomain" name="custom_domain"> Custom Domain</label>
+                            <label><input type="checkbox" id="editPlanWhiteLabel" name="white_label"> White Label</label>
+                            <label><input type="checkbox" id="editPlanAPI" name="api"> API Access</label>
+                            <label><input type="checkbox" id="editPlanIntegrations" name="integrations"> Integrations</label>
+                            <label><input type="checkbox" id="editPlanAnalytics" name="analytics"> Analytics</label>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" id="cancelEditPlan">Cancel</button>
+                        <button type="submit" class="btn-primary">Update Plan</button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        // Add event listeners
+        modal.querySelector('#cancelEditPlan').addEventListener('click', () => {
+            this.closeModal('editPlanModal');
+        });
+
+        modal.querySelector('#editPlanForm').addEventListener('submit', (e) => {
+            this.handleEditPlanSubmit(e);
+        });
+
+        // Add modal close functionality
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeModal('editPlanModal');
+            }
+        });
+
+        modal.querySelector('.close-button').addEventListener('click', () => {
+            this.closeModal('editPlanModal');
+        });
+
+        return modal;
+    }
+
+    async handleEditPlanSubmit(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const planId = document.getElementById('editPlanModal').dataset.planId;
+        
+        const planData = {
+            name: formData.get('name'),
+            slug: formData.get('slug'),
+            description: formData.get('description'),
+            price: parseFloat(formData.get('price')),
+            billing_interval: formData.get('billing_interval'),
+            max_services: parseInt(formData.get('max_services')),
+            max_monitors: parseInt(formData.get('max_monitors')),
+            max_subscribers: parseInt(formData.get('max_subscribers')),
+            max_incidents: 50, // Default value
+            max_maintenance: 20, // Default value
+            support: formData.get('support'),
+            is_active: true,
+            // Convert features to boolean fields
+            custom_domain: formData.get('custom_domain') === 'on',
+            white_label: formData.get('white_label') === 'on',
+            api: formData.get('api') === 'on',
+            integrations: formData.get('integrations') === 'on',
+            analytics: formData.get('analytics') === 'on'
+        };
+
+        try {
+            const response = await fetch(`/api/v1/admin/saas/admin/plans/${planId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify(planData)
+            });
+
+            if (response.ok) {
+                this.showNotification('Plan updated successfully', 'success');
+                this.closeModal('editPlanModal');
+                this.loadPlansData();
+            } else {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to update plan');
+            }
+        } catch (error) {
+            this.showNotification(error.message, 'error');
+        }
+    }
+
+    async duplicatePlan(id) {
         console.log('Duplicate plan:', id);
-        // Implementation for duplicating plan
+        
+        try {
+            // Fetch the plan data
+            const response = await fetch(`/api/v1/admin/saas/admin/plans/${id}`, {
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            const plan = data.plan;
+            
+            // Create a duplicate with modified name and slug
+            const duplicateData = {
+                name: `${plan.Name} (Copy)`,
+                slug: `${plan.Slug}-copy-${Date.now()}`,
+                description: plan.Description,
+                price: parseFloat(plan.Price) || 0, // Ensure price is a valid number
+                currency: plan.Currency || 'USD',
+                billing_interval: plan.BillingInterval,
+                max_services: plan.MaxServices,
+                max_monitors: plan.MaxMonitors,
+                max_subscribers: plan.MaxSubscribers,
+                max_incidents: plan.MaxIncidents,
+                max_maintenance: plan.MaxMaintenance,
+                custom_domain: plan.CustomDomain,
+                white_label: plan.WhiteLabel,
+                api: plan.API,
+                integrations: plan.Integrations,
+                analytics: plan.Analytics,
+                support: plan.Support,
+                is_active: plan.IsActive
+            };
+
+            // Create the duplicate plan
+            const createResponse = await fetch('/api/v1/admin/saas/admin/plans', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify(duplicateData)
+            });
+
+            if (createResponse.ok) {
+                this.showNotification('Plan duplicated successfully', 'success');
+                this.loadPlansData(); // Reload the plans list
+            } else {
+                const error = await createResponse.json();
+                throw new Error(error.error || 'Failed to duplicate plan');
+            }
+            
+        } catch (error) {
+            console.error('Error duplicating plan:', error);
+            this.showNotification('Failed to duplicate plan: ' + error.message, 'error');
+        }
+    }
+
+    async deletePlan(id) {
+        if (!confirm('Are you sure you want to delete this plan? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/v1/admin/saas/admin/plans/${id}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+
+            if (response.ok) {
+                this.showNotification('Plan deleted successfully', 'success');
+                this.loadPlansData(); // Reload the plans
+            } else {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to delete plan');
+            }
+        } catch (error) {
+            console.error('Error deleting plan:', error);
+            this.showNotification(error.message, 'error');
+        }
     }
 
     updateSetting(key, value) {

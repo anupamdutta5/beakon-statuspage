@@ -98,6 +98,7 @@ func AutoMigrate() error {
 		&models.SystemMetric{},
 		&models.ThirdPartyService{},
 		&models.PrivatePage{},
+		&models.APIUsage{},
 	)
 }
 

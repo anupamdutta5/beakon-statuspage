@@ -86,6 +86,85 @@ func (s *AnalyticsService) RecordPageView(tenantID uint, page, userAgent, ipAddr
 	return s.db.Create(pageView).Error
 }
 
+// API Usage Analytics
+
+func (s *AnalyticsService) RecordAPIUsage(tenantID uint, endpoint, method string, responseTime float64, statusCode int, userAgent, ipAddress string) error {
+	apiUsage := &models.APIUsage{
+		TenantID:     tenantID,
+		Endpoint:     endpoint,
+		Method:       method,
+		ResponseTime: responseTime,
+		StatusCode:   statusCode,
+		UserAgent:    userAgent,
+		IPAddress:    ipAddress,
+		Timestamp:    time.Now(),
+	}
+
+	return s.db.Create(apiUsage).Error
+}
+
+func (s *AnalyticsService) GetAPIUsageAnalytics(tenantID uint, days int) (map[string]interface{}, error) {
+	startDate := time.Now().AddDate(0, 0, -days)
+
+	analytics := make(map[string]interface{})
+
+	// Total API requests
+	var totalRequests int64
+	if err := s.db.Model(&models.APIUsage{}).Where("tenant_id = ? AND timestamp >= ?", tenantID, startDate).Count(&totalRequests).Error; err != nil {
+		return nil, err
+	}
+	analytics["total_requests"] = totalRequests
+
+	// Error count
+	var errorCount int64
+	if err := s.db.Model(&models.APIUsage{}).Where("tenant_id = ? AND timestamp >= ? AND status_code >= 400", tenantID, startDate).Count(&errorCount).Error; err != nil {
+		return nil, err
+	}
+	analytics["error_count"] = errorCount
+
+	// Average response time
+	var avgResponseTime float64
+	if err := s.db.Model(&models.APIUsage{}).
+		Where("tenant_id = ? AND timestamp >= ?", tenantID, startDate).
+		Select("AVG(response_time)").Scan(&avgResponseTime).Error; err != nil {
+		return nil, err
+	}
+	analytics["avg_response_time"] = avgResponseTime
+
+	// Top endpoints
+	var topEndpoints []struct {
+		Endpoint string `json:"endpoint"`
+		Count    int64  `json:"count"`
+	}
+	if err := s.db.Model(&models.APIUsage{}).
+		Select("endpoint, COUNT(*) as count").
+		Where("tenant_id = ? AND timestamp >= ?", tenantID, startDate).
+		Group("endpoint").
+		Order("count DESC").
+		Limit(10).
+		Scan(&topEndpoints).Error; err != nil {
+		return nil, err
+	}
+	analytics["top_endpoints"] = topEndpoints
+
+	// Daily API usage
+	var dailyUsage []struct {
+		Date  string `json:"date"`
+		Count int64  `json:"count"`
+	}
+	if err := s.db.Model(&models.APIUsage{}).
+		Select("DATE(timestamp) as date, COUNT(*) as count").
+		Where("tenant_id = ? AND timestamp >= ?", tenantID, startDate).
+		Group("DATE(timestamp)").
+		Order("date ASC").
+		Scan(&dailyUsage).Error; err != nil {
+		return nil, err
+	}
+	analytics["daily_usage"] = dailyUsage
+
+	return analytics, nil
+}
+
 func (s *AnalyticsService) GetPageAnalytics(tenantID uint, days int) (map[string]interface{}, error) {
 	startDate := time.Now().AddDate(0, 0, -days)
 
@@ -136,6 +215,80 @@ func (s *AnalyticsService) GetPageAnalytics(tenantID uint, days int) (map[string
 		return nil, err
 	}
 	analytics["daily_views"] = dailyViews
+
+	return analytics, nil
+}
+
+// Platform-wide Analytics (for SaaS Admin)
+
+func (s *AnalyticsService) GetPlatformAPIUsageAnalytics(days int) (map[string]interface{}, error) {
+	startDate := time.Now().AddDate(0, 0, -days)
+
+	analytics := make(map[string]interface{})
+
+	// Total API requests across all tenants
+	var totalRequests int64
+	if err := s.db.Model(&models.APIUsage{}).Where("timestamp >= ?", startDate).Count(&totalRequests).Error; err != nil {
+		return nil, err
+	}
+	analytics["total_requests"] = totalRequests
+
+	// Error count across all tenants
+	var errorCount int64
+	if err := s.db.Model(&models.APIUsage{}).Where("timestamp >= ? AND status_code >= 400", startDate).Count(&errorCount).Error; err != nil {
+		return nil, err
+	}
+	analytics["error_count"] = errorCount
+
+	// Average response time across all tenants
+	var avgResponseTime float64
+	if err := s.db.Model(&models.APIUsage{}).
+		Where("timestamp >= ?", startDate).
+		Select("AVG(response_time)").Scan(&avgResponseTime).Error; err != nil {
+		return nil, err
+	}
+	analytics["avg_response_time"] = avgResponseTime
+
+	return analytics, nil
+}
+
+func (s *AnalyticsService) GetPlatformPageViewAnalytics(days int) (map[string]interface{}, error) {
+	startDate := time.Now().AddDate(0, 0, -days)
+
+	analytics := make(map[string]interface{})
+
+	// Total page views across all tenants
+	var totalViews int64
+	if err := s.db.Model(&PageView{}).Where("created_at >= ?", startDate).Count(&totalViews).Error; err != nil {
+		return nil, err
+	}
+	analytics["total_views"] = totalViews
+
+	// Unique visitors across all tenants
+	var uniqueVisitors int64
+	if err := s.db.Model(&PageView{}).Where("created_at >= ?", startDate).
+		Distinct("ip_address").Count(&uniqueVisitors).Error; err != nil {
+		return nil, err
+	}
+	analytics["unique_visitors"] = uniqueVisitors
+
+	// Calculate bounce rate (simplified - visitors with only 1 page view)
+	var singlePageVisitors int64
+	if err := s.db.Model(&PageView{}).
+		Select("COUNT(DISTINCT ip_address)").
+		Where("created_at >= ?", startDate).
+		Group("ip_address").
+		Having("COUNT(*) = 1").
+		Count(&singlePageVisitors).Error; err != nil {
+		// If the query fails, set bounce rate to 0
+		singlePageVisitors = 0
+	}
+
+	var bounceRate float64
+	if uniqueVisitors > 0 {
+		bounceRate = float64(singlePageVisitors) / float64(uniqueVisitors) * 100
+	}
+	analytics["bounce_rate"] = bounceRate
 
 	return analytics, nil
 }

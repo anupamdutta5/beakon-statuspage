@@ -559,6 +559,22 @@ body.admin-body {
     background-color: var(--border-color);
 }
 
+.btn-danger {
+    background-color: var(--error-color);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.2s ease;
+}
+
+.btn-danger:hover {
+    background-color: #e53e3e;
+}
+
 /* Modals */
 .modal {
     display: none;

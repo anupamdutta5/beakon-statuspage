@@ -34,3 +34,12 @@ func (s *MonitorService) UpdateMonitor(monitor *models.Monitor) error {
 func (s *MonitorService) DeleteMonitor(id uint) error {
 	return database.DB.Delete(&models.Monitor{}, id).Error
 }
+
+// GetMonitorsByTenantID retrieves all monitors for a specific tenant
+func (s *MonitorService) GetMonitorsByTenantID(tenantID uint) ([]models.Monitor, error) {
+	var monitors []models.Monitor
+	if err := database.DB.Where("tenant_id = ?", tenantID).Find(&monitors).Error; err != nil {
+		return nil, err
+	}
+	return monitors, nil
+}

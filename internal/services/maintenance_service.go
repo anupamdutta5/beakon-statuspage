@@ -100,3 +100,12 @@ func (s *MaintenanceService) GetActiveMaintenance() ([]models.Maintenance, error
 	}
 	return events, nil
 }
+
+// GetMaintenanceByTenantID retrieves all maintenance events for a specific tenant
+func (s *MaintenanceService) GetMaintenanceByTenantID(tenantID uint) ([]models.Maintenance, error) {
+	var events []models.Maintenance
+	if err := database.DB.Where("tenant_id = ?", tenantID).Preload("Services").Order("start_at desc").Find(&events).Error; err != nil {
+		return nil, err
+	}
+	return events, nil
+}
