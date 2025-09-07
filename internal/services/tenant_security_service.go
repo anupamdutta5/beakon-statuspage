@@ -86,11 +86,9 @@ type SecurityViolation struct {
 
 // GetSecurityConfig retrieves security configuration for a tenant
 func (s *TenantSecurityService) GetSecurityConfig(ctx context.Context, tenantID uint) (*SecurityConfig, error) {
-	var config SecurityConfig
-
 	// For now, return default configuration
 	// In a real implementation, you'd store this in the database
-	config = SecurityConfig{
+	config := SecurityConfig{
 		TenantID:           tenantID,
 		DataEncryption:     true,
 		AuditLogging:       true,

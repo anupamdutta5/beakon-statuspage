@@ -1,0 +1,164 @@
+syntax = "proto3";
+
+package component;
+
+option go_package = "github.com/enterprise-status/statuspage/proto/component";
+
+import "google/protobuf/timestamp.proto";
+
+// Component service definition
+service ComponentService {
+  // Get component by ID
+  rpc GetComponent(GetComponentRequest) returns (GetComponentResponse);
+  
+  // Create a new component
+  rpc CreateComponent(CreateComponentRequest) returns (CreateComponentResponse);
+  
+  // Update component
+  rpc UpdateComponent(UpdateComponentRequest) returns (UpdateComponentResponse);
+  
+  // Delete component
+  rpc DeleteComponent(DeleteComponentRequest) returns (DeleteComponentResponse);
+  
+  // List components
+  rpc ListComponents(ListComponentsRequest) returns (ListComponentsResponse);
+  
+  // Update component status
+  rpc UpdateComponentStatus(UpdateComponentStatusRequest) returns (UpdateComponentStatusResponse);
+  
+  // Get component status history
+  rpc GetComponentStatusHistory(GetComponentStatusHistoryRequest) returns (GetComponentStatusHistoryResponse);
+}
+
+// Component message
+message Component {
+  uint32 id = 1;
+  uint32 tenant_id = 2;
+  string name = 3;
+  string description = 4;
+  string status = 5;
+  string category = 6;
+  bool is_public = 7;
+  uint32 position = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+// ComponentStatus message
+message ComponentStatus {
+  uint32 id = 1;
+  uint32 component_id = 2;
+  string status = 3;
+  string message = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+// GetComponentRequest
+message GetComponentRequest {
+  uint32 component_id = 1;
+  uint32 tenant_id = 2;
+}
+
+// GetComponentResponse
+message GetComponentResponse {
+  Component component = 1;
+  bool success = 2;
+  string error_message = 3;
+}
+
+// CreateComponentRequest
+message CreateComponentRequest {
+  uint32 tenant_id = 1;
+  string name = 2;
+  string description = 3;
+  string status = 4;
+  string category = 5;
+  bool is_public = 6;
+  uint32 position = 7;
+}
+
+// CreateComponentResponse
+message CreateComponentResponse {
+  Component component = 1;
+  bool success = 2;
+  string error_message = 3;
+}
+
+// UpdateComponentRequest
+message UpdateComponentRequest {
+  uint32 component_id = 1;
+  uint32 tenant_id = 2;
+  string name = 3;
+  string description = 4;
+  string status = 5;
+  string category = 6;
+  bool is_public = 7;
+  uint32 position = 8;
+}
+
+// UpdateComponentResponse
+message UpdateComponentResponse {
+  Component component = 1;
+  bool success = 2;
+  string error_message = 3;
+}
+
+// DeleteComponentRequest
+message DeleteComponentRequest {
+  uint32 component_id = 1;
+  uint32 tenant_id = 2;
+}
+
+// DeleteComponentResponse
+message DeleteComponentResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// ListComponentsRequest
+message ListComponentsRequest {
+  uint32 tenant_id = 1;
+  uint32 page = 2;
+  uint32 limit = 3;
+  string search = 4;
+  string category = 5;
+}
+
+// ListComponentsResponse
+message ListComponentsResponse {
+  repeated Component components = 1;
+  uint32 total = 2;
+  uint32 page = 3;
+  uint32 limit = 4;
+  bool success = 5;
+  string error_message = 6;
+}
+
+// UpdateComponentStatusRequest
+message UpdateComponentStatusRequest {
+  uint32 component_id = 1;
+  uint32 tenant_id = 2;
+  string status = 3;
+  string message = 4;
+}
+
+// UpdateComponentStatusResponse
+message UpdateComponentStatusResponse {
+  ComponentStatus status = 1;
+  bool success = 2;
+  string error_message = 3;
+}
+
+// GetComponentStatusHistoryRequest
+message GetComponentStatusHistoryRequest {
+  uint32 component_id = 1;
+  uint32 tenant_id = 2;
+  uint32 limit = 3;
+}
+
+// GetComponentStatusHistoryResponse
+message GetComponentStatusHistoryResponse {
+  repeated ComponentStatus statuses = 1;
+  bool success = 2;
+  string error_message = 3;
+}

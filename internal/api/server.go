@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -80,14 +81,14 @@ func NewServer(cfg *config.Config) *Server {
 
 	// Initialize services
 	var emailSender email.Sender
-	if cfg.Email.UseSMTP {
+	if cfg.Email.Provider == "smtp" {
 		smtpConfig := email.SMTPConfig{
-			Host:     cfg.Email.SMTPHost,
-			Port:     cfg.Email.SMTPPort,
-			Username: cfg.Email.SMTPUsername,
-			Password: cfg.Email.SMTPPassword,
-			From:     cfg.Email.SMTPFrom,
-			UseTLS:   cfg.Email.SMTPUseTLS,
+			Host:     cfg.Email.SMTP.Host,
+			Port:     cfg.Email.SMTP.Port,
+			Username: cfg.Email.SMTP.Username,
+			Password: cfg.Email.SMTP.Password,
+			From:     cfg.Email.SMTP.From,
+			UseTLS:   cfg.Email.SMTP.UseTLS,
 		}
 		emailSender = email.NewSMTPSender(smtpConfig)
 	} else {
@@ -496,13 +497,13 @@ func (s *Server) setupRouter() {
 // Start starts the HTTP server
 func (s *Server) Start() error {
 	s.httpServer = &http.Server{
-		Addr:    ":" + s.config.Server.Port,
+		Addr:    ":" + strconv.Itoa(s.config.Server.Port),
 		Handler: s.router,
 	}
 
 	// Start server in a goroutine
 	go func() {
-		logger.Info("Starting server", zap.String("port", s.config.Server.Port))
+		logger.Info("Starting server", zap.Int("port", s.config.Server.Port))
 		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("Failed to start server", zap.Error(err))
 		}

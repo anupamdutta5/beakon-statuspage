@@ -8,6 +8,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/enterprise-status/statuspage/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // Config represents the application configuration
@@ -120,6 +123,12 @@ type SMTPConfig struct {
 type SendGridConfig struct {
 	APIKey string `json:"api_key" yaml:"api_key"`
 	From   string `json:"from" yaml:"from"`
+}
+
+// PaymentConfig represents payment configuration
+type PaymentConfig struct {
+	DefaultProvider string                 `json:"default_provider" yaml:"default_provider"`
+	Providers       map[string]interface{} `json:"providers" yaml:"providers"`
 }
 
 // MonitoringConfig represents monitoring configuration
@@ -236,8 +245,10 @@ func LoadConfig(configPath string) (*Config, error) {
 	// Load from config file if provided
 	if configPath != "" {
 		if err := loadFromFile(config, configPath); err != nil {
-			// Log warning using fmt since logger might not be initialized yet
-			fmt.Printf("Warning: Failed to load config file %s, using defaults: %v\n", configPath, err)
+			// Log warning if logger is available, otherwise use fmt
+			if logger.Log != nil {
+				logger.Log.Warn("Failed to load config file, using defaults", zap.String("path", configPath), zap.Error(err))
+			}
 		}
 	}
 
@@ -334,7 +345,7 @@ func loadFromEnv(config *Config) {
 	config.Email.SendGrid.From = getEnv("SENDGRID_FROM", config.Email.SendGrid.From)
 
 	// Payment Configuration
-	config.Payment.DefaultGateway = getEnv("PAYMENT_DEFAULT_GATEWAY", config.Payment.DefaultGateway)
+	config.Payment.DefaultProvider = getEnv("PAYMENT_DEFAULT_PROVIDER", config.Payment.DefaultProvider)
 
 	// Monitoring Configuration
 	config.Monitoring.Prometheus.Enabled = getEnvBool("PROMETHEUS_ENABLED", config.Monitoring.Prometheus.Enabled)
