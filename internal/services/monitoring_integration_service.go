@@ -28,8 +28,8 @@ const (
 	MonitoringPrometheus = "prometheus"
 	MonitoringDatadog    = "datadog"
 	MonitoringNewRelic   = "newrelic"
-	MonitoringGrafana   = "grafana"
-	MonitoringZabbix    = "zabbix"
+	MonitoringGrafana    = "grafana"
+	MonitoringZabbix     = "zabbix"
 )
 
 // PrometheusConfig holds Prometheus-specific configuration
@@ -50,18 +50,18 @@ type DatadogConfig struct {
 
 // NewRelicConfig holds New Relic-specific configuration
 type NewRelicConfig struct {
-	APIKey     string `json:"api_key"`
-	AccountID  string `json:"account_id"`
-	QueryKey   string `json:"query_key"`
+	APIKey      string `json:"api_key"`
+	AccountID   string `json:"account_id"`
+	QueryKey    string `json:"query_key"`
 	ConditionID string `json:"condition_id"`
 }
 
 // GrafanaConfig holds Grafana-specific configuration
 type GrafanaConfig struct {
-	URL      string `json:"url"`
-	APIKey   string `json:"api_key"`
+	URL         string `json:"url"`
+	APIKey      string `json:"api_key"`
 	DashboardID string `json:"dashboard_id"`
-	PanelID  string `json:"panel_id"`
+	PanelID     string `json:"panel_id"`
 }
 
 // MonitoringResult represents the result of a monitoring check
@@ -107,7 +107,7 @@ func (s *MonitoringIntegrationService) syncWithPrometheus(integration *models.In
 	// Update service statuses based on results
 	for _, result := range results {
 		if err := s.updateServiceStatus(result); err != nil {
-			logger.Error("Failed to update service status from Prometheus", 
+			logger.Error("Failed to update service status from Prometheus",
 				zap.Error(err),
 				zap.String("service", result.ServiceName))
 		}
@@ -121,7 +121,7 @@ func (s *MonitoringIntegrationService) syncWithPrometheus(integration *models.In
 // queryPrometheus queries Prometheus for service statuses
 func (s *MonitoringIntegrationService) queryPrometheus(config PrometheusConfig) ([]MonitoringResult, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
-	
+
 	// Build query URL
 	queryURL := fmt.Sprintf("%s/api/v1/query", config.URL)
 	req, err := http.NewRequest("GET", queryURL, nil)
@@ -222,7 +222,7 @@ func (s *MonitoringIntegrationService) syncWithDatadog(integration *models.Integ
 	// Update service statuses based on results
 	for _, result := range results {
 		if err := s.updateServiceStatus(result); err != nil {
-			logger.Error("Failed to update service status from Datadog", 
+			logger.Error("Failed to update service status from Datadog",
 				zap.Error(err),
 				zap.String("service", result.ServiceName))
 		}
@@ -236,7 +236,7 @@ func (s *MonitoringIntegrationService) syncWithDatadog(integration *models.Integ
 // queryDatadog queries Datadog for monitor statuses
 func (s *MonitoringIntegrationService) queryDatadog(config DatadogConfig) ([]MonitoringResult, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
-	
+
 	// Build query URL
 	queryURL := fmt.Sprintf("https://api.%s/api/v1/monitor/%s", config.Site, config.MonitorID)
 	req, err := http.NewRequest("GET", queryURL, nil)
@@ -308,7 +308,7 @@ func (s *MonitoringIntegrationService) syncWithNewRelic(integration *models.Inte
 	// Update service statuses based on results
 	for _, result := range results {
 		if err := s.updateServiceStatus(result); err != nil {
-			logger.Error("Failed to update service status from New Relic", 
+			logger.Error("Failed to update service status from New Relic",
 				zap.Error(err),
 				zap.String("service", result.ServiceName))
 		}
@@ -322,7 +322,7 @@ func (s *MonitoringIntegrationService) syncWithNewRelic(integration *models.Inte
 // queryNewRelic queries New Relic for alert conditions
 func (s *MonitoringIntegrationService) queryNewRelic(config NewRelicConfig) ([]MonitoringResult, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
-	
+
 	// Build query URL
 	queryURL := fmt.Sprintf("https://api.newrelic.com/v2/alerts_conditions/%s.json", config.ConditionID)
 	req, err := http.NewRequest("GET", queryURL, nil)
@@ -347,9 +347,9 @@ func (s *MonitoringIntegrationService) queryNewRelic(config NewRelicConfig) ([]M
 	// Parse response
 	var newRelicResp struct {
 		AlertCondition struct {
-			ID     int    `json:"id"`
-			Name   string `json:"name"`
-			Enabled bool  `json:"enabled"`
+			ID      int    `json:"id"`
+			Name    string `json:"name"`
+			Enabled bool   `json:"enabled"`
 		} `json:"alert_condition"`
 	}
 
@@ -389,7 +389,7 @@ func (s *MonitoringIntegrationService) syncWithGrafana(integration *models.Integ
 	// Update service statuses based on results
 	for _, result := range results {
 		if err := s.updateServiceStatus(result); err != nil {
-			logger.Error("Failed to update service status from Grafana", 
+			logger.Error("Failed to update service status from Grafana",
 				zap.Error(err),
 				zap.String("service", result.ServiceName))
 		}
@@ -403,7 +403,7 @@ func (s *MonitoringIntegrationService) syncWithGrafana(integration *models.Integ
 // queryGrafana queries Grafana for panel data
 func (s *MonitoringIntegrationService) queryGrafana(config GrafanaConfig) ([]MonitoringResult, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
-	
+
 	// Build query URL
 	queryURL := fmt.Sprintf("%s/api/panels/%s", config.URL, config.PanelID)
 	req, err := http.NewRequest("GET", queryURL, nil)
@@ -496,15 +496,15 @@ func (s *MonitoringIntegrationService) updateServiceStatus(result MonitoringResu
 // SyncAllMonitoringTools syncs all active monitoring integrations
 func (s *MonitoringIntegrationService) SyncAllMonitoringTools() error {
 	var integrations []models.Integration
-	if err := s.db.Where("type IN ? AND is_active = ?", 
-		[]string{MonitoringPrometheus, MonitoringDatadog, MonitoringNewRelic, MonitoringGrafana}, 
+	if err := s.db.Where("type IN ? AND is_active = ?",
+		[]string{MonitoringPrometheus, MonitoringDatadog, MonitoringNewRelic, MonitoringGrafana},
 		true).Find(&integrations).Error; err != nil {
 		return err
 	}
 
 	for _, integration := range integrations {
 		if err := s.SyncWithMonitoringTool(&integration); err != nil {
-			logger.Error("Failed to sync with monitoring tool", 
+			logger.Error("Failed to sync with monitoring tool",
 				zap.String("tool", integration.Type),
 				zap.String("name", integration.Name),
 				zap.Error(err))
@@ -518,7 +518,7 @@ func (s *MonitoringIntegrationService) SyncAllMonitoringTools() error {
 // GetMonitoringStatus returns the status of all monitoring integrations
 func (s *MonitoringIntegrationService) GetMonitoringStatus() ([]map[string]interface{}, error) {
 	var integrations []models.Integration
-	if err := s.db.Where("type IN ?", 
+	if err := s.db.Where("type IN ?",
 		[]string{MonitoringPrometheus, MonitoringDatadog, MonitoringNewRelic, MonitoringGrafana}).Find(&integrations).Error; err != nil {
 		return nil, err
 	}

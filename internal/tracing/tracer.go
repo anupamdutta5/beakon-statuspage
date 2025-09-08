@@ -8,6 +8,13 @@ import (
 	"github.com/enterprise-status/statuspage/internal/config"
 )
 
+// Context key type for tracing
+type tracingContextKey string
+
+const (
+	spanKey tracingContextKey = "span"
+)
+
 // Tracer manages distributed tracing
 type Tracer struct {
 	serviceName    string
@@ -31,7 +38,7 @@ func (t *Tracer) StartSpan(ctx context.Context, name string) (context.Context, *
 	}
 
 	// Add span to context
-	ctx = context.WithValue(ctx, "span", span)
+	ctx = context.WithValue(ctx, spanKey, span)
 
 	return ctx, span
 }
@@ -46,7 +53,7 @@ func (t *Tracer) StartSpanWithAttributes(ctx context.Context, name string, attrs
 	}
 
 	// Add span to context
-	ctx = context.WithValue(ctx, "span", span)
+	ctx = context.WithValue(ctx, spanKey, span)
 
 	return ctx, span
 }

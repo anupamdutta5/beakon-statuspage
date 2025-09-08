@@ -16,6 +16,13 @@ import (
 	"go.uber.org/zap"
 )
 
+// Context key type for gateway
+type gatewayContextKey string
+
+const (
+	gatewayRequestIDKey gatewayContextKey = "request_id"
+)
+
 // Gateway represents the API Gateway
 type Gateway struct {
 	config     *config.Config
@@ -60,7 +67,7 @@ func NewGateway(cfg *config.Config) *Gateway {
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Add request ID for tracing
 	requestID := generateRequestID()
-	ctx := context.WithValue(r.Context(), "request_id", requestID)
+	ctx := context.WithValue(r.Context(), gatewayRequestIDKey, requestID)
 	r = r.WithContext(ctx)
 
 	// Add request ID to response headers

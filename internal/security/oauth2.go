@@ -385,10 +385,13 @@ func (om *OAuth2Middleware) CallbackHandler(providerName string) http.HandlerFun
 
 		// For now, just return the user info
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
 			"token":     token,
 			"user_info": userInfo,
-		})
+		}); err != nil {
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+			return
+		}
 	}
 }
 

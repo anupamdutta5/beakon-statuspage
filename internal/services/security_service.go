@@ -2,8 +2,6 @@ package services
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base32"
 	"encoding/hex"
 	"fmt"
 	"net"
@@ -440,19 +438,12 @@ func (s *SecurityService) generateBackupCodes() []string {
 	codes := make([]string, 10)
 	for i := 0; i < 10; i++ {
 		bytes := make([]byte, 4)
-		rand.Read(bytes)
-		codes[i] = strings.ToUpper(hex.EncodeToString(bytes))
+		if _, err := rand.Read(bytes); err != nil {
+			logger.Log.Error("Failed to generate random bytes for backup code", zap.Error(err))
+			codes[i] = fmt.Sprintf("BACKUP%d", i)
+		} else {
+			codes[i] = strings.ToUpper(hex.EncodeToString(bytes))
+		}
 	}
 	return codes
-}
-
-func (s *SecurityService) hashPassword(password string) string {
-	hash := sha256.Sum256([]byte(password))
-	return hex.EncodeToString(hash[:])
-}
-
-func (s *SecurityService) generateRandomString(length int) string {
-	bytes := make([]byte, length)
-	rand.Read(bytes)
-	return base32.StdEncoding.EncodeToString(bytes)[:length]
 }

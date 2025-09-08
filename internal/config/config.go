@@ -334,7 +334,13 @@ func loadFromEnv(config *Config) {
 	config.Email.SendGrid.From = getEnv("SENDGRID_FROM", config.Email.SendGrid.From)
 
 	// Payment Configuration
-	config.Payment.DefaultGateway = getEnv("PAYMENT_DEFAULT_GATEWAY", config.Payment.DefaultGateway)
+	paymentConfig, err := LoadPaymentConfig()
+	if err != nil {
+		// Log warning but don't fail
+		fmt.Printf("Warning: Failed to load payment config: %v\n", err)
+	} else {
+		config.Payment = *paymentConfig
+	}
 
 	// Monitoring Configuration
 	config.Monitoring.Prometheus.Enabled = getEnvBool("PROMETHEUS_ENABLED", config.Monitoring.Prometheus.Enabled)

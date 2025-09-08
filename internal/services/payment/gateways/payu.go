@@ -6,10 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
 	"github.com/enterprise-status/statuspage/internal/config"
@@ -381,69 +378,4 @@ func (g *PayUGateway) generateWebhookHash(data map[string]interface{}) string {
 	// Generate SHA512 hash
 	hash := sha512.Sum512([]byte(hashString))
 	return hex.EncodeToString(hash[:])
-}
-
-// generateVerifyHash generates PayU hash for verification request
-func (g *PayUGateway) generateVerifyHash(key, command, var1 string) string {
-	// Create hash string
-	hashString := fmt.Sprintf("%s|%s|%s|%s",
-		key,
-		command,
-		var1,
-		g.merchantSalt,
-	)
-
-	// Generate SHA512 hash
-	hash := sha512.Sum512([]byte(hashString))
-	return hex.EncodeToString(hash[:])
-}
-
-// verifyPayment verifies a PayU payment
-func (g *PayUGateway) verifyPayment(ctx context.Context, paymentID string) (*PayUVerifyResponse, error) {
-	// Create verification request
-	verifyReq := &PayUVerifyRequest{
-		Key:     g.merchantKey,
-		Command: "verify_payment",
-		Var1:    paymentID,
-	}
-
-	// Generate hash
-	verifyReq.Hash = g.generateVerifyHash(verifyReq.Key, verifyReq.Command, verifyReq.Var1)
-
-	// Create form data
-	formData := url.Values{}
-	formData.Set("key", verifyReq.Key)
-	formData.Set("command", verifyReq.Command)
-	formData.Set("hash", verifyReq.Hash)
-	formData.Set("var1", verifyReq.Var1)
-
-	// Make request
-	req, err := http.NewRequestWithContext(ctx, "POST", g.baseURL+"/merchant/postservice.php", strings.NewReader(formData.Encode()))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := g.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("payu verification API error: %s", string(body))
-	}
-
-	var verifyResp PayUVerifyResponse
-	if err := json.Unmarshal(body, &verifyResp); err != nil {
-		return nil, err
-	}
-
-	return &verifyResp, nil
 }

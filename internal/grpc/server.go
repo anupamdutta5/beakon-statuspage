@@ -11,6 +11,13 @@ import (
 	"go.uber.org/zap"
 )
 
+// Context key type for gRPC server
+type grpcServerContextKey string
+
+const (
+	grpcServerMethodKey grpcServerContextKey = "grpc_method"
+)
+
 // Server represents a gRPC server
 type Server struct {
 	config     *config.Config
@@ -108,7 +115,7 @@ func (s *Server) UnaryInterceptor() func(ctx context.Context, req interface{}, i
 		start := time.Now()
 
 		// Add tracing context
-		ctx = context.WithValue(ctx, "grpc_method", info.FullMethod)
+		ctx = context.WithValue(ctx, grpcServerMethodKey, info.FullMethod)
 
 		// Log request
 		logger.Log.Debug("gRPC request started",
@@ -140,7 +147,7 @@ func (s *Server) StreamInterceptor() func(srv interface{}, ss StreamServer, info
 		start := time.Now()
 
 		// Add tracing context
-		ctx := context.WithValue(ss.Context(), "grpc_method", info.FullMethod)
+		ctx := context.WithValue(ss.Context(), grpcServerMethodKey, info.FullMethod)
 
 		// Wrap stream with logging
 		loggingStream := &loggingServerStream{

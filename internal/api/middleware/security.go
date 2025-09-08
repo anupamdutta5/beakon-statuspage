@@ -71,7 +71,9 @@ func (m *SecurityMiddleware) TenantIsolationMiddleware() gin.HandlerFunc {
 				Details:     fmt.Sprintf("Tenant: %d, User: %d", tenant.ID, userID),
 			}
 
-			m.securityService.RecordSecurityViolation(c.Request.Context(), tenant.ID, violation)
+			if err := m.securityService.RecordSecurityViolation(c.Request.Context(), tenant.ID, violation); err != nil {
+				logger.Log.Error("Failed to record security violation", zap.Error(err))
+			}
 
 			c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 			c.Abort()
@@ -121,7 +123,9 @@ func (m *SecurityMiddleware) IPWhitelistMiddleware() gin.HandlerFunc {
 				Details:     fmt.Sprintf("Tenant: %d", tenant.ID),
 			}
 
-			m.securityService.RecordSecurityViolation(c.Request.Context(), tenant.ID, violation)
+			if err := m.securityService.RecordSecurityViolation(c.Request.Context(), tenant.ID, violation); err != nil {
+				logger.Log.Error("Failed to record security violation", zap.Error(err))
+			}
 
 			c.JSON(http.StatusForbidden, gin.H{"error": "IP address not allowed"})
 			c.Abort()
@@ -252,7 +256,9 @@ func (m *SecurityMiddleware) RateLimitingMiddleware() gin.HandlerFunc {
 				Details:     fmt.Sprintf("Tenant: %d, Requests: %d", tenant.ID, len(timestamps)),
 			}
 
-			m.securityService.RecordSecurityViolation(c.Request.Context(), tenant.ID, violation)
+			if err := m.securityService.RecordSecurityViolation(c.Request.Context(), tenant.ID, violation); err != nil {
+				logger.Log.Error("Failed to record security violation", zap.Error(err))
+			}
 
 			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Rate limit exceeded"})
 			c.Abort()
@@ -275,7 +281,8 @@ func (m *SecurityMiddleware) SecurityHeadersMiddleware() gin.HandlerFunc {
 		c.Header("X-XSS-Protection", "1; mode=block")
 		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
-		c.Header("Content-Security-Policy", "default-src 'self'")
+		// Temporarily disable CSP for development
+		// c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'")
 
 		c.Next()
 	}

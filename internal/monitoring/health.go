@@ -177,7 +177,10 @@ func (hh *HTTPHealthHandler) HealthHandler(w http.ResponseWriter, r *http.Reques
 		"service":   "statuspage",
 	}
 
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // DetailedHealthHandler handles detailed health check requests
@@ -211,7 +214,10 @@ func (hh *HTTPHealthHandler) DetailedHealthHandler(w http.ResponseWriter, r *htt
 		"checks":    checks,
 	}
 
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // ReadinessHandler handles readiness check requests
@@ -242,7 +248,10 @@ func (hh *HTTPHealthHandler) ReadinessHandler(w http.ResponseWriter, r *http.Req
 		"service":   "statuspage",
 	}
 
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // LivenessHandler handles liveness check requests
@@ -257,7 +266,10 @@ func (hh *HTTPHealthHandler) LivenessHandler(w http.ResponseWriter, r *http.Requ
 		"service":   "statuspage",
 	}
 
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // DatabaseHealthCheck checks database connectivity

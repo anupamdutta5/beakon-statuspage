@@ -270,6 +270,7 @@ func (s *AdvancedNotificationService) sendSMSNotification(tenantID uint, subscri
 func (s *AdvancedNotificationService) sendTwilioSMS(provider *SMSProvider, toNumber, message string) error {
 	// Twilio SMS implementation
 	// This would use the Twilio Go SDK
+	_ = provider // TODO: Use provider configuration for Twilio API credentials
 	logger.Info("Sending Twilio SMS", zap.String("to", toNumber), zap.String("message", message))
 	return nil
 }
@@ -285,10 +286,7 @@ func (s *AdvancedNotificationService) sendAWSSNS(provider *SMSProvider, toNumber
 
 func (s *AdvancedNotificationService) sendPushNotification(tenantID uint, subscriber *models.Subscriber, incident *models.Incident) error {
 	// Get user's push tokens
-	var pushTokens []string // This would come from a user device tokens table
-	if pushTokens == nil {
-		pushTokens = []string{} // Initialize empty slice to avoid nil range warning
-	}
+	pushTokens := []string{} // This would come from a user device tokens table
 
 	for _, token := range pushTokens {
 		notification := PushNotification{

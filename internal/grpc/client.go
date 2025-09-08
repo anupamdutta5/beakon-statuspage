@@ -11,6 +11,13 @@ import (
 	"go.uber.org/zap"
 )
 
+// Context key type for gRPC client
+type grpcClientContextKey string
+
+const (
+	grpcMethodKey grpcClientContextKey = "grpc_method"
+)
+
 // Client manages gRPC connections to microservices
 type Client struct {
 	config    *config.Config
@@ -87,7 +94,7 @@ func (c *Client) Call(ctx context.Context, serviceName, method string, request i
 	}
 
 	// Add tracing context
-	ctx = c.addTracingContext(ctx, method)
+	_ = c.addTracingContext(ctx, method)
 
 	// Log request
 	logger.Log.Debug("gRPC request started",
@@ -120,7 +127,7 @@ func (c *Client) Call(ctx context.Context, serviceName, method string, request i
 func (c *Client) addTracingContext(ctx context.Context, method string) context.Context {
 	// In a real implementation, this would add distributed tracing headers
 	// For now, we'll just add the method name
-	return context.WithValue(ctx, "grpc_method", method)
+	return context.WithValue(ctx, grpcMethodKey, method)
 }
 
 // StreamCall makes a streaming gRPC call to the specified service
@@ -132,7 +139,7 @@ func (c *Client) StreamCall(ctx context.Context, serviceName, method string, req
 	}
 
 	// Add tracing context
-	ctx = c.addTracingContext(ctx, method)
+	_ = c.addTracingContext(ctx, method)
 
 	// Log request
 	logger.Log.Debug("gRPC stream started",

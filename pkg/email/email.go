@@ -60,7 +60,7 @@ func (s *SMTPSender) Send(to, subject, body string) error {
 
 	// Connect to the server
 	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
-	
+
 	var auth smtp.Auth
 	if s.config.Username != "" && s.config.Password != "" {
 		auth = smtp.PlainAuth("", s.config.Username, s.config.Password, s.config.Host)
@@ -85,7 +85,11 @@ func (s *SMTPSender) Send(to, subject, body string) error {
 			logger.Error("Failed to create SMTP client", zap.Error(err))
 			return err
 		}
-		defer client.Quit()
+		defer func() {
+			if err := client.Quit(); err != nil {
+				logger.Error("Failed to quit SMTP client", zap.Error(err))
+			}
+		}()
 
 		if auth != nil {
 			if err := client.Auth(auth); err != nil {
@@ -141,8 +145,8 @@ func (s *SMTPSender) Send(to, subject, body string) error {
 func (s *SMTPSender) SendToMultiple(to []string, subject, body string) error {
 	for _, recipient := range to {
 		if err := s.Send(recipient, subject, body); err != nil {
-			logger.Error("Failed to send email to recipient", 
-				zap.String("recipient", recipient), 
+			logger.Error("Failed to send email to recipient",
+				zap.String("recipient", recipient),
 				zap.Error(err))
 			// Continue sending to other recipients even if one fails
 		}

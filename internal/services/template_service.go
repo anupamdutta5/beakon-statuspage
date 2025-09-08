@@ -34,7 +34,7 @@ func (s *TemplateService) CreateIncidentTemplate(template *models.IncidentTempla
 			logger.Error("Failed to find services for template", zap.Error(err))
 			return err
 		}
-		
+
 		if err := s.db.Model(template).Association("Services").Append(services); err != nil {
 			logger.Error("Failed to associate services with template", zap.Error(err))
 			return err
@@ -85,7 +85,7 @@ func (s *TemplateService) UpdateIncidentTemplate(template *models.IncidentTempla
 				logger.Error("Failed to find services for template", zap.Error(err))
 				return err
 			}
-			
+
 			if err := s.db.Model(template).Association("Services").Append(services); err != nil {
 				logger.Error("Failed to associate services with template", zap.Error(err))
 				return err
@@ -124,7 +124,7 @@ func (s *TemplateService) CreateMaintenanceTemplate(template *models.Maintenance
 			logger.Error("Failed to find services for template", zap.Error(err))
 			return err
 		}
-		
+
 		if err := s.db.Model(template).Association("Services").Append(services); err != nil {
 			logger.Error("Failed to associate services with template", zap.Error(err))
 			return err
@@ -175,7 +175,7 @@ func (s *TemplateService) UpdateMaintenanceTemplate(template *models.Maintenance
 				logger.Error("Failed to find services for template", zap.Error(err))
 				return err
 			}
-			
+
 			if err := s.db.Model(template).Association("Services").Append(services); err != nil {
 				logger.Error("Failed to associate services with template", zap.Error(err))
 				return err

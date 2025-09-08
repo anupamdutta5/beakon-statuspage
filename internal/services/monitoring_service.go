@@ -224,34 +224,6 @@ func (s *MonitoringService) evaluateAlert(alert *models.Alert) error {
 	return s.evaluateMockAlert(alert)
 }
 
-func (s *MonitoringService) evaluateCondition(value, threshold float64, condition string) bool {
-	switch condition {
-	case "greater_than":
-		return value > threshold
-	case "less_than":
-		return value < threshold
-	case "equal_to":
-		return value == threshold
-	case "not_equal_to":
-		return value != threshold
-	default:
-		return false
-	}
-}
-
-func (s *MonitoringService) createIncidentForAlert(alert *models.Alert, currentValue float64) error {
-	incident := &models.Incident{
-		TenantID: alert.TenantID,
-		Title:    fmt.Sprintf("Alert: %s", alert.Name),
-		Description: fmt.Sprintf("Alert condition met: %s %s %.2f (current: %.2f)",
-			alert.Query, alert.Condition, alert.Threshold, currentValue),
-		Status: "investigating",
-		Impact: alert.Severity,
-	}
-
-	return s.db.Create(incident).Error
-}
-
 func (s *MonitoringService) evaluateMockAlert(alert *models.Alert) error {
 	// Mock alert evaluation for testing
 	// Randomly fire alerts for demonstration

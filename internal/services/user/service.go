@@ -69,7 +69,10 @@ func (s *UserService) handleHealthCheck(w http.ResponseWriter, r *http.Request) 
 		"version":   "1.0.0",
 	}
 
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // handleGetUsers handles GET /admin/users
@@ -115,7 +118,10 @@ func (s *UserService) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // handleCreateUser handles POST /admin/users
@@ -163,7 +169,10 @@ func (s *UserService) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	user.Password = ""
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(user)
+	if err := json.NewEncoder(w).Encode(user); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // handleGetUser handles GET /admin/users/:id
@@ -192,7 +201,10 @@ func (s *UserService) handleGetUser(w http.ResponseWriter, r *http.Request) {
 
 	// Return user
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	if err := json.NewEncoder(w).Encode(user); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // handleUpdateUser handles PUT /admin/users/:id
@@ -243,7 +255,10 @@ func (s *UserService) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 
 	// Return updated user
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	if err := json.NewEncoder(w).Encode(user); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // handleDeleteUser handles DELETE /admin/users/:id
@@ -280,7 +295,10 @@ func (s *UserService) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		"message": "User deleted successfully",
 		"user_id": userID,
 	}
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // hashPassword hashes a password using bcrypt

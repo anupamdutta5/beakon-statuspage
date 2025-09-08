@@ -17,14 +17,20 @@ const TenantContextKey = "tenant"
 // TenantMiddleware extracts tenant information from the request
 func TenantMiddleware(saasService *services.SaaSService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Skip tenant resolution for SaaS admin routes only
-		if strings.HasPrefix(c.Request.URL.Path, "/admin/saas") {
+		// Skip tenant resolution for API routes
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
 			c.Next()
 			return
 		}
 
-		// Skip tenant resolution for SaaS admin API routes only
-		if strings.HasPrefix(c.Request.URL.Path, "/api/v1/admin/saas") {
+		// Skip tenant resolution for all admin routes
+		if strings.HasPrefix(c.Request.URL.Path, "/admin") {
+			c.Next()
+			return
+		}
+
+		// Skip tenant resolution for all admin API routes
+		if strings.HasPrefix(c.Request.URL.Path, "/api/v1/admin") {
 			c.Next()
 			return
 		}
@@ -37,6 +43,12 @@ func TenantMiddleware(saasService *services.SaaSService) gin.HandlerFunc {
 
 		// Skip tenant resolution for webhooks
 		if strings.HasPrefix(c.Request.URL.Path, "/webhooks") {
+			c.Next()
+			return
+		}
+
+		// Skip tenant resolution for health check
+		if c.Request.URL.Path == "/health" {
 			c.Next()
 			return
 		}

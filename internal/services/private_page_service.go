@@ -49,17 +49,17 @@ func (s *PrivatePageService) CreatePrivatePage(name, description string, service
 			logger.Error("Failed to find services for private page", zap.Error(err))
 			return nil, err
 		}
-		
+
 		if err := s.db.Model(privatePage).Association("Services").Append(services); err != nil {
 			logger.Error("Failed to associate services with private page", zap.Error(err))
 			return nil, err
 		}
 	}
 
-	logger.Info("Private page created successfully", 
+	logger.Info("Private page created successfully",
 		zap.String("name", name),
 		zap.String("access_key", accessKey))
-	
+
 	return privatePage, nil
 }
 
@@ -112,7 +112,7 @@ func (s *PrivatePageService) UpdatePrivatePage(page *models.PrivatePage, service
 				logger.Error("Failed to find services for private page", zap.Error(err))
 				return err
 			}
-			
+
 			if err := s.db.Model(page).Association("Services").Append(services); err != nil {
 				logger.Error("Failed to associate services with private page", zap.Error(err))
 				return err
@@ -164,10 +164,10 @@ func (s *PrivatePageService) TogglePrivatePageStatus(id uint) error {
 		return err
 	}
 
-	logger.Info("Private page status toggled", 
+	logger.Info("Private page status toggled",
 		zap.Uint("id", id),
 		zap.Bool("new_status", newStatus))
-	
+
 	return nil
 }
 
@@ -211,10 +211,10 @@ func (s *PrivatePageService) GetPrivatePageData(accessKey string) (map[string]in
 	}
 
 	return map[string]interface{}{
-		"page":          page,
-		"services":      page.Services,
-		"incidents":     incidents,
-		"maintenance":   maintenance,
+		"page":           page,
+		"services":       page.Services,
+		"incidents":      incidents,
+		"maintenance":    maintenance,
 		"overall_status": overallStatus,
 	}, nil
 }

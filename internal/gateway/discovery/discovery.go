@@ -92,7 +92,9 @@ func (sd *ServiceDiscovery) Start() {
 func (sd *ServiceDiscovery) Stop() {
 	logger.Log.Info("Stopping service discovery")
 	sd.cancel()
-	sd.discoverer.Stop()
+	if err := sd.discoverer.Stop(); err != nil {
+		logger.Log.Error("Failed to stop discoverer", zap.Error(err))
+	}
 }
 
 // GetService returns available instances of a service

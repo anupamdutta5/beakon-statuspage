@@ -23,16 +23,16 @@ func NewUptimeService() *UptimeService {
 
 // UptimeStats holds the calculated uptime statistics for a monitor.
 type UptimeStats struct {
-	MonitorID    uint    `json:"monitor_id"`
-	ServiceName  string  `json:"service_name"`
-	Uptime24H    float64 `json:"uptime_24h"`
-	Uptime7D     float64 `json:"uptime_7d"`
-	Uptime30D    float64 `json:"uptime_30d"`
-	Uptime90D    float64 `json:"uptime_90d"`
-	LatestStatus string  `json:"latest_status"`
+	MonitorID    uint      `json:"monitor_id"`
+	ServiceName  string    `json:"service_name"`
+	Uptime24H    float64   `json:"uptime_24h"`
+	Uptime7D     float64   `json:"uptime_7d"`
+	Uptime30D    float64   `json:"uptime_30d"`
+	Uptime90D    float64   `json:"uptime_90d"`
+	LatestStatus string    `json:"latest_status"`
 	LastCheckAt  time.Time `json:"last_check_at"`
-	TotalChecks  int64   `json:"total_checks"`
-	FailedChecks int64   `json:"failed_checks"`
+	TotalChecks  int64     `json:"total_checks"`
+	FailedChecks int64     `json:"failed_checks"`
 }
 
 // UptimeDataPoint represents a single data point in uptime history
@@ -44,26 +44,26 @@ type UptimeDataPoint struct {
 
 // UptimeHistory represents historical uptime data
 type UptimeHistory struct {
-	MonitorID uint              `json:"monitor_id"`
-	ServiceName string          `json:"service_name"`
-	Period    string            `json:"period"` // 24h, 7d, 30d, 90d
-	DataPoints []UptimeDataPoint `json:"data_points"`
-	AverageUptime float64       `json:"average_uptime"`
+	MonitorID     uint              `json:"monitor_id"`
+	ServiceName   string            `json:"service_name"`
+	Period        string            `json:"period"` // 24h, 7d, 30d, 90d
+	DataPoints    []UptimeDataPoint `json:"data_points"`
+	AverageUptime float64           `json:"average_uptime"`
 }
 
 // AnalyticsSummary provides overall analytics for the status page
 type AnalyticsSummary struct {
-	OverallUptime24H float64 `json:"overall_uptime_24h"`
-	OverallUptime7D  float64 `json:"overall_uptime_7d"`
-	OverallUptime30D float64 `json:"overall_uptime_30d"`
-	OverallUptime90D float64 `json:"overall_uptime_90d"`
-	TotalIncidents   int64   `json:"total_incidents"`
-	ResolvedIncidents int64  `json:"resolved_incidents"`
-	ActiveIncidents  int64   `json:"active_incidents"`
-	MTTR            float64  `json:"mttr_hours"` // Mean Time To Resolution in hours
-	MTTA            float64  `json:"mtta_hours"` // Mean Time To Acknowledgment in hours
-	ServiceCount    int64    `json:"service_count"`
-	MonitorCount    int64    `json:"monitor_count"`
+	OverallUptime24H  float64 `json:"overall_uptime_24h"`
+	OverallUptime7D   float64 `json:"overall_uptime_7d"`
+	OverallUptime30D  float64 `json:"overall_uptime_30d"`
+	OverallUptime90D  float64 `json:"overall_uptime_90d"`
+	TotalIncidents    int64   `json:"total_incidents"`
+	ResolvedIncidents int64   `json:"resolved_incidents"`
+	ActiveIncidents   int64   `json:"active_incidents"`
+	MTTR              float64 `json:"mttr_hours"` // Mean Time To Resolution in hours
+	MTTA              float64 `json:"mtta_hours"` // Mean Time To Acknowledgment in hours
+	ServiceCount      int64   `json:"service_count"`
+	MonitorCount      int64   `json:"monitor_count"`
 }
 
 // GetUptimeStatsForMonitors calculates uptime stats for all monitors.
@@ -111,7 +111,7 @@ func (s *UptimeService) GetUptimeHistory(monitorID uint, period string) (*Uptime
 
 	var duration time.Duration
 	var interval time.Duration
-	
+
 	switch period {
 	case "24h":
 		duration = 24 * time.Hour
@@ -131,10 +131,10 @@ func (s *UptimeService) GetUptimeHistory(monitorID uint, period string) (*Uptime
 
 	var dataPoints []UptimeDataPoint
 	startTime := time.Now().Add(-duration)
-	
+
 	for currentTime := startTime; currentTime.Before(time.Now()); currentTime = currentTime.Add(interval) {
 		endTime := currentTime.Add(interval)
-		
+
 		uptime, err := s.calculateUptimeForPeriod(monitorID, currentTime, endTime)
 		if err != nil {
 			logger.Error("Failed to calculate uptime for period", zap.Error(err))
@@ -201,17 +201,17 @@ func (s *UptimeService) GetAnalyticsSummary() (*AnalyticsSummary, error) {
 	s.db.Model(&models.Monitor{}).Count(&monitorCount)
 
 	return &AnalyticsSummary{
-		OverallUptime24H: overallUptime24H,
-		OverallUptime7D:  overallUptime7D,
-		OverallUptime30D: overallUptime30D,
-		OverallUptime90D: overallUptime90D,
-		TotalIncidents:   totalIncidents,
+		OverallUptime24H:  overallUptime24H,
+		OverallUptime7D:   overallUptime7D,
+		OverallUptime30D:  overallUptime30D,
+		OverallUptime90D:  overallUptime90D,
+		TotalIncidents:    totalIncidents,
 		ResolvedIncidents: resolvedIncidents,
-		ActiveIncidents:  activeIncidents,
-		MTTR:            mttr,
-		MTTA:            mtta,
-		ServiceCount:    serviceCount,
-		MonitorCount:    monitorCount,
+		ActiveIncidents:   activeIncidents,
+		MTTR:              mttr,
+		MTTA:              mtta,
+		ServiceCount:      serviceCount,
+		MonitorCount:      monitorCount,
 	}, nil
 }
 

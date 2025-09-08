@@ -81,6 +81,8 @@ func (s *CustomDomainService) SetCustomDomain(ctx context.Context, req *DomainSe
 	if req.AdminDomain != "" {
 		// For now, we'll use the same domain for both status page and admin
 		// In a more advanced setup, we could have separate domains
+		// TODO: Implement separate admin domain functionality
+		_ = req.AdminDomain // Acknowledge the parameter to avoid linter warning
 	}
 
 	if err := s.db.Save(&tenant).Error; err != nil {

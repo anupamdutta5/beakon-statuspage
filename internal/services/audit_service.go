@@ -24,27 +24,27 @@ func NewAuditService() *AuditService {
 
 // AuditAction represents different types of audit actions
 const (
-	ActionCreate   = "create"
-	ActionUpdate   = "update"
-	ActionDelete   = "delete"
-	ActionLogin    = "login"
-	ActionLogout   = "logout"
-	ActionView     = "view"
-	ActionExport   = "export"
-	ActionImport   = "import"
+	ActionCreate = "create"
+	ActionUpdate = "update"
+	ActionDelete = "delete"
+	ActionLogin  = "login"
+	ActionLogout = "logout"
+	ActionView   = "view"
+	ActionExport = "export"
+	ActionImport = "import"
 )
 
 // AuditResource represents different types of resources
 const (
-	ResourceIncident     = "incident"
-	ResourceMaintenance  = "maintenance"
-	ResourceService      = "service"
-	ResourceMonitor      = "monitor"
-	ResourceUser         = "user"
-	ResourceSubscriber   = "subscriber"
-	ResourceBranding     = "branding"
-	ResourceIntegration  = "integration"
-	ResourceAuditLog     = "audit_log"
+	ResourceIncident    = "incident"
+	ResourceMaintenance = "maintenance"
+	ResourceService     = "service"
+	ResourceMonitor     = "monitor"
+	ResourceUser        = "user"
+	ResourceSubscriber  = "subscriber"
+	ResourceBranding    = "branding"
+	ResourceIntegration = "integration"
+	ResourceAuditLog    = "audit_log"
 )
 
 // LogAuditEvent logs an audit event
@@ -151,7 +151,7 @@ func (s *AuditService) getClientIP(req *http.Request) string {
 	if ip := req.Header.Get("CF-Connecting-IP"); ip != "" {
 		return ip
 	}
-	
+
 	// Fall back to RemoteAddr
 	return req.RemoteAddr
 }

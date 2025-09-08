@@ -310,6 +310,24 @@ type FeatureFlag struct {
 	Config    string // JSON configuration for the feature
 }
 
+// SaaSFeatureAvailability controls which features are available to tenants
+type SaaSFeatureAvailability struct {
+	gorm.Model
+	Feature     string `gorm:"not null;unique"` // feature name
+	IsAvailable bool   `gorm:"default:false"`   // whether this feature is available to any tenant
+	Description string // human-readable description
+	Config      string // JSON configuration for the feature
+}
+
+// Feature flag constants
+const (
+	FeaturePerServiceGraphs  = "per_service_graphs"
+	FeatureCustomDomains     = "custom_domains"
+	FeatureAdvancedAnalytics = "advanced_analytics"
+	FeatureSSO               = "sso"
+	FeatureAPI               = "api_access"
+)
+
 // BillingEvent represents billing-related events
 type BillingEvent struct {
 	gorm.Model

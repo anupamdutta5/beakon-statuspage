@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"reflect"
 	"testing"
@@ -191,12 +191,14 @@ func (ctr *ContractTestRunner) makeRequest(req Request) (*http.Response, error) 
 			return nil, fmt.Errorf("failed to marshal request body: %w", err)
 		}
 		httpReq, err = http.NewRequest(req.Method, url, bytes.NewReader(body))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request with body: %w", err)
+		}
 	} else {
 		httpReq, err = http.NewRequest(req.Method, url, nil)
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
 	}
 
 	// Set headers
@@ -225,7 +227,7 @@ func (ctr *ContractTestRunner) verifyResponse(resp *http.Response, expected Resp
 
 	// Verify body
 	if expected.Body != nil {
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return fmt.Errorf("failed to read response body: %w", err)
 		}

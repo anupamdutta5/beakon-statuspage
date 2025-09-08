@@ -13,6 +13,15 @@ import (
 	"go.uber.org/zap"
 )
 
+// Context key types to avoid collisions
+type contextKey string
+
+const (
+	userIDKey    contextKey = "user_id"
+	tenantIDKey  contextKey = "tenant_id"
+	requestIDKey contextKey = "request_id"
+)
+
 // MiddlewareFunc represents a middleware function
 type MiddlewareFunc func(http.HandlerFunc) http.HandlerFunc
 
@@ -60,8 +69,8 @@ func (m *Middleware) AuthRequired() MiddlewareFunc {
 			}
 
 			// Add user and tenant context
-			ctx := context.WithValue(r.Context(), "user_id", userID)
-			ctx = context.WithValue(ctx, "tenant_id", tenantID)
+			ctx := context.WithValue(r.Context(), userIDKey, userID)
+			ctx = context.WithValue(ctx, tenantIDKey, tenantID)
 			r = r.WithContext(ctx)
 
 			// Continue to next handler
@@ -185,7 +194,7 @@ func (m *Middleware) SecurityHeaders() MiddlewareFunc {
 			w.Header().Set("X-Frame-Options", "DENY")
 			w.Header().Set("X-XSS-Protection", "1; mode=block")
 			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-			w.Header().Set("Content-Security-Policy", "default-src 'self'")
+			w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'")
 
 			// Continue to next handler
 			next(w, r)
@@ -204,7 +213,7 @@ func (m *Middleware) RequestID() MiddlewareFunc {
 			}
 
 			// Add to context
-			ctx := context.WithValue(r.Context(), "request_id", requestID)
+			ctx := context.WithValue(r.Context(), requestIDKey, requestID)
 			r = r.WithContext(ctx)
 
 			// Add to response headers
@@ -295,7 +304,10 @@ func (m *Middleware) writeErrorResponse(w http.ResponseWriter, statusCode int, m
 		"code":    statusCode,
 	}
 
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // responseWriter wraps http.ResponseWriter to capture status code

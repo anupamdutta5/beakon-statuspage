@@ -196,7 +196,9 @@ func (es *EventSubscriber) processEvent(ctx context.Context, event *Event, subsc
 	if !exists {
 		status.Status = "failed"
 		status.ErrorMessage = "No handler found for event type"
-		es.updateProcessingStatus(status)
+		if err := es.updateProcessingStatus(status); err != nil {
+			logger.Log.Error("Failed to update processing status", zap.Error(err))
+		}
 		return fmt.Errorf("no handler found for event type: %s", event.EventType)
 	}
 
@@ -205,14 +207,18 @@ func (es *EventSubscriber) processEvent(ctx context.Context, event *Event, subsc
 		status.Status = "failed"
 		status.ErrorMessage = err.Error()
 		status.RetryCount++
-		es.updateProcessingStatus(status)
+		if updateErr := es.updateProcessingStatus(status); updateErr != nil {
+			logger.Log.Error("Failed to update processing status", zap.Error(updateErr))
+		}
 		return fmt.Errorf("failed to process event: %w", err)
 	}
 
 	// Mark as completed
 	status.Status = "completed"
 	status.ProcessedAt = time.Now()
-	es.updateProcessingStatus(status)
+	if err := es.updateProcessingStatus(status); err != nil {
+		logger.Log.Error("Failed to update processing status", zap.Error(err))
+	}
 
 	logger.Log.Debug("Event processed successfully",
 		zap.String("event_type", event.EventType),

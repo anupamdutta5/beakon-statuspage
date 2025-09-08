@@ -368,40 +368,6 @@ func (sm *SecurityMiddleware) SecurityHeadersMiddleware() func(next http.Handler
 	}
 }
 
-// mTLSMiddleware provides mTLS middleware
-func (sm *SecurityMiddleware) mTLSMiddleware() func(next http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Check if TLS connection exists
-			if r.TLS == nil {
-				http.Error(w, "TLS connection required", http.StatusBadRequest)
-				return
-			}
-
-			// Check if client certificate exists
-			if len(r.TLS.PeerCertificates) == 0 {
-				http.Error(w, "Client certificate required", http.StatusUnauthorized)
-				return
-			}
-
-			// Validate client certificate
-			clientCert := r.TLS.PeerCertificates[0]
-			if err := sm.mTLSManager.ValidateClientCert(clientCert); err != nil {
-				http.Error(w, "Invalid client certificate", http.StatusUnauthorized)
-				return
-			}
-
-			// Add client certificate info to context
-			ctx := r.Context()
-			ctx = context.WithValue(ctx, clientCertKey, clientCert)
-			ctx = context.WithValue(ctx, clientIDKey, clientCert.Subject.CommonName)
-			r = r.WithContext(ctx)
-
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
 // Helper functions
 func (sm *SecurityMiddleware) getClientID(r *http.Request) string {
 	// Try to get client ID from various sources

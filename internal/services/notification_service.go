@@ -5,6 +5,8 @@ import (
 
 	"github.com/enterprise-status/statuspage/internal/models"
 	"github.com/enterprise-status/statuspage/pkg/email"
+	"github.com/enterprise-status/statuspage/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // NotificationService is responsible for sending notifications to subscribers.
@@ -41,7 +43,11 @@ func (s *NotificationService) NotifyNewIncident(incident *models.Incident) error
 	body := fmt.Sprintf("A new incident has been reported: %s\n\nDescription: %s\nStatus: %s", incident.Title, incident.Description, incident.Status)
 
 	for _, subscriber := range subscribers {
-		s.emailSender.Send(subscriber.Email, subject, body)
+		if err := s.emailSender.Send(subscriber.Email, subject, body); err != nil {
+			logger.Log.Error("Failed to send incident notification email",
+				zap.String("email", subscriber.Email),
+				zap.Error(err))
+		}
 	}
 
 	return nil
@@ -67,7 +73,11 @@ func (s *NotificationService) NotifyNewMaintenance(event *models.Maintenance) er
 	body := fmt.Sprintf("A new maintenance event has been scheduled: %s\n\nDescription: %s\nStatus: %s\nFrom: %s To: %s", event.Title, event.Description, event.Status, event.StartAt, event.EndAt)
 
 	for _, subscriber := range subscribers {
-		s.emailSender.Send(subscriber.Email, subject, body)
+		if err := s.emailSender.Send(subscriber.Email, subject, body); err != nil {
+			logger.Log.Error("Failed to send maintenance notification email",
+				zap.String("email", subscriber.Email),
+				zap.Error(err))
+		}
 	}
 
 	return nil

@@ -379,8 +379,8 @@ func (mm *mTLSMiddleware) ClientCertHandler(next http.Handler) http.Handler {
 
 		// Add client certificate info to context
 		ctx := r.Context()
-		ctx = context.WithValue(ctx, "client_cert", clientCert)
-		ctx = context.WithValue(ctx, "client_id", clientCert.Subject.CommonName)
+		ctx = context.WithValue(ctx, contextKey("client_cert"), clientCert)
+		ctx = context.WithValue(ctx, contextKey("client_id"), clientCert.Subject.CommonName)
 		r = r.WithContext(ctx)
 
 		next.ServeHTTP(w, r)

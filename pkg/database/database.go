@@ -1,6 +1,8 @@
 package database
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"os"
@@ -50,6 +52,20 @@ func Connect(cfg *config.DatabaseConfig) error {
 
 	log.Println("Database connection established")
 
+	// Configure connection pooling
+	sqlDB, err := DB.DB()
+	if err != nil {
+		return fmt.Errorf("failed to get underlying sql.DB: %w", err)
+	}
+
+	// Set connection pool settings
+	sqlDB.SetMaxOpenConns(25)                 // Maximum number of open connections
+	sqlDB.SetMaxIdleConns(10)                 // Maximum number of idle connections
+	sqlDB.SetConnMaxLifetime(5 * time.Minute) // Maximum connection lifetime
+	sqlDB.SetConnMaxIdleTime(1 * time.Minute) // Maximum idle connection time
+
+	log.Println("Database connection pooling configured")
+
 	log.Println("Running database migrations")
 	if err := AutoMigrate(); err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
@@ -70,6 +86,7 @@ func AutoMigrate() error {
 		&models.SubscriptionPlan{},
 		&models.Subscription{},
 		&models.FeatureFlag{},
+		&models.SaaSFeatureAvailability{},
 		&models.BillingEvent{},
 		&models.UsageMetrics{},
 		&models.AdminSettings{},
@@ -126,15 +143,30 @@ func Seed() error {
 		}
 	}
 
-	// Seed initial admin user
+	// Seed initial admin user with secure credentials
 	var user models.User
 	if err := DB.Where("username = ?", "admin").First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
+			// Generate secure admin password
+			adminPassword := os.Getenv("ADMIN_PASSWORD")
+			if adminPassword == "" {
+				// Generate a secure random password
+				bytes := make([]byte, 16)
+				if _, err := rand.Read(bytes); err != nil {
+					log.Printf("Failed to generate random password: %v", err)
+					adminPassword = "default-admin-password-change-me"
+				} else {
+					adminPassword = hex.EncodeToString(bytes)
+				}
+				log.Printf("Generated secure admin password: %s", adminPassword)
+				log.Printf("Please save this password securely and set ADMIN_PASSWORD environment variable")
+			}
+
 			adminUser := models.User{
 				Username: "admin",
-				Password: "password", // This will be hashed by the BeforeSave hook
+				Password: adminPassword, // This will be hashed by the BeforeSave hook
 				Role:     "admin",
-				Email:    "admin@example.com",
+				Email:    getEnv("ADMIN_EMAIL", "admin@example.com"),
 				TenantID: &tenant.ID,
 				IsActive: true,
 			}
@@ -253,4 +285,12 @@ func Seed() error {
 // GetDB returns the global database connection
 func GetDB() *gorm.DB {
 	return DB
+}
+
+// getEnv gets an environment variable with a default value
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }

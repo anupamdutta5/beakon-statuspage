@@ -12,6 +12,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// Context key type for route parameters
+type routeParamKey string
+
 // Router handles HTTP routing for the API Gateway
 type Router struct {
 	config     *config.Config
@@ -193,7 +196,7 @@ func (r *Router) extractParams(req *http.Request, pattern string) context.Contex
 		if strings.HasPrefix(patternPart, ":") {
 			paramName := strings.TrimPrefix(patternPart, ":")
 			paramValue := pathParts[i]
-			ctx = context.WithValue(ctx, paramName, paramValue)
+			ctx = context.WithValue(ctx, routeParamKey(paramName), paramValue)
 		}
 	}
 

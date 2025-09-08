@@ -1,0 +1,145 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8080,
+    "read_timeout": "10s",
+    "write_timeout": "10s",
+    "idle_timeout": "120s",
+    "tls": {
+      "enabled": false,
+      "cert_file": "",
+      "key_file": ""
+    }
+  },
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "user": "postgres",
+    "password": "postgres",
+    "name": "statuspage_dev",
+    "ssl_mode": "disable",
+    "max_conns": 25,
+    "min_conns": 5
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "password": "",
+    "db": 0,
+    "pool_size": 10
+  },
+  "jwt": {
+    "secret": "development-secret-key-change-in-production",
+    "expires_in": "24h",
+    "refresh_in": "168h",
+    "issuer": "statuspage-dev",
+    "audience": "statuspage-api"
+  },
+  "email": {
+    "provider": "smtp",
+    "smtp": {
+      "host": "localhost",
+      "port": 1025,
+      "username": "",
+      "password": "",
+      "from": "noreply@statuspage.dev",
+      "use_tls": false
+    },
+    "sendgrid": {
+      "api_key": "",
+      "from": "noreply@statuspage.dev"
+    }
+  },
+  "payment": {
+    "default_provider": "stripe",
+    "providers": {
+      "stripe": {
+        "secret_key": "sk_test_development_key",
+        "webhook_secret": "whsec_development_secret",
+        "publishable_key": "pk_test_development_key"
+      },
+      "paypal": {
+        "client_id": "test_client_id",
+        "client_secret": "test_client_secret",
+        "sandbox": true
+      }
+    }
+  },
+  "monitoring": {
+    "prometheus": {
+      "enabled": true,
+      "port": 9090,
+      "path": "/metrics"
+    },
+    "jaeger": {
+      "enabled": false,
+      "endpoint": "http://localhost:14268/api/traces",
+      "service_name": "statuspage-dev"
+    },
+    "influxdb": {
+      "url": "http://localhost:8086",
+      "token": "",
+      "org": "statuspage",
+      "bucket": "metrics"
+    }
+  },
+  "security": {
+    "rate_limit": {
+      "enabled": true,
+      "rate": 100,
+      "burst": 200,
+      "window": "1m"
+    },
+    "cors": {
+      "allowed_origins": ["http://localhost:3000", "http://localhost:8080"],
+      "allowed_methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      "allowed_headers": ["*"],
+      "allow_credentials": true
+    },
+    "encryption": {
+      "key": "development-encryption-key-32-chars",
+      "algorithm": "AES-256-GCM"
+    },
+    "session": {
+      "secret": "development-session-secret",
+      "max_age": "24h",
+      "secure": false,
+      "http_only": true,
+      "same_site": "Lax"
+    }
+  },
+  "service_discovery": {
+    "provider": "consul",
+    "consul": {
+      "address": "localhost:8500",
+      "token": "",
+      "dc": "dc1"
+    }
+  },
+  "kafka": {
+    "brokers": ["localhost:9092"],
+    "topics": {
+      "incidents": "incidents",
+      "notifications": "notifications",
+      "analytics": "analytics",
+      "payments": "payments"
+    }
+  },
+  "tracing": {
+    "enabled": false,
+    "service_name": "statuspage-dev",
+    "endpoint": "http://localhost:14268/api/traces",
+    "sample_rate": 1.0
+  },
+  "logging": {
+    "level": "debug",
+    "format": "json",
+    "output": "stdout",
+    "filename": "",
+    "max_size": 100,
+    "max_backups": 3,
+    "max_age": 28,
+    "compress": true
+  },
+  "environment": "development"
+}

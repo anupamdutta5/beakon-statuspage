@@ -59,3 +59,8 @@ func Error(msg string, fields ...zap.Field) {
 func Fatal(msg string, fields ...zap.Field) {
 	Log.Fatal(msg, fields...)
 }
+
+// GetLogger returns the global logger instance
+func GetLogger() *zap.Logger {
+	return Log
+}

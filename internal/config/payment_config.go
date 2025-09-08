@@ -9,31 +9,31 @@ import (
 
 // PaymentGateway represents a payment gateway configuration
 type PaymentGateway struct {
-	Name         string            `json:"name"`
-	Type         string            `json:"type"` // stripe, razorpay, payu, paypal
-	IsEnabled    bool              `json:"is_enabled"`
-	IsDefault    bool              `json:"is_default"`
-	Credentials  map[string]string `json:"credentials"`
-	Settings     map[string]string `json:"settings"`
-	SupportedMethods []string      `json:"supported_methods"`
-	WebhookURL   string            `json:"webhook_url"`
+	Name             string            `json:"name"`
+	Type             string            `json:"type"` // stripe, razorpay, payu, paypal
+	IsEnabled        bool              `json:"is_enabled"`
+	IsDefault        bool              `json:"is_default"`
+	Credentials      map[string]string `json:"credentials"`
+	Settings         map[string]string `json:"settings"`
+	SupportedMethods []string          `json:"supported_methods"`
+	WebhookURL       string            `json:"webhook_url"`
 }
 
 // PaymentConfig represents the payment system configuration
 type PaymentConfig struct {
-	DefaultGateway string            `json:"default_gateway"`
-	Gateways       []PaymentGateway  `json:"gateways"`
-	Currency       string            `json:"currency"`
-	RetrySettings  RetrySettings     `json:"retry_settings"`
+	DefaultGateway  string           `json:"default_gateway"`
+	Gateways        []PaymentGateway `json:"gateways"`
+	Currency        string           `json:"currency"`
+	RetrySettings   RetrySettings    `json:"retry_settings"`
 	WebhookSettings WebhookSettings  `json:"webhook_settings"`
 }
 
 // RetrySettings for payment retry logic
 type RetrySettings struct {
-	MaxRetries     int     `json:"max_retries"`
-	RetryInterval  int     `json:"retry_interval"` // in hours
-	BackoffFactor  float64 `json:"backoff_factor"`
-	MaxRetryDays   int     `json:"max_retry_days"`
+	MaxRetries    int     `json:"max_retries"`
+	RetryInterval int     `json:"retry_interval"` // in hours
+	BackoffFactor float64 `json:"backoff_factor"`
+	MaxRetryDays  int     `json:"max_retry_days"`
 }
 
 // WebhookSettings for webhook configuration
@@ -46,11 +46,11 @@ type WebhookSettings struct {
 
 // PaymentMethod represents supported payment methods
 type PaymentMethod struct {
-	Type        string `json:"type"` // card, upi, netbanking, wallet, emi
-	Name        string `json:"name"`
-	DisplayName string `json:"display_name"`
-	IsEnabled   bool   `json:"is_enabled"`
-	Gateway     string `json:"gateway"`
+	Type        string                 `json:"type"` // card, upi, netbanking, wallet, emi
+	Name        string                 `json:"name"`
+	DisplayName string                 `json:"display_name"`
+	IsEnabled   bool                   `json:"is_enabled"`
+	Gateway     string                 `json:"gateway"`
 	Config      map[string]interface{} `json:"config"`
 }
 
@@ -130,8 +130,8 @@ func (pc *PaymentConfig) loadFromEnv() error {
 			Type:      "razorpay",
 			IsEnabled: true,
 			Credentials: map[string]string{
-				"key_id":     os.Getenv("RAZORPAY_KEY_ID"),
-				"key_secret": os.Getenv("RAZORPAY_KEY_SECRET"),
+				"key_id":         os.Getenv("RAZORPAY_KEY_ID"),
+				"key_secret":     os.Getenv("RAZORPAY_KEY_SECRET"),
 				"webhook_secret": os.Getenv("RAZORPAY_WEBHOOK_SECRET"),
 			},
 			Settings: map[string]string{
@@ -150,9 +150,9 @@ func (pc *PaymentConfig) loadFromEnv() error {
 			Type:      "payu",
 			IsEnabled: true,
 			Credentials: map[string]string{
-				"merchant_key":    os.Getenv("PAYU_MERCHANT_KEY"),
-				"merchant_salt":   os.Getenv("PAYU_MERCHANT_SALT"),
-				"webhook_secret":  os.Getenv("PAYU_WEBHOOK_SECRET"),
+				"merchant_key":   os.Getenv("PAYU_MERCHANT_KEY"),
+				"merchant_salt":  os.Getenv("PAYU_MERCHANT_SALT"),
+				"webhook_secret": os.Getenv("PAYU_WEBHOOK_SECRET"),
 			},
 			Settings: map[string]string{
 				"api_version": "v1",

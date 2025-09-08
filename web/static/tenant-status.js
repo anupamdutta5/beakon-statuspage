@@ -1,6 +1,9 @@
 class TenantStatusPage {
     constructor() {
         this.tenant = null;
+        this.lastUpdateTime = null;
+        this.autoRefreshInterval = null;
+        this.websocket = null;
         this.init();
     }
 
@@ -8,6 +11,8 @@ class TenantStatusPage {
         await this.loadTenantInfo();
         await this.loadPageData();
         this.setupEventListeners();
+        this.setupRealTimeUpdates();
+        this.startAutoRefresh();
     }
 
     setupEventListeners() {
@@ -77,6 +82,7 @@ class TenantStatusPage {
             this.loadUptimeStats()
         ]);
         this.updateOverallStatus();
+        this.updateLastUpdatedTime();
     }
 
     async loadServices() {
@@ -105,7 +111,7 @@ class TenantStatusPage {
         }
 
         container.innerHTML = services.map(service => `
-            <div class="service-card ${service.status}">
+            <div class="service-card ${service.status}" data-service-id="${service.id}">
                 <div class="service-icon">
                     <i class="fas fa-server"></i>
                 </div>
@@ -144,7 +150,7 @@ class TenantStatusPage {
         }
 
         container.innerHTML = incidents.map(incident => `
-            <div class="incident-item" onclick="showIncidentDetails(${incident.id})">
+            <div class="incident-item" data-incident-id="${incident.id}" onclick="showIncidentDetails(${incident.id})">
                 <div class="incident-header">
                     <div class="incident-title">${incident.title}</div>
                     <div class="incident-date">${new Date(incident.created_at).toLocaleDateString()}</div>
@@ -181,12 +187,13 @@ class TenantStatusPage {
         }
 
         container.innerHTML = maintenance.map(item => `
-            <div class="maintenance-item">
+            <div class="maintenance-item" data-maintenance-id="${item.id}">
                 <div class="maintenance-header">
                     <div class="maintenance-title">${item.title}</div>
                     <div class="maintenance-date">${new Date(item.scheduled_start).toLocaleDateString()}</div>
                 </div>
                 <div class="maintenance-description">${item.description}</div>
+                <div class="maintenance-status ${item.status}">${item.status}</div>
             </div>
         `).join('');
     }
@@ -293,6 +300,204 @@ class TenantStatusPage {
             notification.classList.remove('show');
         }, 3000);
     }
+
+    setupRealTimeUpdates() {
+        // Try to establish WebSocket connection for real-time updates
+        try {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/status`;
+            this.websocket = new WebSocket(wsUrl);
+
+            this.websocket.onopen = () => {
+                console.log('WebSocket connected for real-time updates');
+                this.showNotification('Real-time updates enabled', 'success');
+            };
+
+            this.websocket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    this.handleRealTimeUpdate(data);
+                } catch (error) {
+                    console.error('Failed to parse WebSocket message:', error);
+                }
+            };
+
+            this.websocket.onclose = () => {
+                console.log('WebSocket disconnected, falling back to polling');
+                // Fallback to polling if WebSocket fails
+                this.startAutoRefresh();
+            };
+
+            this.websocket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                // Fallback to polling
+                this.startAutoRefresh();
+            };
+        } catch (error) {
+            console.error('Failed to establish WebSocket connection:', error);
+            // Fallback to polling
+            this.startAutoRefresh();
+        }
+    }
+
+    handleRealTimeUpdate(data) {
+        switch (data.type) {
+            case 'service_status_change':
+                this.updateServiceStatus(data.service);
+                break;
+            case 'new_incident':
+                this.addNewIncident(data.incident);
+                break;
+            case 'incident_update':
+                this.updateIncident(data.incident);
+                break;
+            case 'maintenance_scheduled':
+                this.addNewMaintenance(data.maintenance);
+                break;
+            case 'maintenance_started':
+                this.updateMaintenanceStatus(data.maintenance);
+                break;
+            case 'maintenance_completed':
+                this.updateMaintenanceStatus(data.maintenance);
+                break;
+            default:
+                console.log('Unknown real-time update type:', data.type);
+        }
+        
+        this.updateOverallStatus();
+        this.lastUpdateTime = new Date();
+    }
+
+    updateServiceStatus(service) {
+        const serviceCard = document.querySelector(`[data-service-id="${service.id}"]`);
+        if (serviceCard) {
+            serviceCard.className = `service-card ${service.status}`;
+            const statusElement = serviceCard.querySelector('.service-status');
+            if (statusElement) {
+                statusElement.textContent = service.status;
+                statusElement.className = `service-status ${service.status}`;
+            }
+        }
+    }
+
+    addNewIncident(incident) {
+        const container = document.getElementById('incidents-list');
+        const incidentElement = this.createIncidentElement(incident);
+        
+        // Add to the top of the list
+        if (container.firstChild && container.firstChild.classList.contains('empty-state')) {
+            container.innerHTML = '';
+        }
+        container.insertBefore(incidentElement, container.firstChild);
+        
+        this.showNotification(`New incident: ${incident.title}`, 'warning');
+    }
+
+    updateIncident(incident) {
+        const incidentElement = document.querySelector(`[data-incident-id="${incident.id}"]`);
+        if (incidentElement) {
+            const statusElement = incidentElement.querySelector('.incident-status');
+            if (statusElement) {
+                statusElement.textContent = incident.status;
+                statusElement.className = `incident-status ${incident.status}`;
+            }
+        }
+    }
+
+    addNewMaintenance(maintenance) {
+        const container = document.getElementById('maintenance-list');
+        const maintenanceElement = this.createMaintenanceElement(maintenance);
+        
+        // Add to the top of the list
+        if (container.firstChild && container.firstChild.classList.contains('empty-state')) {
+            container.innerHTML = '';
+        }
+        container.insertBefore(maintenanceElement, container.firstChild);
+        
+        this.showNotification(`New maintenance scheduled: ${maintenance.title}`, 'info');
+    }
+
+    updateMaintenanceStatus(maintenance) {
+        const maintenanceElement = document.querySelector(`[data-maintenance-id="${maintenance.id}"]`);
+        if (maintenanceElement) {
+            const statusElement = maintenanceElement.querySelector('.maintenance-status');
+            if (statusElement) {
+                statusElement.textContent = maintenance.status;
+                statusElement.className = `maintenance-status ${maintenance.status}`;
+            }
+        }
+    }
+
+    createIncidentElement(incident) {
+        const element = document.createElement('div');
+        element.className = 'incident-item';
+        element.setAttribute('data-incident-id', incident.id);
+        element.onclick = () => showIncidentDetails(incident.id);
+        
+        element.innerHTML = `
+            <div class="incident-header">
+                <div class="incident-title">${incident.title}</div>
+                <div class="incident-date">${new Date(incident.created_at).toLocaleDateString()}</div>
+            </div>
+            <div class="incident-description">${incident.description}</div>
+            <div class="incident-status ${incident.status}">${incident.status}</div>
+        `;
+        
+        return element;
+    }
+
+    createMaintenanceElement(maintenance) {
+        const element = document.createElement('div');
+        element.className = 'maintenance-item';
+        element.setAttribute('data-maintenance-id', maintenance.id);
+        
+        element.innerHTML = `
+            <div class="maintenance-header">
+                <div class="maintenance-title">${maintenance.title}</div>
+                <div class="maintenance-date">${new Date(maintenance.start_at).toLocaleDateString()}</div>
+            </div>
+            <div class="maintenance-description">${maintenance.description}</div>
+            <div class="maintenance-status ${maintenance.status}">${maintenance.status}</div>
+        `;
+        
+        return element;
+    }
+
+    startAutoRefresh() {
+        // Clear existing interval
+        if (this.autoRefreshInterval) {
+            clearInterval(this.autoRefreshInterval);
+        }
+        
+        // Set up new interval (30 seconds)
+        this.autoRefreshInterval = setInterval(() => {
+            this.loadPageData();
+        }, 30000);
+    }
+
+    stopAutoRefresh() {
+        if (this.autoRefreshInterval) {
+            clearInterval(this.autoRefreshInterval);
+            this.autoRefreshInterval = null;
+        }
+    }
+
+    updateLastUpdatedTime() {
+        const now = new Date();
+        this.lastUpdateTime = now;
+        
+        const lastUpdatedElement = document.getElementById('last-updated');
+        if (lastUpdatedElement) {
+            lastUpdatedElement.textContent = now.toLocaleTimeString();
+        }
+    }
+
+    destroy() {
+        this.stopAutoRefresh();
+        if (this.websocket) {
+            this.websocket.close();
+        }
+    }
 }
 
 // Global functions for incident modal
@@ -345,9 +550,9 @@ document.addEventListener('DOMContentLoaded', () => {
     statusPage = new TenantStatusPage();
 });
 
-// Auto-refresh every 30 seconds
-setInterval(() => {
+// Clean up when page is unloaded
+window.addEventListener('beforeunload', () => {
     if (statusPage) {
-        statusPage.loadPageData();
+        statusPage.destroy();
     }
-}, 30000);
+});

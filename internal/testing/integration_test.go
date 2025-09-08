@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
+	"log"
 	"net/http"
 	"reflect"
 	"testing"
@@ -150,7 +151,9 @@ func (itr *IntegrationTestRunner) startServices(configs []ServiceConfig) (map[st
 		service, err := itr.startService(config)
 		if err != nil {
 			// Cleanup started services
-			itr.stopServices(services)
+			if stopErr := itr.stopServices(services); stopErr != nil {
+				log.Printf("Warning: failed to stop services during cleanup: %v", stopErr)
+			}
 			return nil, fmt.Errorf("failed to start service %s: %w", config.Name, err)
 		}
 		services[config.Name] = service
@@ -430,7 +433,7 @@ func AssertServiceResponse(t *testing.T, resp *http.Response, expectedStatus int
 	}
 
 	if expectedBody != "" {
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			t.Errorf("Failed to read response body: %v", err)
 			return
@@ -449,7 +452,7 @@ func AssertServiceJSONResponse(t *testing.T, resp *http.Response, expectedStatus
 	}
 
 	if expectedData != nil {
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			t.Errorf("Failed to read response body: %v", err)
 			return

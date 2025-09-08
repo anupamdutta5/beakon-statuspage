@@ -3,6 +3,8 @@
 class AdminDashboard {
     constructor() {
         console.log('AdminDashboard constructor called');
+        // Simple test to see if JavaScript is working
+        console.log('JavaScript is working! AdminDashboard initialized.');
         this.init();
     }
 
@@ -163,6 +165,27 @@ class AdminDashboard {
         console.log('navigateToSection called with:', section);
         console.log('Current URL:', window.location.href);
         
+        // Hide all content sections first - be very explicit
+        const allSections = document.querySelectorAll('.content-section');
+        console.log('Hiding all sections, found:', allSections.length);
+        allSections.forEach(s => {
+            s.style.display = 'none';
+            s.style.visibility = 'hidden';
+            console.log('Hiding section:', s.id);
+        });
+        
+        // Show the target section
+        const targetSection = document.getElementById(section);
+        console.log('Target section found:', targetSection);
+        if (targetSection) {
+            targetSection.style.display = 'block';
+            targetSection.style.visibility = 'visible';
+            console.log('Showing section:', section);
+        } else {
+            console.error('Target section not found:', section);
+            return;
+        }
+        
         // Update URL hash
         if (window.location.hash !== `#${section}`) {
             window.location.hash = `#${section}`;
@@ -180,31 +203,87 @@ class AdminDashboard {
             console.log('Updated active nav item');
         }
 
-        // Hide all content sections
-        const allSections = document.querySelectorAll('.content-section');
-        console.log('Found content sections:', allSections.length);
-        allSections.forEach(section => {
-            console.log('Hiding section:', section.id);
-            section.style.display = 'none';
-        });
+        // Update page title
+        const pageTitle = document.querySelector('.page-title');
+        if (pageTitle) {
+            pageTitle.textContent = section.charAt(0).toUpperCase() + section.slice(1);
+        }
 
-        // Show the selected section
-        const targetSection = document.getElementById(section);
-        if (targetSection) {
-            targetSection.style.display = 'block';
-            targetSection.scrollIntoView({ behavior: 'smooth' });
-            console.log('Showing section:', section);
-            
-            // Load section content asynchronously
-            this.loadSectionContent(section).catch(console.error);
-        } else {
-            console.log('Section not found, loading dynamically:', section);
-            // If section doesn't exist, load it dynamically
-            this.loadSection(section).catch(console.error);
+        // Clear any existing content in the target section to prevent overlap
+        if (section !== 'dashboard') {
+            const sectionContent = targetSection.querySelector('[id$="-content"]');
+            if (sectionContent) {
+                sectionContent.innerHTML = '';
+            }
+        }
+
+        // Load section-specific data
+        try {
+            await this.loadSectionData(section);
+        } catch (error) {
+            console.error('Error loading section data:', error);
+            // Show error in the section
+            const sectionContent = targetSection.querySelector('[id$="-content"]') || targetSection;
+            if (sectionContent) {
+                sectionContent.innerHTML = `
+                    <div class="error-state">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <h3>Error Loading Content</h3>
+                        <p>Failed to load ${section} content. Please try again.</p>
+                        <button class="btn-secondary" onclick="window.location.reload()">Refresh Page</button>
+                    </div>
+                `;
+            }
         }
 
         // Update URL without page reload
         history.pushState({ section }, '', `#${section}`);
+    }
+
+    async loadSectionData(section) {
+        console.log('Loading data for section:', section);
+        
+        try {
+            switch (section) {
+                case 'dashboard':
+                    await this.loadDashboardData();
+                    break;
+                case 'incidents':
+                    await this.loadIncidentsData();
+                    break;
+                case 'components':
+                    await this.loadComponentsData();
+                    break;
+                case 'maintenance':
+                    await this.loadMaintenanceData();
+                    break;
+                case 'monitors':
+                    await this.loadMonitorsData();
+                    break;
+                case 'subscribers':
+                    await this.loadSubscribersData();
+                    break;
+                case 'analytics':
+                    await this.loadAnalyticsData();
+                    break;
+                case 'integrations':
+                    await this.loadIntegrationsData();
+                    break;
+                case 'branding':
+                    await this.loadBrandingData();
+                    break;
+                case 'users':
+                    await this.loadUsersData();
+                    break;
+                case 'feature-flags':
+                    await this.loadFeatureFlagsData();
+                    break;
+                default:
+                    console.log('No specific data loading for section:', section);
+            }
+        } catch (error) {
+            console.error('Error loading section data:', error);
+        }
     }
 
     async loadSection(section) {
@@ -369,15 +448,658 @@ class AdminDashboard {
             return;
         }
         
-        // Make sure the dashboard section is visible
-        dashboardSection.style.display = 'block';
-        console.log('Dashboard section display set to block');
+        // Only show dashboard content if we're actually on the dashboard section
+        if (window.location.hash === '#dashboard' || window.location.hash === '') {
+            // Hide all other content sections first
+            const allSections = document.querySelectorAll('.content-section');
+            console.log('Found content sections:', allSections.length);
+            allSections.forEach(section => {
+                if (section.id !== 'dashboard') {
+                    section.style.display = 'none';
+                    console.log('Hiding section:', section.id);
+                }
+            });
+            
+            // Make sure the dashboard section is visible
+            dashboardSection.style.display = 'block';
+            console.log('Dashboard section display set to block');
+            
+            try {
+                await this.loadDashboardOverview(dashboardSection);
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+                this.showNotification('Failed to load dashboard data', 'error');
+            }
+        }
+    }
+
+    async loadIncidentsData() {
+        console.log('Loading incidents data...');
+        const incidentsContent = document.getElementById('incidents-content');
+        const incidentsLoading = document.getElementById('incidents-loading');
+        
+        if (incidentsLoading) incidentsLoading.style.display = 'block';
+        if (incidentsContent) incidentsContent.innerHTML = '';
         
         try {
-            await this.loadDashboardOverview(dashboardSection);
+            const response = await fetch('/api/v1/admin/incidents', { credentials: 'include' });
+            const data = await response.json();
+            
+            if (incidentsLoading) incidentsLoading.style.display = 'none';
+            
+            if (incidentsContent) {
+                if (data.incidents && data.incidents.length > 0) {
+                    incidentsContent.innerHTML = this.renderIncidentsList(data.incidents);
+                } else {
+                    incidentsContent.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <h3>No Incidents</h3>
+                            <p>No incidents have been reported yet</p>
+                            <button class="btn-primary" onclick="adminDashboard.openModal('incidentModal')">
+                                Create First Incident
+                            </button>
+                        </div>
+                    `;
+                }
+            }
         } catch (error) {
-            console.error('Error loading dashboard data:', error);
-            this.showNotification('Failed to load dashboard data', 'error');
+            console.error('Error loading incidents:', error);
+            if (incidentsLoading) incidentsLoading.style.display = 'none';
+            if (incidentsContent) {
+                incidentsContent.innerHTML = `
+                    <div class="error-state">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <h3>Error Loading Incidents</h3>
+                        <p>Failed to load incidents. Please try again.</p>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    async loadComponentsData() {
+        console.log('Loading components data...');
+        const componentsContent = document.getElementById('components-content');
+        const componentsLoading = document.getElementById('components-loading');
+        
+        if (componentsLoading) componentsLoading.style.display = 'block';
+        if (componentsContent) componentsContent.innerHTML = '';
+        
+        try {
+            const response = await fetch('/api/v1/admin/services', { credentials: 'include' });
+            const data = await response.json();
+            
+            if (componentsLoading) componentsLoading.style.display = 'none';
+            
+            if (componentsContent) {
+                if (data.services && data.services.length > 0) {
+                    componentsContent.innerHTML = this.renderComponentsList(data.services);
+                } else {
+                    componentsContent.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-cogs"></i>
+                            <h3>No Components</h3>
+                            <p>Add your first component to get started</p>
+                            <button class="btn-primary" onclick="adminDashboard.openModal('componentModal')">
+                                Add Component
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading components:', error);
+            if (componentsLoading) componentsLoading.style.display = 'none';
+            if (componentsContent) {
+                componentsContent.innerHTML = `
+                    <div class="error-state">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <h3>Error Loading Components</h3>
+                        <p>Failed to load components. Please try again.</p>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    async loadMaintenanceData() {
+        console.log('Loading maintenance data...');
+        const maintenanceContent = document.getElementById('maintenance-content');
+        const maintenanceLoading = document.getElementById('maintenance-loading');
+        
+        if (maintenanceLoading) maintenanceLoading.style.display = 'block';
+        if (maintenanceContent) maintenanceContent.innerHTML = '';
+        
+        try {
+            const response = await fetch('/api/v1/admin/maintenance', { credentials: 'include' });
+            const data = await response.json();
+            
+            if (maintenanceLoading) maintenanceLoading.style.display = 'none';
+            
+            if (maintenanceContent) {
+                if (data.maintenance && data.maintenance.length > 0) {
+                    maintenanceContent.innerHTML = this.renderMaintenanceList(data.maintenance);
+                } else {
+                    maintenanceContent.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-tools"></i>
+                            <h3>No Maintenance Scheduled</h3>
+                            <p>No maintenance windows are currently scheduled</p>
+                            <button class="btn-primary" onclick="adminDashboard.openModal('maintenanceModal')">
+                                Schedule Maintenance
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading maintenance:', error);
+            if (maintenanceLoading) maintenanceLoading.style.display = 'none';
+            if (maintenanceContent) {
+                maintenanceContent.innerHTML = `
+                    <div class="error-state">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <h3>Error Loading Maintenance</h3>
+                        <p>Failed to load maintenance events. Please try again.</p>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    async loadMonitorsData() {
+        console.log('Loading monitors data...');
+        const monitorsContent = document.getElementById('monitors-content');
+        const monitorsLoading = document.getElementById('monitors-loading');
+        
+        if (monitorsLoading) monitorsLoading.style.display = 'block';
+        if (monitorsContent) monitorsContent.innerHTML = '';
+        
+        try {
+            const response = await fetch('/api/v1/admin/monitors', { credentials: 'include' });
+            const data = await response.json();
+            
+            if (monitorsLoading) monitorsLoading.style.display = 'none';
+            
+            if (monitorsContent) {
+                if (data.monitors && data.monitors.length > 0) {
+                    monitorsContent.innerHTML = this.renderMonitorsList(data.monitors);
+                } else {
+                    monitorsContent.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-heartbeat"></i>
+                            <h3>No Monitors</h3>
+                            <p>Add your first monitor to track service health</p>
+                            <button class="btn-primary" onclick="adminDashboard.openModal('monitorModal')">
+                                Add Monitor
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading monitors:', error);
+            if (monitorsLoading) monitorsLoading.style.display = 'none';
+            if (monitorsContent) {
+                monitorsContent.innerHTML = `
+                    <div class="error-state">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <h3>Error Loading Monitors</h3>
+                        <p>Failed to load monitors. Please try again.</p>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    async loadSubscribersData() {
+        console.log('Loading subscribers data...');
+        const subscribersContent = document.getElementById('subscribers-content');
+        const subscribersLoading = document.getElementById('subscribers-loading');
+        
+        if (subscribersLoading) subscribersLoading.style.display = 'block';
+        if (subscribersContent) subscribersContent.innerHTML = '';
+        
+        try {
+            const response = await fetch('/api/v1/admin/subscribers', { credentials: 'include' });
+            const data = await response.json();
+            
+            if (subscribersLoading) subscribersLoading.style.display = 'none';
+            
+            if (subscribersContent) {
+                if (data.subscribers && data.subscribers.length > 0) {
+                    subscribersContent.innerHTML = this.renderSubscribersList(data.subscribers);
+                } else {
+                    subscribersContent.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-users"></i>
+                            <h3>No Subscribers</h3>
+                            <p>No subscribers have signed up for notifications yet</p>
+                        </div>
+                    `;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading subscribers:', error);
+            if (subscribersLoading) subscribersLoading.style.display = 'none';
+            if (subscribersContent) {
+                subscribersContent.innerHTML = `
+                    <div class="error-state">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <h3>Error Loading Subscribers</h3>
+                        <p>Failed to load subscribers. Please try again.</p>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    async loadUsersData() {
+        console.log('Loading users data...');
+        const usersContent = document.getElementById('users-content');
+        const usersLoading = document.getElementById('users-loading');
+        
+        if (usersLoading) usersLoading.style.display = 'block';
+        if (usersContent) usersContent.innerHTML = '';
+        
+        try {
+            const response = await fetch('/api/v1/admin/users', { credentials: 'include' });
+            const data = await response.json();
+            
+            if (usersLoading) usersLoading.style.display = 'none';
+            
+            if (usersContent) {
+                if (data.users && data.users.length > 0) {
+                    usersContent.innerHTML = this.renderUsersList(data.users);
+                } else {
+                    usersContent.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-user-shield"></i>
+                            <h3>No Users</h3>
+                            <p>No users have been created yet</p>
+                        </div>
+                    `;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading users:', error);
+            if (usersLoading) usersLoading.style.display = 'none';
+            if (usersContent) {
+                usersContent.innerHTML = `
+                    <div class="error-state">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <h3>Error Loading Users</h3>
+                        <p>Failed to load users. Please try again.</p>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    async loadIntegrationsData() {
+        console.log('Loading integrations data...');
+        const integrationsContent = document.getElementById('integrations-content');
+        const integrationsLoading = document.getElementById('integrations-loading');
+        
+        if (integrationsLoading) integrationsLoading.style.display = 'block';
+        if (integrationsContent) integrationsContent.innerHTML = '';
+        
+        try {
+            const response = await fetch('/api/v1/admin/integrations', { credentials: 'include' });
+            const data = await response.json();
+            
+            if (integrationsLoading) integrationsLoading.style.display = 'none';
+            
+            if (integrationsContent) {
+                if (data.integrations && data.integrations.length > 0) {
+                    integrationsContent.innerHTML = this.renderIntegrationsList(data.integrations);
+                } else {
+                    integrationsContent.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-plug"></i>
+                            <h3>No Integrations</h3>
+                            <p>No integrations have been configured yet</p>
+                        </div>
+                    `;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading integrations:', error);
+            if (integrationsLoading) integrationsLoading.style.display = 'none';
+            if (integrationsContent) {
+                integrationsContent.innerHTML = `
+                    <div class="error-state">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <h3>Error Loading Integrations</h3>
+                        <p>Failed to load integrations. Please try again.</p>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    async loadAnalyticsData() {
+        console.log('Loading analytics data...');
+        const analyticsContent = document.getElementById('analytics-content');
+        const analyticsLoading = document.getElementById('analytics-loading');
+        
+        if (analyticsLoading) analyticsLoading.style.display = 'block';
+        if (analyticsContent) analyticsContent.innerHTML = '';
+        
+        try {
+            // Load analytics data from API
+            const [servicesRes, incidentsRes, maintenanceRes, subscribersRes] = await Promise.all([
+                fetch('/api/v1/admin/services', { credentials: 'include' }),
+                fetch('/api/v1/admin/incidents', { credentials: 'include' }),
+                fetch('/api/v1/admin/maintenance', { credentials: 'include' }),
+                fetch('/api/v1/admin/subscribers', { credentials: 'include' })
+            ]);
+
+            const services = await servicesRes.json();
+            const incidents = await incidentsRes.json();
+            const maintenance = await maintenanceRes.json();
+            const subscribers = await subscribersRes.json();
+
+            if (analyticsLoading) analyticsLoading.style.display = 'none';
+            if (analyticsContent) {
+                analyticsContent.innerHTML = `
+                    <div class="analytics-dashboard">
+                        <div class="analytics-grid">
+                            <div class="analytics-card">
+                                <div class="card-header">
+                                    <h3><i class="fas fa-server"></i> Services Overview</h3>
+                                </div>
+                                <div class="card-content">
+                                    <div class="metric">
+                                        <span class="metric-value">${services.services ? services.services.length : 0}</span>
+                                        <span class="metric-label">Total Services</span>
+                                    </div>
+                                    <div class="metric">
+                                        <span class="metric-value">${services.services ? services.services.filter(s => s.status === 'operational').length : 0}</span>
+                                        <span class="metric-label">Operational</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="analytics-card">
+                                <div class="card-header">
+                                    <h3><i class="fas fa-exclamation-triangle"></i> Incidents</h3>
+                                </div>
+                                <div class="card-content">
+                                    <div class="metric">
+                                        <span class="metric-value">${incidents.incidents ? incidents.incidents.length : 0}</span>
+                                        <span class="metric-label">Total Incidents</span>
+                                    </div>
+                                    <div class="metric">
+                                        <span class="metric-value">${incidents.incidents ? incidents.incidents.filter(i => i.status === 'investigating').length : 0}</span>
+                                        <span class="metric-label">Active</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="analytics-card">
+                                <div class="card-header">
+                                    <h3><i class="fas fa-tools"></i> Maintenance</h3>
+                                </div>
+                                <div class="card-content">
+                                    <div class="metric">
+                                        <span class="metric-value">${maintenance.maintenance ? maintenance.maintenance.length : 0}</span>
+                                        <span class="metric-label">Scheduled</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="analytics-card">
+                                <div class="card-header">
+                                    <h3><i class="fas fa-users"></i> Subscribers</h3>
+                                </div>
+                                <div class="card-content">
+                                    <div class="metric">
+                                        <span class="metric-value">${subscribers.subscribers ? subscribers.subscribers.length : 0}</span>
+                                        <span class="metric-label">Total Subscribers</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="analytics-charts">
+                            <div class="chart-container">
+                                <h3>Service Status Distribution</h3>
+                                <canvas id="serviceStatusChart" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Initialize charts if Chart.js is available
+                if (typeof Chart !== 'undefined') {
+                    this.initializeAnalyticsCharts(services.services || []);
+                }
+            }
+        } catch (error) {
+            console.error('Error loading analytics:', error);
+        }
+    }
+
+    initializeAnalyticsCharts(services) {
+        const ctx = document.getElementById('serviceStatusChart');
+        if (!ctx) return;
+
+        // Count services by status
+        const statusCounts = services.reduce((acc, service) => {
+            acc[service.status] = (acc[service.status] || 0) + 1;
+            return acc;
+        }, {});
+
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(statusCounts),
+                datasets: [{
+                    data: Object.values(statusCounts),
+                    backgroundColor: [
+                        '#28a745', // operational - green
+                        '#ffc107', // degraded - yellow
+                        '#dc3545', // outage - red
+                        '#6c757d'  // unknown - gray
+                    ],
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+
+    async loadFeatureFlagsData() {
+        console.log('Loading feature flags data...');
+        const featureFlagsContent = document.getElementById('feature-flags-content');
+        const featureFlagsLoading = document.getElementById('feature-flags-loading');
+        
+        if (featureFlagsLoading) featureFlagsLoading.style.display = 'block';
+        if (featureFlagsContent) featureFlagsContent.innerHTML = '';
+        
+        try {
+            const response = await fetch('/api/v1/admin/feature-flags', { credentials: 'include' });
+            const data = await response.json();
+            
+            if (featureFlagsLoading) featureFlagsLoading.style.display = 'none';
+            
+            if (featureFlagsContent) {
+                featureFlagsContent.innerHTML = `
+                    <div class="feature-flags-dashboard">
+                        <div class="feature-flags-grid">
+                            <div class="feature-flag-card">
+                                <div class="feature-flag-header">
+                                    <h3><i class="fas fa-chart-line"></i> Per-Service Graphs</h3>
+                                    <div class="feature-flag-toggle">
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="per-service-graphs-toggle" ${data.feature_flags && data.feature_flags.find(f => f.feature === 'per_service_graphs')?.is_enabled ? 'checked' : ''}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="feature-flag-description">
+                                    <p>Enable per-service monitoring graphs on the status page. Each service will have its own uptime chart.</p>
+                                </div>
+                            </div>
+                            
+                            <div class="feature-flag-card">
+                                <div class="feature-flag-header">
+                                    <h3><i class="fas fa-globe"></i> Custom Domains</h3>
+                                    <div class="feature-flag-toggle">
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="custom-domains-toggle" ${data.feature_flags && data.feature_flags.find(f => f.feature === 'custom_domains')?.is_enabled ? 'checked' : ''}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="feature-flag-description">
+                                    <p>Allow custom domain configuration for your status page.</p>
+                                </div>
+                            </div>
+                            
+                            <div class="feature-flag-card">
+                                <div class="feature-flag-header">
+                                    <h3><i class="fas fa-chart-bar"></i> Advanced Analytics</h3>
+                                    <div class="feature-flag-toggle">
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="advanced-analytics-toggle" ${data.feature_flags && data.feature_flags.find(f => f.feature === 'advanced_analytics')?.is_enabled ? 'checked' : ''}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="feature-flag-description">
+                                    <p>Enable advanced analytics and reporting features.</p>
+                                </div>
+                            </div>
+                            
+                            <div class="feature-flag-card">
+                                <div class="feature-flag-header">
+                                    <h3><i class="fas fa-key"></i> SSO Integration</h3>
+                                    <div class="feature-flag-toggle">
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="sso-toggle" ${data.feature_flags && data.feature_flags.find(f => f.feature === 'sso')?.is_enabled ? 'checked' : ''}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="feature-flag-description">
+                                    <p>Enable Single Sign-On integration for user authentication.</p>
+                                </div>
+                            </div>
+                            
+                            <div class="feature-flag-card">
+                                <div class="feature-flag-header">
+                                    <h3><i class="fas fa-code"></i> API Access</h3>
+                                    <div class="feature-flag-toggle">
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="api-access-toggle" ${data.feature_flags && data.feature_flags.find(f => f.feature === 'api_access')?.is_enabled ? 'checked' : ''}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="feature-flag-description">
+                                    <p>Enable API access for programmatic management of your status page.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Add event listeners for toggle switches
+                this.setupFeatureFlagToggles();
+            }
+        } catch (error) {
+            console.error('Error loading feature flags:', error);
+            if (featureFlagsLoading) featureFlagsLoading.style.display = 'none';
+            if (featureFlagsContent) {
+                featureFlagsContent.innerHTML = `
+                    <div class="error-state">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <h3>Error Loading Feature Flags</h3>
+                        <p>Failed to load feature flags. Please try again.</p>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    setupFeatureFlagToggles() {
+        const toggles = [
+            { id: 'per-service-graphs-toggle', feature: 'per_service_graphs' },
+            { id: 'custom-domains-toggle', feature: 'custom_domains' },
+            { id: 'advanced-analytics-toggle', feature: 'advanced_analytics' },
+            { id: 'sso-toggle', feature: 'sso' },
+            { id: 'api-access-toggle', feature: 'api_access' }
+        ];
+        
+        toggles.forEach(toggle => {
+            const element = document.getElementById(toggle.id);
+            if (element) {
+                element.addEventListener('change', async (e) => {
+                    await this.updateFeatureFlag(toggle.feature, e.target.checked);
+                });
+            }
+        });
+    }
+
+    async updateFeatureFlag(feature, enabled) {
+        try {
+            const response = await fetch('/api/v1/admin/feature-flags', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    feature: feature,
+                    is_enabled: enabled
+                })
+            });
+            
+            if (response.ok) {
+                this.showNotification(`Feature "${feature}" ${enabled ? 'enabled' : 'disabled'} successfully`, 'success');
+            } else {
+                throw new Error('Failed to update feature flag');
+            }
+        } catch (error) {
+            console.error('Error updating feature flag:', error);
+            this.showNotification('Failed to update feature flag', 'error');
+        }
+    }
+
+    async loadBrandingData() {
+        console.log('Loading branding data...');
+        const brandingContent = document.getElementById('branding-content');
+        const brandingLoading = document.getElementById('branding-loading');
+        
+        if (brandingLoading) brandingLoading.style.display = 'block';
+        if (brandingContent) brandingContent.innerHTML = '';
+        
+        try {
+            // For now, show a placeholder
+            if (brandingLoading) brandingLoading.style.display = 'none';
+            if (brandingContent) {
+                brandingContent.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-palette"></i>
+                        <h3>Branding Settings</h3>
+                        <p>Customize your status page appearance and branding</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Error loading branding:', error);
         }
     }
 
@@ -2698,6 +3420,187 @@ class AdminDashboard {
             const days = Math.floor(diffInSeconds / 86400);
             return `${days} day${days > 1 ? 's' : ''} ago`;
         }
+    }
+
+    // Render methods for different data types
+    renderIncidentsList(incidents) {
+        return `
+            <div class="incidents-list">
+                ${incidents.map(incident => `
+                    <div class="incident-card">
+                        <div class="incident-header">
+                            <h3>${incident.title}</h3>
+                            <span class="incident-status status-${incident.status}">${incident.status}</span>
+                        </div>
+                        <div class="incident-body">
+                            <p>${incident.description}</p>
+                            <div class="incident-meta">
+                                <span class="incident-impact">Impact: ${incident.impact}</span>
+                                <span class="incident-severity">Severity: ${incident.severity}</span>
+                                <span class="incident-date">${new Date(incident.created_at).toLocaleString()}</span>
+                            </div>
+                        </div>
+                        <div class="incident-actions">
+                            <button class="btn-secondary" onclick="adminDashboard.editIncident(${incident.id})">Edit</button>
+                            <button class="btn-danger" onclick="adminDashboard.deleteIncident(${incident.id})">Delete</button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    renderComponentsList(services) {
+        return `
+            <div class="components-list">
+                ${services.map(service => `
+                    <div class="component-card">
+                        <div class="component-header">
+                            <h3>${service.name}</h3>
+                            <span class="component-status status-${service.status}">${service.status}</span>
+                        </div>
+                        <div class="component-body">
+                            <p>${service.description}</p>
+                            <div class="component-meta">
+                                <span class="component-uptime">Uptime: ${service.uptime}</span>
+                                <span class="component-group">${service.group || 'No Group'}</span>
+                            </div>
+                        </div>
+                        <div class="component-actions">
+                            <button class="btn-secondary" onclick="adminDashboard.editComponent(${service.id})">Edit</button>
+                            <button class="btn-danger" onclick="adminDashboard.deleteComponent(${service.id})">Delete</button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    renderMaintenanceList(maintenance) {
+        return `
+            <div class="maintenance-list">
+                ${maintenance.map(event => `
+                    <div class="maintenance-card">
+                        <div class="maintenance-header">
+                            <h3>${event.title}</h3>
+                            <span class="maintenance-status status-${event.status}">${event.status}</span>
+                        </div>
+                        <div class="maintenance-body">
+                            <p>${event.description}</p>
+                            <div class="maintenance-meta">
+                                <span class="maintenance-start">Start: ${new Date(event.start_at).toLocaleString()}</span>
+                                <span class="maintenance-end">End: ${new Date(event.end_at).toLocaleString()}</span>
+                            </div>
+                        </div>
+                        <div class="maintenance-actions">
+                            <button class="btn-secondary" onclick="adminDashboard.editMaintenance(${event.id})">Edit</button>
+                            <button class="btn-danger" onclick="adminDashboard.deleteMaintenance(${event.id})">Delete</button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    renderMonitorsList(monitors) {
+        return `
+            <div class="monitors-list">
+                ${monitors.map(monitor => `
+                    <div class="monitor-card">
+                        <div class="monitor-header">
+                            <h3>${monitor.name}</h3>
+                            <span class="monitor-status status-${monitor.status}">${monitor.status}</span>
+                        </div>
+                        <div class="monitor-body">
+                            <p>URL: ${monitor.url}</p>
+                            <div class="monitor-meta">
+                                <span class="monitor-type">Type: ${monitor.type}</span>
+                                <span class="monitor-interval">Interval: ${monitor.interval}s</span>
+                            </div>
+                        </div>
+                        <div class="monitor-actions">
+                            <button class="btn-secondary" onclick="adminDashboard.editMonitor(${monitor.id})">Edit</button>
+                            <button class="btn-danger" onclick="adminDashboard.deleteMonitor(${monitor.id})">Delete</button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    renderSubscribersList(subscribers) {
+        return `
+            <div class="subscribers-list">
+                ${subscribers.map(subscriber => `
+                    <div class="subscriber-card">
+                        <div class="subscriber-header">
+                            <h3>${subscriber.email}</h3>
+                            <span class="subscriber-status status-${subscriber.status}">${subscriber.status}</span>
+                        </div>
+                        <div class="subscriber-body">
+                            <div class="subscriber-meta">
+                                <span class="subscriber-type">Type: ${subscriber.type}</span>
+                                <span class="subscriber-date">Joined: ${new Date(subscriber.created_at).toLocaleString()}</span>
+                            </div>
+                        </div>
+                        <div class="subscriber-actions">
+                            <button class="btn-secondary" onclick="adminDashboard.editSubscriber(${subscriber.id})">Edit</button>
+                            <button class="btn-danger" onclick="adminDashboard.deleteSubscriber(${subscriber.id})">Delete</button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    renderUsersList(users) {
+        return `
+            <div class="users-list">
+                ${users.map(user => `
+                    <div class="user-card">
+                        <div class="user-header">
+                            <h3>${user.username}</h3>
+                            <span class="user-role role-${user.role}">${user.role}</span>
+                        </div>
+                        <div class="user-body">
+                            <p>Email: ${user.email}</p>
+                            <div class="user-meta">
+                                <span class="user-status status-${user.status}">${user.status}</span>
+                            </div>
+                        </div>
+                        <div class="user-actions">
+                            <button class="btn-secondary" onclick="adminDashboard.editUser(${user.id})">Edit</button>
+                            <button class="btn-danger" onclick="adminDashboard.deleteUser(${user.id})">Delete</button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    renderIntegrationsList(integrations) {
+        return `
+            <div class="integrations-list">
+                ${integrations.map(integration => `
+                    <div class="integration-card">
+                        <div class="integration-header">
+                            <h3>${integration.name}</h3>
+                            <span class="integration-status status-${integration.status}">${integration.status}</span>
+                        </div>
+                        <div class="integration-body">
+                            <p>Type: ${integration.type}</p>
+                            <div class="integration-meta">
+                                <span class="integration-webhook">Webhook: ${integration.webhook || 'N/A'}</span>
+                            </div>
+                        </div>
+                        <div class="integration-actions">
+                            <button class="btn-secondary" onclick="adminDashboard.editIntegration(${integration.id})">Edit</button>
+                            <button class="btn-danger" onclick="adminDashboard.deleteIntegration(${integration.id})">Delete</button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
     }
 }
 

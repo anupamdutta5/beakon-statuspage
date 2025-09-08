@@ -69,6 +69,12 @@
                     <span>Notifications</span>
                 </a>
             </li>
+            <li class="nav-item">
+                <a href="#feature-flags" class="nav-link">
+                    <i class="fas fa-toggle-on"></i>
+                    <span>Feature Flags</span>
+                </a>
+            </li>
         </ul>
         
         <div class="sidebar-footer">
@@ -101,277 +107,86 @@
             </div>
         </header>
 
-        <!-- Overview Content -->
-        <div id="overview-content" class="dashboard-content">
-            <!-- Key Metrics -->
-            <div class="metrics-grid">
-                <div class="metric-card">
-                    <div class="metric-icon total-tenants">
-                        <i class="fas fa-building"></i>
-                    </div>
-                    <div class="metric-content">
-                        <h3 id="totalTenants">0</h3>
-                        <p>Total Tenants</p>
-                        <span class="metric-change positive">+12% this month</span>
-                    </div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-icon active-tenants">
-                        <i class="fas fa-check-circle"></i>
-                    </div>
-                    <div class="metric-content">
-                        <h3 id="activeTenants">0</h3>
-                        <p>Active Tenants</p>
-                        <span class="metric-change positive">+8% this month</span>
-                    </div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-icon monthly-revenue">
-                        <i class="fas fa-dollar-sign"></i>
-                    </div>
-                    <div class="metric-content">
-                        <h3 id="monthlyRevenue">$0</h3>
-                        <p>Monthly Revenue</p>
-                        <span class="metric-change positive">+15% this month</span>
-                    </div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-icon churn-rate">
-                        <i class="fas fa-chart-line"></i>
-                    </div>
-                    <div class="metric-content">
-                        <h3 id="churnRate">0%</h3>
-                        <p>Churn Rate</p>
-                        <span class="metric-change negative">+2% this month</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Charts Section -->
-            <div class="charts-section">
-                <div class="chart-container">
-                    <h3>Revenue Trend</h3>
-                    <canvas id="revenueChart"></canvas>
-                </div>
-                <div class="chart-container">
-                    <h3>Tenant Growth</h3>
-                    <canvas id="tenantGrowthChart"></canvas>
-                </div>
-            </div>
-
-            <!-- Recent Activity -->
-            <div class="recent-activity">
-                <h2>Recent Activity</h2>
-                <div class="activity-list" id="recentActivityList">
-                    <!-- Activity items will be loaded here -->
-                </div>
-            </div>
-
-            <!-- Plan Distribution -->
-            <div class="plan-distribution">
-                <h2>Plan Distribution</h2>
-                <div class="plan-stats" id="planStats">
-                    <!-- Plan statistics will be loaded here -->
-                </div>
-            </div>
-        </div>
-
-        <!-- Tenants Content -->
-        <div id="tenants-content" class="dashboard-content" style="display: none;">
+        <!-- Overview Section -->
+        <div id="overview" class="content-section">
             <div class="section-header">
-                <h2>Tenant Management</h2>
-                <button class="btn-primary" id="createTenantBtn">
-                    <i class="fas fa-plus"></i>
-                    Create Tenant
-                </button>
+                <h2><i class="fas fa-tachometer-alt"></i> Overview</h2>
             </div>
-
-            <div class="filters">
-                <input type="text" id="tenantSearch" placeholder="Search tenants...">
-                <select id="tenantStatusFilter">
-                    <option value="">All Statuses</option>
-                    <option value="active">Active</option>
-                    <option value="suspended">Suspended</option>
-                    <option value="cancelled">Cancelled</option>
-                </select>
-                <select id="tenantPlanFilter">
-                    <option value="">All Plans</option>
-                    <option value="free">Free</option>
-                    <option value="pro">Pro</option>
-                    <option value="enterprise">Enterprise</option>
-                </select>
+            <div class="loading-spinner" id="overview-loading">
+                <i class="fas fa-spinner fa-spin"></i> Loading overview...
             </div>
-
-            <div class="tenants-table-container">
-                <table class="tenants-table" id="tenantsTable">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Slug</th>
-                            <th>Plan</th>
-                            <th>Status</th>
-                            <th>Created</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tenantsTableBody">
-                        <!-- Tenants will be loaded here -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Subscriptions Content -->
-        <div id="subscriptions-content" class="dashboard-content" style="display: none;">
-            <div class="section-header">
-                <h2>Subscription Management</h2>
-            </div>
-
-            <div class="subscriptions-table-container">
-                <table class="subscriptions-table" id="subscriptionsTable">
-                    <thead>
-                        <tr>
-                            <th>Tenant</th>
-                            <th>Plan</th>
-                            <th>Status</th>
-                            <th>Amount</th>
-                            <th>Next Billing</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="subscriptionsTableBody">
-                        <!-- Subscriptions will be loaded here -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Plans Content -->
-        <div id="plans-content" class="dashboard-content" style="display: none;">
-            <div class="section-header">
-                <h2>Subscription Plans</h2>
-                <button class="btn-primary" id="createPlanBtn">
-                    <i class="fas fa-plus"></i>
-                    Create Plan
-                </button>
-            </div>
-
-            <div class="plans-grid" id="plansGrid">
-                <!-- Plans will be loaded here -->
-            </div>
-        </div>
-
-        <!-- Billing Content -->
-        <div id="billing-content" class="dashboard-content" style="display: none;">
-            <div class="section-header">
-                <h2>Billing & Payments</h2>
-            </div>
-
-            <div class="billing-stats">
-                <div class="stat-card">
-                    <h3>Total Revenue</h3>
-                    <p id="totalRevenue">$0</p>
-                </div>
-                <div class="stat-card">
-                    <h3>Pending Payments</h3>
-                    <p id="pendingPayments">$0</p>
-                </div>
-                <div class="stat-card">
-                    <h3>Failed Payments</h3>
-                    <p id="failedPayments">$0</p>
-                </div>
-            </div>
-
-            <div class="billing-events-table-container">
-                <table class="billing-events-table" id="billingEventsTable">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Tenant</th>
-                            <th>Event</th>
-                            <th>Amount</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="billingEventsTableBody">
-                        <!-- Billing events will be loaded here -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Analytics Content -->
-        <div id="analytics-content" class="dashboard-content" style="display: none;">
-            <div class="section-header">
-                <h2>Platform Analytics</h2>
-                <div class="date-range-selector">
-                    <select id="analyticsDateRange">
-                        <option value="7">Last 7 days</option>
-                        <option value="30" selected>Last 30 days</option>
-                        <option value="90">Last 90 days</option>
-                        <option value="365">Last year</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="analytics-charts">
-                <div class="chart-container large">
-                    <h3>Usage Metrics</h3>
-                    <canvas id="usageMetricsChart"></canvas>
-                </div>
-                <div class="chart-container">
-                    <h3>API Usage</h3>
-                    <canvas id="apiUsageChart"></canvas>
-                </div>
-                <div class="chart-container">
-                    <h3>Page Views</h3>
-                    <canvas id="pageViewsChart"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- Settings Content -->
-        <div id="settings-content" class="dashboard-content" style="display: none;">
-            <div class="section-header">
-                <h2>Platform Settings</h2>
-            </div>
-
-            <div class="settings-sections">
-                <div class="settings-section">
-                    <h3>General Settings</h3>
-                    <div class="settings-form" id="generalSettings">
-                        <!-- General settings will be loaded here -->
+            <div id="overview-content">
+                <!-- Key Metrics -->
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-icon total-tenants">
+                            <i class="fas fa-building"></i>
+                        </div>
+                        <div class="metric-content">
+                            <h3 id="totalTenants">0</h3>
+                            <p>Total Tenants</p>
+                            <span class="metric-change positive">+12% this month</span>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon active-tenants">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="metric-content">
+                            <h3 id="activeTenants">0</h3>
+                            <p>Active Tenants</p>
+                            <span class="metric-change positive">+8% this month</span>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon monthly-revenue">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <div class="metric-content">
+                            <h3 id="monthlyRevenue">$0</h3>
+                            <p>Monthly Revenue</p>
+                            <span class="metric-change positive">+15% this month</span>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon churn-rate">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div class="metric-content">
+                            <h3 id="churnRate">0%</h3>
+                            <p>Churn Rate</p>
+                            <span class="metric-change negative">+2% this month</span>
+                        </div>
                     </div>
                 </div>
 
-                <div class="settings-section">
-                    <h3>Feature Flags</h3>
-                    <div class="feature-flags" id="featureFlags">
-                        <!-- Feature flags will be loaded here -->
+                <!-- Charts Section -->
+                <div class="charts-section">
+                    <div class="chart-container">
+                        <h3>Revenue Trend</h3>
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>Tenant Growth</h3>
+                        <canvas id="tenantGrowthChart"></canvas>
                     </div>
                 </div>
 
-                <div class="settings-section">
-                    <h3>Billing Configuration</h3>
-                    <div class="billing-settings" id="billingSettings">
-                        <!-- Billing settings will be loaded here -->
+                <!-- Recent Activity -->
+                <div class="recent-activity">
+                    <h2>Recent Activity</h2>
+                    <div class="activity-list" id="recentActivityList">
+                        <!-- Activity items will be loaded here -->
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- Notifications Content -->
-        <div id="notifications-content" class="dashboard-content" style="display: none;">
-            <div class="section-header">
-                <h2>System Notifications</h2>
-                <button class="btn-primary" id="createNotificationBtn">
-                    <i class="fas fa-plus"></i>
-                    Create Notification
-                </button>
-            </div>
-
-            <div class="notifications-list" id="notificationsList">
-                <!-- Notifications will be loaded here -->
+                <!-- Plan Distribution -->
+                <div class="plan-distribution">
+                    <h2>Plan Distribution</h2>
+                    <div class="plan-stats" id="planStats">
+                        <!-- Plan statistics will be loaded here -->
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -380,7 +195,7 @@
             <div class="section-header">
                 <h2><i class="fas fa-building"></i> Tenants</h2>
                 <div class="section-actions">
-                    <button class="btn-primary" onclick="saasAdmin.openModal('tenantModal')">
+                    <button class="btn-primary" onclick="saasAdmin.showCreateTenantForm()">
                         <i class="fas fa-plus"></i> Create Tenant
                     </button>
                 </div>
@@ -389,7 +204,23 @@
                 <i class="fas fa-spinner fa-spin"></i> Loading tenants...
             </div>
             <div id="tenants-content">
-                <!-- Tenants will be loaded here dynamically -->
+                <div class="table-container">
+                    <table class="data-table" id="tenantsTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Slug</th>
+                                <th>Plan</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tenantsTableBody">
+                            <!-- Tenants will be loaded here dynamically -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -407,7 +238,23 @@
                 <i class="fas fa-spinner fa-spin"></i> Loading subscriptions...
             </div>
             <div id="subscriptions-content">
-                <!-- Subscriptions will be loaded here dynamically -->
+                <div class="table-container">
+                    <table class="data-table" id="subscriptionsTable">
+                        <thead>
+                            <tr>
+                                <th>Tenant</th>
+                                <th>Plan</th>
+                                <th>Status</th>
+                                <th>Amount</th>
+                                <th>Next Billing</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="subscriptionsTableBody">
+                            <!-- Subscriptions will be loaded here dynamically -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -416,7 +263,7 @@
             <div class="section-header">
                 <h2><i class="fas fa-list-alt"></i> Plans</h2>
                 <div class="section-actions">
-                    <button class="btn-primary" onclick="saasAdmin.openModal('planModal')">
+                    <button class="btn-primary" onclick="saasAdmin.showCreatePlanForm()">
                         <i class="fas fa-plus"></i> Create Plan
                     </button>
                 </div>
@@ -425,7 +272,9 @@
                 <i class="fas fa-spinner fa-spin"></i> Loading plans...
             </div>
             <div id="plans-content">
-                <!-- Plans will be loaded here dynamically -->
+                <div class="plans-grid" id="plansGrid">
+                    <!-- Plans will be loaded here dynamically -->
+                </div>
             </div>
         </div>
 
@@ -443,7 +292,36 @@
                 <i class="fas fa-spinner fa-spin"></i> Loading billing data...
             </div>
             <div id="billing-content">
-                <!-- Billing data will be loaded here dynamically -->
+                <div class="billing-stats">
+                    <div class="stat-card">
+                        <h3>Total Revenue</h3>
+                        <p id="totalRevenue">$0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Pending Payments</h3>
+                        <p id="pendingPayments">$0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Failed Payments</h3>
+                        <p id="failedPayments">$0</p>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="data-table" id="billingEventsTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Tenant</th>
+                                <th>Event</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="billingEventsTableBody">
+                            <!-- Billing events will be loaded here dynamically -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -461,20 +339,46 @@
                 <i class="fas fa-spinner fa-spin"></i> Loading analytics...
             </div>
             <div id="analytics-content">
-                <!-- Analytics will be loaded here dynamically -->
+                <div class="analytics-charts">
+                    <div class="chart-container large">
+                        <h3>Usage Metrics</h3>
+                        <canvas id="usageMetricsChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>API Usage</h3>
+                        <canvas id="apiUsageChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>Page Views</h3>
+                        <canvas id="pageViewsChart"></canvas>
+                    </div>
+                </div>
             </div>
         </div>
 
         <!-- Settings Section -->
-        <div id="saas-settings" class="content-section" style="display: none;">
+        <div id="settings" class="content-section" style="display: none;">
             <div class="section-header">
                 <h2><i class="fas fa-cog"></i> Platform Settings</h2>
             </div>
-            <div class="loading-spinner" id="saas-settings-loading">
+            <div class="loading-spinner" id="settings-loading">
                 <i class="fas fa-spinner fa-spin"></i> Loading settings...
             </div>
-            <div id="saas-settings-content">
-                <!-- Settings will be loaded here dynamically -->
+            <div id="settings-content">
+                <div class="settings-sections">
+                    <div class="settings-section">
+                        <h3>General Settings</h3>
+                        <div class="settings-form" id="generalSettings">
+                            <!-- General settings will be loaded here -->
+                        </div>
+                    </div>
+                    <div class="settings-section">
+                        <h3>Billing Configuration</h3>
+                        <div class="billing-settings" id="billingSettings">
+                            <!-- Billing settings will be loaded here -->
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -492,7 +396,30 @@
                 <i class="fas fa-spinner fa-spin"></i> Loading notifications...
             </div>
             <div id="notifications-content">
-                <!-- Notifications will be loaded here dynamically -->
+                <div class="notifications-list" id="notificationsList">
+                    <!-- Notifications will be loaded here -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Feature Flags Section -->
+        <div id="feature-flags" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2><i class="fas fa-toggle-on"></i> Feature Flags</h2>
+                <div class="section-actions">
+                    <button class="btn-primary" onclick="saasAdmin.showCreateFeatureFlagForm()">
+                        <i class="fas fa-plus"></i> Add Feature
+                    </button>
+                    <button class="btn-secondary" onclick="saasAdmin.loadFeatureFlagsData()" style="margin-left: 10px;">
+                        <i class="fas fa-sync"></i> Debug Load
+                    </button>
+                </div>
+            </div>
+            <div class="loading-spinner" id="feature-flags-loading">
+                <i class="fas fa-spinner fa-spin"></i> Loading feature flags...
+            </div>
+            <div id="feature-flags-content">
+                <!-- Feature flags will be loaded here dynamically -->
             </div>
         </div>
     </main>
@@ -672,6 +599,52 @@
         </div>
     </div>
 
+    <!-- Feature Flag Modal -->
+    <div id="featureFlagModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="featureFlagModalTitle">Add Feature Flag</h3>
+                <button class="close-button" onclick="saasAdmin.closeModal('featureFlagModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="featureFlagForm">
+                <div class="form-group">
+                    <label for="featureName">Feature Name</label>
+                    <input type="text" id="featureName" name="feature" required placeholder="e.g., per_service_graphs">
+                </div>
+                <div class="form-group">
+                    <label for="featureDescription">Description</label>
+                    <textarea id="featureDescription" name="description" rows="3" required placeholder="Describe what this feature does"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="featureAvailable">
+                        <input type="checkbox" id="featureAvailable" name="is_available" checked>
+                        Make this feature available to tenants
+                    </label>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="saasAdmin.closeModal('featureFlagModal')">Cancel</button>
+                    <button type="submit" class="btn-primary">Save Feature</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="/static/saas-admin.js"></script>
+    <script>
+        // Initialize the SaaS Admin dashboard when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('SaaS Admin Dashboard loaded');
+            
+            // Initialize the saasAdmin object if it exists
+            if (typeof saasAdmin !== 'undefined') {
+                console.log('saasAdmin object found, initializing...');
+                saasAdmin.init();
+            } else {
+                console.error('saasAdmin object not found!');
+            }
+        });
+    </script>
 </body>
 </html>

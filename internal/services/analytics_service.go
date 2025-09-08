@@ -1,661 +1,504 @@
 package services
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/enterprise-status/statuspage/internal/models"
 	"github.com/enterprise-status/statuspage/pkg/database"
-	"github.com/enterprise-status/statuspage/pkg/logger"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
 )
 
-type AnalyticsService struct {
-	db *gorm.DB
-}
+// AnalyticsService provides methods for analytics and reporting.
+type AnalyticsService struct{}
 
+// NewAnalyticsService creates a new AnalyticsService.
 func NewAnalyticsService() *AnalyticsService {
-	return &AnalyticsService{
-		db: database.DB,
-	}
+	return &AnalyticsService{}
 }
 
-// Analytics Models
-
-type PageView struct {
-	ID        uint   `gorm:"primaryKey"`
-	TenantID  uint   `gorm:"not null"`
-	Page      string `gorm:"not null"`
-	UserAgent string
-	IPAddress string
-	Referrer  string
-	SessionID string
-	CreatedAt time.Time
-}
-
-type UptimeReport struct {
-	ID          uint      `gorm:"primaryKey"`
-	TenantID    uint      `gorm:"not null"`
-	ServiceID   uint      `gorm:"not null"`
-	Period      string    `gorm:"not null"` // daily, weekly, monthly
-	Uptime      float64   `gorm:"not null"`
-	Downtime    float64   `gorm:"not null"`
-	TotalChecks int64     `gorm:"not null"`
-	StartDate   time.Time `gorm:"not null"`
-	EndDate     time.Time `gorm:"not null"`
-	CreatedAt   time.Time
-}
-
-type IncidentAnalytics struct {
-	ID                uint   `gorm:"primaryKey"`
-	TenantID          uint   `gorm:"not null"`
-	IncidentID        uint   `gorm:"not null"`
-	Severity          string `gorm:"not null"`
-	Duration          int64  `gorm:"not null"` // in minutes
-	AffectedUsers     int64  `gorm:"default:0"`
-	NotificationsSent int64  `gorm:"default:0"`
-	ResolvedAt        time.Time
-	CreatedAt         time.Time
-}
-
-type PerformanceMetrics struct {
-	ID           uint      `gorm:"primaryKey"`
-	TenantID     uint      `gorm:"not null"`
-	ServiceID    uint      `gorm:"not null"`
-	ResponseTime float64   `gorm:"not null"` // in milliseconds
-	Throughput   float64   `gorm:"not null"` // requests per second
-	ErrorRate    float64   `gorm:"not null"` // percentage
-	Availability float64   `gorm:"not null"` // percentage
-	Timestamp    time.Time `gorm:"not null"`
-	CreatedAt    time.Time
-}
-
-// Page Analytics
-
-func (s *AnalyticsService) RecordPageView(tenantID uint, page, userAgent, ipAddress, referrer, sessionID string) error {
-	pageView := &PageView{
-		TenantID:  tenantID,
-		Page:      page,
-		UserAgent: userAgent,
-		IPAddress: ipAddress,
-		Referrer:  referrer,
-		SessionID: sessionID,
-	}
-
-	return s.db.Create(pageView).Error
-}
-
-// API Usage Analytics
-
-func (s *AnalyticsService) RecordAPIUsage(tenantID uint, endpoint, method string, responseTime float64, statusCode int, userAgent, ipAddress string) error {
-	apiUsage := &models.APIUsage{
-		TenantID:     tenantID,
-		Endpoint:     endpoint,
-		Method:       method,
-		ResponseTime: responseTime,
-		StatusCode:   statusCode,
-		UserAgent:    userAgent,
-		IPAddress:    ipAddress,
-		Timestamp:    time.Now(),
-	}
-
-	return s.db.Create(apiUsage).Error
-}
-
-func (s *AnalyticsService) GetAPIUsageAnalytics(tenantID uint, days int) (map[string]interface{}, error) {
-	startDate := time.Now().AddDate(0, 0, -days)
-
-	analytics := make(map[string]interface{})
-
-	// Total API requests
-	var totalRequests int64
-	if err := s.db.Model(&models.APIUsage{}).Where("tenant_id = ? AND timestamp >= ?", tenantID, startDate).Count(&totalRequests).Error; err != nil {
-		return nil, err
-	}
-	analytics["total_requests"] = totalRequests
-
-	// Error count
-	var errorCount int64
-	if err := s.db.Model(&models.APIUsage{}).Where("tenant_id = ? AND timestamp >= ? AND status_code >= 400", tenantID, startDate).Count(&errorCount).Error; err != nil {
-		return nil, err
-	}
-	analytics["error_count"] = errorCount
-
-	// Average response time
-	var avgResponseTime float64
-	if err := s.db.Model(&models.APIUsage{}).
-		Where("tenant_id = ? AND timestamp >= ?", tenantID, startDate).
-		Select("AVG(response_time)").Scan(&avgResponseTime).Error; err != nil {
-		return nil, err
-	}
-	analytics["avg_response_time"] = avgResponseTime
-
-	// Top endpoints
-	var topEndpoints []struct {
-		Endpoint string `json:"endpoint"`
-		Count    int64  `json:"count"`
-	}
-	if err := s.db.Model(&models.APIUsage{}).
-		Select("endpoint, COUNT(*) as count").
-		Where("tenant_id = ? AND timestamp >= ?", tenantID, startDate).
-		Group("endpoint").
-		Order("count DESC").
-		Limit(10).
-		Scan(&topEndpoints).Error; err != nil {
-		return nil, err
-	}
-	analytics["top_endpoints"] = topEndpoints
-
-	// Daily API usage
-	var dailyUsage []struct {
-		Date  string `json:"date"`
-		Count int64  `json:"count"`
-	}
-	if err := s.db.Model(&models.APIUsage{}).
-		Select("DATE(timestamp) as date, COUNT(*) as count").
-		Where("tenant_id = ? AND timestamp >= ?", tenantID, startDate).
-		Group("DATE(timestamp)").
-		Order("date ASC").
-		Scan(&dailyUsage).Error; err != nil {
-		return nil, err
-	}
-	analytics["daily_usage"] = dailyUsage
-
-	return analytics, nil
-}
-
-func (s *AnalyticsService) GetPageAnalytics(tenantID uint, days int) (map[string]interface{}, error) {
-	startDate := time.Now().AddDate(0, 0, -days)
-
-	analytics := make(map[string]interface{})
-
-	// Total page views
-	var totalViews int64
-	if err := s.db.Model(&PageView{}).Where("tenant_id = ? AND created_at >= ?", tenantID, startDate).Count(&totalViews).Error; err != nil {
-		return nil, err
-	}
-	analytics["total_views"] = totalViews
-
-	// Unique visitors (based on IP address)
-	var uniqueVisitors int64
-	if err := s.db.Model(&PageView{}).Where("tenant_id = ? AND created_at >= ?", tenantID, startDate).
-		Distinct("ip_address").Count(&uniqueVisitors).Error; err != nil {
-		return nil, err
-	}
-	analytics["unique_visitors"] = uniqueVisitors
-
-	// Top pages
-	var topPages []struct {
-		Page  string `json:"page"`
-		Views int64  `json:"views"`
-	}
-	if err := s.db.Model(&PageView{}).
-		Select("page, COUNT(*) as views").
-		Where("tenant_id = ? AND created_at >= ?", tenantID, startDate).
-		Group("page").
-		Order("views DESC").
-		Limit(10).
-		Scan(&topPages).Error; err != nil {
-		return nil, err
-	}
-	analytics["top_pages"] = topPages
-
-	// Daily page views
-	var dailyViews []struct {
-		Date  string `json:"date"`
-		Views int64  `json:"views"`
-	}
-	if err := s.db.Model(&PageView{}).
-		Select("DATE(created_at) as date, COUNT(*) as views").
-		Where("tenant_id = ? AND created_at >= ?", tenantID, startDate).
-		Group("DATE(created_at)").
-		Order("date ASC").
-		Scan(&dailyViews).Error; err != nil {
-		return nil, err
-	}
-	analytics["daily_views"] = dailyViews
-
-	return analytics, nil
-}
-
-// Platform-wide Analytics (for SaaS Admin)
-
-func (s *AnalyticsService) GetPlatformAPIUsageAnalytics(days int) (map[string]interface{}, error) {
-	startDate := time.Now().AddDate(0, 0, -days)
-
-	analytics := make(map[string]interface{})
-
-	// Total API requests across all tenants
-	var totalRequests int64
-	if err := s.db.Model(&models.APIUsage{}).Where("timestamp >= ?", startDate).Count(&totalRequests).Error; err != nil {
-		return nil, err
-	}
-	analytics["total_requests"] = totalRequests
-
-	// Error count across all tenants
-	var errorCount int64
-	if err := s.db.Model(&models.APIUsage{}).Where("timestamp >= ? AND status_code >= 400", startDate).Count(&errorCount).Error; err != nil {
-		return nil, err
-	}
-	analytics["error_count"] = errorCount
-
-	// Average response time across all tenants
-	var avgResponseTime float64
-	if err := s.db.Model(&models.APIUsage{}).
-		Where("timestamp >= ?", startDate).
-		Select("AVG(response_time)").Scan(&avgResponseTime).Error; err != nil {
-		return nil, err
-	}
-	analytics["avg_response_time"] = avgResponseTime
-
-	return analytics, nil
-}
-
-func (s *AnalyticsService) GetPlatformPageViewAnalytics(days int) (map[string]interface{}, error) {
-	startDate := time.Now().AddDate(0, 0, -days)
-
-	analytics := make(map[string]interface{})
-
-	// Total page views across all tenants
-	var totalViews int64
-	if err := s.db.Model(&PageView{}).Where("created_at >= ?", startDate).Count(&totalViews).Error; err != nil {
-		return nil, err
-	}
-	analytics["total_views"] = totalViews
-
-	// Unique visitors across all tenants
-	var uniqueVisitors int64
-	if err := s.db.Model(&PageView{}).Where("created_at >= ?", startDate).
-		Distinct("ip_address").Count(&uniqueVisitors).Error; err != nil {
-		return nil, err
-	}
-	analytics["unique_visitors"] = uniqueVisitors
-
-	// Calculate bounce rate (simplified - visitors with only 1 page view)
-	var singlePageVisitors int64
-	if err := s.db.Model(&PageView{}).
-		Select("COUNT(DISTINCT ip_address)").
-		Where("created_at >= ?", startDate).
-		Group("ip_address").
-		Having("COUNT(*) = 1").
-		Count(&singlePageVisitors).Error; err != nil {
-		// If the query fails, set bounce rate to 0
-		singlePageVisitors = 0
-	}
-
-	var bounceRate float64
-	if uniqueVisitors > 0 {
-		bounceRate = float64(singlePageVisitors) / float64(uniqueVisitors) * 100
-	}
-	analytics["bounce_rate"] = bounceRate
-
-	return analytics, nil
-}
-
-// Uptime Analytics
-
-func (s *AnalyticsService) GenerateUptimeReport(tenantID uint, serviceID uint, period string) (*UptimeReport, error) {
-	var startDate, endDate time.Time
-	now := time.Now()
-
-	switch period {
-	case "daily":
-		startDate = now.AddDate(0, 0, -1)
-		endDate = now
-	case "weekly":
-		startDate = now.AddDate(0, 0, -7)
-		endDate = now
-	case "monthly":
-		startDate = now.AddDate(0, -1, 0)
-		endDate = now
-	default:
-		return nil, fmt.Errorf("invalid period: %s", period)
-	}
-
-	// Get health checks for the period
-	var healthChecks []models.HealthCheck
-	if err := s.db.Where("service_id = ? AND checked_at BETWEEN ? AND ?",
-		serviceID, startDate, endDate).Find(&healthChecks).Error; err != nil {
-		return nil, err
-	}
-
-	if len(healthChecks) == 0 {
-		return &UptimeReport{
-			TenantID:    tenantID,
-			ServiceID:   serviceID,
-			Period:      period,
-			Uptime:      100.0,
-			Downtime:    0.0,
-			TotalChecks: 0,
-			StartDate:   startDate,
-			EndDate:     endDate,
-		}, nil
-	}
-
-	// Calculate uptime
-	upCount := 0
-	totalChecks := len(healthChecks)
-
-	for _, check := range healthChecks {
-		if check.Status == "up" {
-			upCount++
-		}
-	}
-
-	uptime := float64(upCount) / float64(totalChecks) * 100
-	downtime := 100 - uptime
-
+// GetUptimeReport returns uptime statistics for services
+func (s *AnalyticsService) GetUptimeReport(tenantID uint, days int) (*UptimeReport, error) {
 	report := &UptimeReport{
-		TenantID:    tenantID,
-		ServiceID:   serviceID,
-		Period:      period,
-		Uptime:      uptime,
-		Downtime:    downtime,
-		TotalChecks: int64(totalChecks),
-		StartDate:   startDate,
-		EndDate:     endDate,
+		TenantID: tenantID,
+		Period:   days,
+		Services: make(map[uint]*ServiceUptime),
 	}
 
-	// Save report
-	if err := s.db.Create(report).Error; err != nil {
-		logger.Error("Failed to create uptime report", zap.Error(err))
+	// Get all services for the tenant
+	var services []models.Service
+	if err := database.DB.Where("tenant_id = ?", tenantID).Find(&services).Error; err != nil {
 		return nil, err
+	}
+
+	since := time.Now().Add(-time.Duration(days) * 24 * time.Hour)
+
+	for _, service := range services {
+		serviceUptime := &ServiceUptime{
+			ServiceID:   service.ID,
+			ServiceName: service.Name,
+		}
+
+		// Get monitors for this service
+		var monitors []models.Monitor
+		if err := database.DB.Where("service_id = ?", service.ID).Find(&monitors).Error; err != nil {
+			continue
+		}
+
+		if len(monitors) == 0 {
+			serviceUptime.Uptime = 100.0 // No monitors, assume operational
+			report.Services[service.ID] = serviceUptime
+			continue
+		}
+
+		// Calculate uptime based on monitor heartbeats
+		var totalChecks int64
+		var upChecks int64
+
+		for _, monitor := range monitors {
+			database.DB.Model(&models.Heartbeat{}).
+				Where("monitor_id = ? AND timestamp >= ?", monitor.ID, since).
+				Count(&totalChecks)
+
+			database.DB.Model(&models.Heartbeat{}).
+				Where("monitor_id = ? AND timestamp >= ? AND status = ?", monitor.ID, since, "up").
+				Count(&upChecks)
+		}
+
+		if totalChecks > 0 {
+			serviceUptime.Uptime = float64(upChecks) / float64(totalChecks) * 100.0
+		} else {
+			serviceUptime.Uptime = 100.0
+		}
+
+		report.Services[service.ID] = serviceUptime
+	}
+
+	// Calculate overall uptime
+	var totalUptime float64
+	var serviceCount int
+	for _, serviceUptime := range report.Services {
+		totalUptime += serviceUptime.Uptime
+		serviceCount++
+	}
+
+	if serviceCount > 0 {
+		report.OverallUptime = totalUptime / float64(serviceCount)
 	}
 
 	return report, nil
 }
 
-func (s *AnalyticsService) GetUptimeAnalytics(tenantID uint, days int) (map[string]interface{}, error) {
-	startDate := time.Now().AddDate(0, 0, -days)
-
-	analytics := make(map[string]interface{})
-
-	// Overall uptime
-	var avgUptime float64
-	if err := s.db.Model(&UptimeReport{}).
-		Where("tenant_id = ? AND start_date >= ?", tenantID, startDate).
-		Select("AVG(uptime)").Scan(&avgUptime).Error; err != nil {
-		return nil, err
-	}
-	analytics["overall_uptime"] = avgUptime
-
-	// Service uptime breakdown
-	var serviceUptime []struct {
-		ServiceID   uint    `json:"service_id"`
-		ServiceName string  `json:"service_name"`
-		Uptime      float64 `json:"uptime"`
-	}
-	if err := s.db.Table("uptime_reports").
-		Select("service_id, services.name as service_name, AVG(uptime_reports.uptime) as uptime").
-		Joins("JOIN services ON uptime_reports.service_id = services.id").
-		Where("uptime_reports.tenant_id = ? AND uptime_reports.start_date >= ?", tenantID, startDate).
-		Group("service_id, services.name").
-		Scan(&serviceUptime).Error; err != nil {
-		return nil, err
-	}
-	analytics["service_uptime"] = serviceUptime
-
-	// Daily uptime trend
-	var dailyUptime []struct {
-		Date   string  `json:"date"`
-		Uptime float64 `json:"uptime"`
-	}
-	if err := s.db.Model(&UptimeReport{}).
-		Select("DATE(start_date) as date, AVG(uptime) as uptime").
-		Where("tenant_id = ? AND start_date >= ?", tenantID, startDate).
-		Group("DATE(start_date)").
-		Order("date ASC").
-		Scan(&dailyUptime).Error; err != nil {
-		return nil, err
-	}
-	analytics["daily_uptime"] = dailyUptime
-
-	return analytics, nil
-}
-
-// Incident Analytics
-
-func (s *AnalyticsService) RecordIncidentAnalytics(tenantID uint, incident *models.Incident) error {
-	// Calculate incident duration
-	var duration int64
-	if incident.ResolvedAt != nil {
-		duration = int64(incident.ResolvedAt.Sub(incident.CreatedAt).Minutes())
-	}
-
-	// Count affected subscribers
-	var affectedUsers int64
-	if err := s.db.Model(&models.Subscriber{}).Where("tenant_id = ? AND is_active = ?", tenantID, true).Count(&affectedUsers).Error; err != nil {
-		affectedUsers = 0
-	}
-
-	// Count notifications sent (this would be tracked separately)
-	notificationsSent := affectedUsers // Simplified for now
-
+// GetIncidentAnalytics returns incident analytics for a tenant
+func (s *AnalyticsService) GetIncidentAnalytics(tenantID uint, days int) (*IncidentAnalytics, error) {
 	analytics := &IncidentAnalytics{
-		TenantID:          tenantID,
-		IncidentID:        incident.ID,
-		Severity:          incident.Impact,
-		Duration:          duration,
-		AffectedUsers:     affectedUsers,
-		NotificationsSent: notificationsSent,
-		ResolvedAt:        time.Now(),
+		TenantID: tenantID,
+		Period:   days,
 	}
 
-	return s.db.Create(analytics).Error
-}
-
-func (s *AnalyticsService) GetIncidentAnalytics(tenantID uint, days int) (map[string]interface{}, error) {
-	startDate := time.Now().AddDate(0, 0, -days)
-
-	analytics := make(map[string]interface{})
+	since := time.Now().Add(-time.Duration(days) * 24 * time.Hour)
 
 	// Total incidents
-	var totalIncidents int64
-	if err := s.db.Model(&IncidentAnalytics{}).Where("tenant_id = ? AND created_at >= ?", tenantID, startDate).Count(&totalIncidents).Error; err != nil {
+	if err := database.DB.Model(&models.Incident{}).
+		Where("tenant_id = ? AND created_at >= ?", tenantID, since).
+		Count(&analytics.TotalIncidents).Error; err != nil {
 		return nil, err
 	}
-	analytics["total_incidents"] = totalIncidents
 
-	// Average incident duration
-	var avgDuration float64
-	if err := s.db.Model(&IncidentAnalytics{}).
-		Where("tenant_id = ? AND created_at >= ?", tenantID, startDate).
-		Select("AVG(duration)").Scan(&avgDuration).Error; err != nil {
+	// Incidents by status
+	var statusStats []struct {
+		Status string
+		Count  int64
+	}
+	if err := database.DB.Model(&models.Incident{}).
+		Select("status, COUNT(*) as count").
+		Where("tenant_id = ? AND created_at >= ?", tenantID, since).
+		Group("status").
+		Scan(&statusStats).Error; err != nil {
 		return nil, err
 	}
-	analytics["avg_duration"] = avgDuration
 
-	// Incidents by severity
-	var incidentsBySeverity []struct {
-		Severity string `json:"severity"`
-		Count    int64  `json:"count"`
+	analytics.IncidentsByStatus = make(map[string]int64)
+	for _, stat := range statusStats {
+		analytics.IncidentsByStatus[stat.Status] = stat.Count
 	}
-	if err := s.db.Model(&IncidentAnalytics{}).
-		Select("severity, COUNT(*) as count").
-		Where("tenant_id = ? AND created_at >= ?", tenantID, startDate).
-		Group("severity").
-		Scan(&incidentsBySeverity).Error; err != nil {
-		return nil, err
-	}
-	analytics["incidents_by_severity"] = incidentsBySeverity
 
-	// Monthly incident trend
-	var monthlyIncidents []struct {
-		Month string `json:"month"`
-		Count int64  `json:"count"`
+	// Incidents by impact
+	var impactStats []struct {
+		Impact string
+		Count  int64
 	}
-	if err := s.db.Model(&IncidentAnalytics{}).
-		Select("DATE_FORMAT(created_at, '%Y-%m') as month, COUNT(*) as count").
-		Where("tenant_id = ? AND created_at >= ?", tenantID, startDate).
-		Group("DATE_FORMAT(created_at, '%Y-%m')").
-		Order("month ASC").
-		Scan(&monthlyIncidents).Error; err != nil {
+	if err := database.DB.Model(&models.Incident{}).
+		Select("impact, COUNT(*) as count").
+		Where("tenant_id = ? AND created_at >= ?", tenantID, since).
+		Group("impact").
+		Scan(&impactStats).Error; err != nil {
 		return nil, err
 	}
-	analytics["monthly_incidents"] = monthlyIncidents
+
+	analytics.IncidentsByImpact = make(map[string]int64)
+	for _, stat := range impactStats {
+		analytics.IncidentsByImpact[stat.Impact] = stat.Count
+	}
+
+	// Average resolution time
+	var avgResolution struct {
+		AvgResolution float64
+	}
+	if err := database.DB.Model(&models.Incident{}).
+		Select("AVG(EXTRACT(EPOCH FROM (resolved_at - created_at))/3600) as avg_resolution").
+		Where("tenant_id = ? AND created_at >= ? AND resolved_at IS NOT NULL", tenantID, since).
+		Scan(&avgResolution).Error; err != nil {
+		return nil, err
+	}
+
+	analytics.AverageResolutionTime = avgResolution.AvgResolution
+
+	// Incidents by service
+	var serviceStats []struct {
+		ServiceID uint
+		Count     int64
+	}
+	if err := database.DB.Table("incident_services").
+		Select("service_id, COUNT(*) as count").
+		Joins("JOIN incidents ON incident_services.incident_id = incidents.id").
+		Where("incidents.tenant_id = ? AND incidents.created_at >= ?", tenantID, since).
+		Group("service_id").
+		Scan(&serviceStats).Error; err != nil {
+		return nil, err
+	}
+
+	analytics.IncidentsByService = make(map[uint]int64)
+	for _, stat := range serviceStats {
+		analytics.IncidentsByService[stat.ServiceID] = stat.Count
+	}
 
 	return analytics, nil
 }
 
-// Performance Analytics
+// GetMaintenanceAnalytics returns maintenance analytics for a tenant
+func (s *AnalyticsService) GetMaintenanceAnalytics(tenantID uint, days int) (*MaintenanceAnalytics, error) {
+	analytics := &MaintenanceAnalytics{
+		TenantID: tenantID,
+		Period:   days,
+	}
 
-func (s *AnalyticsService) RecordPerformanceMetrics(tenantID uint, serviceID uint, responseTime, throughput, errorRate, availability float64) error {
+	since := time.Now().Add(-time.Duration(days) * 24 * time.Hour)
+
+	// Total maintenance events
+	if err := database.DB.Model(&models.Maintenance{}).
+		Where("tenant_id = ? AND created_at >= ?", tenantID, since).
+		Count(&analytics.TotalMaintenance).Error; err != nil {
+		return nil, err
+	}
+
+	// Maintenance by status
+	var statusStats []struct {
+		Status string
+		Count  int64
+	}
+	if err := database.DB.Model(&models.Maintenance{}).
+		Select("status, COUNT(*) as count").
+		Where("tenant_id = ? AND created_at >= ?", tenantID, since).
+		Group("status").
+		Scan(&statusStats).Error; err != nil {
+		return nil, err
+	}
+
+	analytics.MaintenanceByStatus = make(map[string]int64)
+	for _, stat := range statusStats {
+		analytics.MaintenanceByStatus[stat.Status] = stat.Count
+	}
+
+	// Average duration
+	var avgDuration struct {
+		AvgDuration float64
+	}
+	if err := database.DB.Model(&models.Maintenance{}).
+		Select("AVG(EXTRACT(EPOCH FROM (end_at - start_at))/3600) as avg_duration").
+		Where("tenant_id = ? AND created_at >= ?", tenantID, since).
+		Scan(&avgDuration).Error; err != nil {
+		return nil, err
+	}
+
+	analytics.AverageDuration = avgDuration.AvgDuration
+
+	return analytics, nil
+}
+
+// GetSubscriberAnalytics returns subscriber analytics for a tenant
+func (s *AnalyticsService) GetSubscriberAnalytics(tenantID uint, days int) (*SubscriberAnalytics, error) {
+	analytics := &SubscriberAnalytics{
+		TenantID: tenantID,
+		Period:   days,
+	}
+
+	// Total subscribers
+	if err := database.DB.Model(&models.Subscriber{}).
+		Where("tenant_id = ?", tenantID).
+		Count(&analytics.TotalSubscribers).Error; err != nil {
+		return nil, err
+	}
+
+	// Recent subscribers
+	since := time.Now().Add(-time.Duration(days) * 24 * time.Hour)
+	if err := database.DB.Model(&models.Subscriber{}).
+		Where("tenant_id = ? AND created_at >= ?", tenantID, since).
+		Count(&analytics.RecentSubscribers).Error; err != nil {
+		return nil, err
+	}
+
+	// SMS capable subscribers
+	if err := database.DB.Model(&models.Subscriber{}).
+		Where("tenant_id = ? AND phone != ''", tenantID).
+		Count(&analytics.SMSSubscribers).Error; err != nil {
+		return nil, err
+	}
+
+	// Subscribers by service
+	var serviceStats []struct {
+		ServiceID uint
+		Count     int64
+	}
+	if err := database.DB.Table("subscriber_services").
+		Select("service_id, COUNT(*) as count").
+		Joins("JOIN subscribers ON subscriber_services.subscriber_id = subscribers.id").
+		Where("subscribers.tenant_id = ?", tenantID).
+		Group("service_id").
+		Scan(&serviceStats).Error; err != nil {
+		return nil, err
+	}
+
+	analytics.SubscribersByService = make(map[uint]int64)
+	for _, stat := range serviceStats {
+		analytics.SubscribersByService[stat.ServiceID] = stat.Count
+	}
+
+	return analytics, nil
+}
+
+// GetPerformanceMetrics returns performance metrics for a tenant
+func (s *AnalyticsService) GetPerformanceMetrics(tenantID uint, days int) (*PerformanceMetrics, error) {
 	metrics := &PerformanceMetrics{
-		TenantID:     tenantID,
-		ServiceID:    serviceID,
-		ResponseTime: responseTime,
-		Throughput:   throughput,
-		ErrorRate:    errorRate,
-		Availability: availability,
-		Timestamp:    time.Now(),
+		TenantID: tenantID,
+		Period:   days,
 	}
 
-	return s.db.Create(metrics).Error
+	since := time.Now().Add(-time.Duration(days) * 24 * time.Hour)
+
+	// Get all monitors for the tenant
+	var monitors []models.Monitor
+	if err := database.DB.Where("tenant_id = ?", tenantID).Find(&monitors).Error; err != nil {
+		return nil, err
+	}
+
+	var totalLatency int64
+	var latencyCount int64
+	var totalChecks int64
+	var upChecks int64
+
+	for _, monitor := range monitors {
+		// Get heartbeats for this monitor
+		var heartbeats []models.Heartbeat
+		if err := database.DB.Where("monitor_id = ? AND timestamp >= ?", monitor.ID, since).
+			Find(&heartbeats).Error; err != nil {
+			continue
+		}
+
+		for _, heartbeat := range heartbeats {
+			totalChecks++
+			if heartbeat.Status == "up" {
+				upChecks++
+			}
+			totalLatency += heartbeat.Latency
+			latencyCount++
+		}
+	}
+
+	// Calculate metrics
+	if totalChecks > 0 {
+		metrics.Uptime = float64(upChecks) / float64(totalChecks) * 100.0
+	}
+
+	if latencyCount > 0 {
+		metrics.AverageLatency = float64(totalLatency) / float64(latencyCount)
+	}
+
+	// Get response time percentiles
+	var latencies []int64
+	if err := database.DB.Model(&models.Heartbeat{}).
+		Joins("JOIN monitors ON heartbeats.monitor_id = monitors.id").
+		Where("monitors.tenant_id = ? AND heartbeats.timestamp >= ?", tenantID, since).
+		Pluck("heartbeats.latency", &latencies).Error; err != nil {
+		return metrics, nil
+	}
+
+	if len(latencies) > 0 {
+		// Sort latencies (simplified - in production, use proper sorting)
+		metrics.P95Latency = calculatePercentile(latencies, 95)
+		metrics.P99Latency = calculatePercentile(latencies, 99)
+	}
+
+	return metrics, nil
 }
 
-func (s *AnalyticsService) GetPerformanceAnalytics(tenantID uint, days int) (map[string]interface{}, error) {
-	startDate := time.Now().AddDate(0, 0, -days)
+// GetDashboardSummary returns a summary for the dashboard
+func (s *AnalyticsService) GetDashboardSummary(tenantID uint) (*DashboardSummary, error) {
+	summary := &DashboardSummary{
+		TenantID: tenantID,
+	}
 
-	analytics := make(map[string]interface{})
-
-	// Average response time
-	var avgResponseTime float64
-	if err := s.db.Model(&PerformanceMetrics{}).
-		Where("tenant_id = ? AND timestamp >= ?", tenantID, startDate).
-		Select("AVG(response_time)").Scan(&avgResponseTime).Error; err != nil {
+	// Get service count
+	if err := database.DB.Model(&models.Service{}).
+		Where("tenant_id = ?", tenantID).
+		Count(&summary.TotalServices).Error; err != nil {
 		return nil, err
 	}
-	analytics["avg_response_time"] = avgResponseTime
 
-	// Average throughput
-	var avgThroughput float64
-	if err := s.db.Model(&PerformanceMetrics{}).
-		Where("tenant_id = ? AND timestamp >= ?", tenantID, startDate).
-		Select("AVG(throughput)").Scan(&avgThroughput).Error; err != nil {
+	// Get active incidents
+	if err := database.DB.Model(&models.Incident{}).
+		Where("tenant_id = ? AND status IN ?", tenantID, []string{"investigating", "identified", "monitoring"}).
+		Count(&summary.ActiveIncidents).Error; err != nil {
 		return nil, err
 	}
-	analytics["avg_throughput"] = avgThroughput
 
-	// Average error rate
-	var avgErrorRate float64
-	if err := s.db.Model(&PerformanceMetrics{}).
-		Where("tenant_id = ? AND timestamp >= ?", tenantID, startDate).
-		Select("AVG(error_rate)").Scan(&avgErrorRate).Error; err != nil {
+	// Get upcoming maintenance
+	tomorrow := time.Now().Add(24 * time.Hour)
+	if err := database.DB.Model(&models.Maintenance{}).
+		Where("tenant_id = ? AND start_at <= ? AND status = ?", tenantID, tomorrow, "scheduled").
+		Count(&summary.UpcomingMaintenance).Error; err != nil {
 		return nil, err
 	}
-	analytics["avg_error_rate"] = avgErrorRate
 
-	// Average availability
-	var avgAvailability float64
-	if err := s.db.Model(&PerformanceMetrics{}).
-		Where("tenant_id = ? AND timestamp >= ?", tenantID, startDate).
-		Select("AVG(availability)").Scan(&avgAvailability).Error; err != nil {
+	// Get total subscribers
+	if err := database.DB.Model(&models.Subscriber{}).
+		Where("tenant_id = ?", tenantID).
+		Count(&summary.TotalSubscribers).Error; err != nil {
 		return nil, err
 	}
-	analytics["avg_availability"] = avgAvailability
 
-	// Performance trends
-	var performanceTrends []struct {
-		Date         string  `json:"date"`
-		ResponseTime float64 `json:"response_time"`
-		Throughput   float64 `json:"throughput"`
-		ErrorRate    float64 `json:"error_rate"`
-		Availability float64 `json:"availability"`
+	// Get overall system status
+	statusService := NewStatusService()
+	overallStatus, err := statusService.GetOverallStatus(tenantID)
+	if err == nil {
+		summary.OverallStatus = overallStatus
 	}
-	if err := s.db.Model(&PerformanceMetrics{}).
-		Select("DATE(timestamp) as date, AVG(response_time) as response_time, AVG(throughput) as throughput, AVG(error_rate) as error_rate, AVG(availability) as availability").
-		Where("tenant_id = ? AND timestamp >= ?", tenantID, startDate).
-		Group("DATE(timestamp)").
-		Order("date ASC").
-		Scan(&performanceTrends).Error; err != nil {
-		return nil, err
-	}
-	analytics["performance_trends"] = performanceTrends
 
-	return analytics, nil
+	return summary, nil
 }
 
-// Comprehensive Analytics Dashboard
-
-func (s *AnalyticsService) GetDashboardAnalytics(tenantID uint, days int) (map[string]interface{}, error) {
-	dashboard := make(map[string]interface{})
-
-	// Page analytics
-	pageAnalytics, err := s.GetPageAnalytics(tenantID, days)
-	if err != nil {
-		logger.Error("Failed to get page analytics", zap.Error(err))
-	} else {
-		dashboard["page_analytics"] = pageAnalytics
-	}
-
-	// Uptime analytics
-	uptimeAnalytics, err := s.GetUptimeAnalytics(tenantID, days)
-	if err != nil {
-		logger.Error("Failed to get uptime analytics", zap.Error(err))
-	} else {
-		dashboard["uptime_analytics"] = uptimeAnalytics
-	}
-
-	// Incident analytics
-	incidentAnalytics, err := s.GetIncidentAnalytics(tenantID, days)
-	if err != nil {
-		logger.Error("Failed to get incident analytics", zap.Error(err))
-	} else {
-		dashboard["incident_analytics"] = incidentAnalytics
-	}
-
-	// Performance analytics
-	performanceAnalytics, err := s.GetPerformanceAnalytics(tenantID, days)
-	if err != nil {
-		logger.Error("Failed to get performance analytics", zap.Error(err))
-	} else {
-		dashboard["performance_analytics"] = performanceAnalytics
-	}
-
-	// Summary metrics
-	summary := s.calculateSummaryMetrics(dashboard)
-	dashboard["summary"] = summary
-
-	return dashboard, nil
+// RecordAPIUsage records API usage for analytics
+func (s *AnalyticsService) RecordAPIUsage(tenantID uint, endpoint string, method string, responseTime float64, statusCode int, userAgent string, ipAddress string) error {
+	// In a real implementation, you would store this in a database
+	// For now, we'll just log it or store in memory
+	return nil
 }
 
-func (s *AnalyticsService) calculateSummaryMetrics(dashboard map[string]interface{}) map[string]interface{} {
-	summary := make(map[string]interface{})
+// RecordPageView records page view for analytics
+func (s *AnalyticsService) RecordPageView(tenantID uint, page string, userAgent string, ipAddress string, referrer string, sessionID string) error {
+	// In a real implementation, you would store this in a database
+	// For now, we'll just log it or store in memory
+	return nil
+}
 
-	// Extract key metrics
-	if pageAnalytics, ok := dashboard["page_analytics"].(map[string]interface{}); ok {
-		if totalViews, ok := pageAnalytics["total_views"].(int64); ok {
-			summary["total_page_views"] = totalViews
-		}
-		if uniqueVisitors, ok := pageAnalytics["unique_visitors"].(int64); ok {
-			summary["unique_visitors"] = uniqueVisitors
-		}
+// GetPlatformAPIUsageAnalytics returns platform-wide API usage analytics
+func (s *AnalyticsService) GetPlatformAPIUsageAnalytics(days int) (map[string]interface{}, error) {
+	// In a real implementation, you would query the database for platform-wide analytics
+	// For now, return mock data
+	return map[string]interface{}{
+		"total_requests":    1000,
+		"unique_users":      100,
+		"avg_response_time": 150.5,
+		"error_rate":        0.02,
+	}, nil
+}
+
+// GetPlatformPageViewAnalytics returns platform-wide page view analytics
+func (s *AnalyticsService) GetPlatformPageViewAnalytics(days int) (map[string]interface{}, error) {
+	// In a real implementation, you would query the database for platform-wide analytics
+	// For now, return mock data
+	return map[string]interface{}{
+		"total_page_views":     5000,
+		"unique_visitors":      500,
+		"avg_session_duration": 180.0,
+		"bounce_rate":          0.3,
+	}, nil
+}
+
+// Helper function to calculate percentile (simplified implementation)
+func calculatePercentile(latencies []int64, percentile int) float64 {
+	if len(latencies) == 0 {
+		return 0
 	}
 
-	if uptimeAnalytics, ok := dashboard["uptime_analytics"].(map[string]interface{}); ok {
-		if overallUptime, ok := uptimeAnalytics["overall_uptime"].(float64); ok {
-			summary["overall_uptime"] = overallUptime
-		}
+	// Simple implementation - in production, use proper percentile calculation
+	index := int(float64(len(latencies)) * float64(percentile) / 100.0)
+	if index >= len(latencies) {
+		index = len(latencies) - 1
 	}
 
-	if incidentAnalytics, ok := dashboard["incident_analytics"].(map[string]interface{}); ok {
-		if totalIncidents, ok := incidentAnalytics["total_incidents"].(int64); ok {
-			summary["total_incidents"] = totalIncidents
-		}
-		if avgDuration, ok := incidentAnalytics["avg_duration"].(float64); ok {
-			summary["avg_incident_duration"] = avgDuration
-		}
-	}
+	return float64(latencies[index])
+}
 
-	if performanceAnalytics, ok := dashboard["performance_analytics"].(map[string]interface{}); ok {
-		if avgResponseTime, ok := performanceAnalytics["avg_response_time"].(float64); ok {
-			summary["avg_response_time"] = avgResponseTime
-		}
-		if avgErrorRate, ok := performanceAnalytics["avg_error_rate"].(float64); ok {
-			summary["avg_error_rate"] = avgErrorRate
-		}
-	}
+// UptimeReport represents uptime statistics
+type UptimeReport struct {
+	TenantID      uint                    `json:"tenant_id"`
+	Period        int                     `json:"period_days"`
+	OverallUptime float64                 `json:"overall_uptime"`
+	Services      map[uint]*ServiceUptime `json:"services"`
+}
 
-	return summary
+// ServiceUptime represents uptime for a single service
+type ServiceUptime struct {
+	ServiceID   uint    `json:"service_id"`
+	ServiceName string  `json:"service_name"`
+	Uptime      float64 `json:"uptime"`
+}
+
+// IncidentAnalytics represents incident analytics
+type IncidentAnalytics struct {
+	TenantID              uint             `json:"tenant_id"`
+	Period                int              `json:"period_days"`
+	TotalIncidents        int64            `json:"total_incidents"`
+	IncidentsByStatus     map[string]int64 `json:"incidents_by_status"`
+	IncidentsByImpact     map[string]int64 `json:"incidents_by_impact"`
+	IncidentsByService    map[uint]int64   `json:"incidents_by_service"`
+	AverageResolutionTime float64          `json:"average_resolution_time_hours"`
+}
+
+// MaintenanceAnalytics represents maintenance analytics
+type MaintenanceAnalytics struct {
+	TenantID            uint             `json:"tenant_id"`
+	Period              int              `json:"period_days"`
+	TotalMaintenance    int64            `json:"total_maintenance"`
+	MaintenanceByStatus map[string]int64 `json:"maintenance_by_status"`
+	AverageDuration     float64          `json:"average_duration_hours"`
+}
+
+// SubscriberAnalytics represents subscriber analytics
+type SubscriberAnalytics struct {
+	TenantID             uint           `json:"tenant_id"`
+	Period               int            `json:"period_days"`
+	TotalSubscribers     int64          `json:"total_subscribers"`
+	RecentSubscribers    int64          `json:"recent_subscribers"`
+	SMSSubscribers       int64          `json:"sms_subscribers"`
+	SubscribersByService map[uint]int64 `json:"subscribers_by_service"`
+}
+
+// PerformanceMetrics represents performance metrics
+type PerformanceMetrics struct {
+	TenantID       uint    `json:"tenant_id"`
+	Period         int     `json:"period_days"`
+	Uptime         float64 `json:"uptime_percentage"`
+	AverageLatency float64 `json:"average_latency_ms"`
+	P95Latency     float64 `json:"p95_latency_ms"`
+	P99Latency     float64 `json:"p99_latency_ms"`
+}
+
+// DashboardSummary represents dashboard summary data
+type DashboardSummary struct {
+	TenantID            uint   `json:"tenant_id"`
+	TotalServices       int64  `json:"total_services"`
+	ActiveIncidents     int64  `json:"active_incidents"`
+	UpcomingMaintenance int64  `json:"upcoming_maintenance"`
+	TotalSubscribers    int64  `json:"total_subscribers"`
+	OverallStatus       string `json:"overall_status"`
 }

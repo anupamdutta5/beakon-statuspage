@@ -8,6 +8,13 @@ import (
 	"time"
 )
 
+// Context key type for logging
+type loggingContextKey string
+
+const (
+	requestIDKey loggingContextKey = "request_id"
+)
+
 // LogLevel represents the log level
 type LogLevel string
 
@@ -350,7 +357,7 @@ func (lm *LoggingMiddleware) HTTPMiddleware() func(next http.Handler) http.Handl
 			}
 
 			// Create context with request ID
-			ctx := context.WithValue(r.Context(), "request_id", generateRequestID())
+			ctx := context.WithValue(r.Context(), requestIDKey, generateRequestID())
 			r = r.WithContext(ctx)
 
 			// Log request start
@@ -406,7 +413,7 @@ func generateRequestID() string {
 
 // getRequestID gets the request ID from context
 func getRequestID(ctx context.Context) string {
-	if requestID := ctx.Value("request_id"); requestID != nil {
+	if requestID := ctx.Value(requestIDKey); requestID != nil {
 		return fmt.Sprintf("%v", requestID)
 	}
 	return ""
