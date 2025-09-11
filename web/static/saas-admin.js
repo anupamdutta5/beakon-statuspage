@@ -1579,7 +1579,7 @@ class SaaSAdminDashboard {
             const subscription = data.subscription || data;
             
             // Show edit form with populated data
-            this.showEditSubscriptionForm(subscription);
+            await this.showEditSubscriptionForm(subscription);
         } catch (error) {
             console.error('Error fetching subscription:', error);
             this.showError('Failed to load subscription details: ' + error.message);
@@ -1614,7 +1614,7 @@ class SaaSAdminDashboard {
         }
     }
 
-    showEditSubscriptionForm(subscription) {
+    async showEditSubscriptionForm(subscription) {
         console.log('Show edit subscription form for:', subscription);
         
         const content = document.getElementById('subscriptions-content');
@@ -1626,6 +1626,9 @@ class SaaSAdminDashboard {
         
         // Use the same form as create, but populate with existing data
         this.showCreateSubscriptionForm();
+        
+        // Wait for tenants to be loaded before populating the form
+        await this.loadTenantsForSubscription();
         
         // Update form title and button text
         const formTitle = content.querySelector('h2');
@@ -1643,6 +1646,7 @@ class SaaSAdminDashboard {
             const tenantSelect = document.getElementById('tenantSelect');
             if (tenantSelect) {
                 tenantSelect.value = subscription.Tenant.ID;
+                console.log('Set tenant select to:', subscription.Tenant.ID);
             }
         }
         
@@ -1650,6 +1654,7 @@ class SaaSAdminDashboard {
             const planSelect = document.getElementById('subscriptionPlan');
             if (planSelect) {
                 planSelect.value = subscription.Plan.Slug;
+                console.log('Set plan select to:', subscription.Plan.Slug);
             }
         }
         
@@ -1657,6 +1662,7 @@ class SaaSAdminDashboard {
         const startDate = document.getElementById('startDate');
         if (startDate && subscription.CurrentPeriodStart) {
             startDate.value = new Date(subscription.CurrentPeriodStart).toISOString().split('T')[0];
+            console.log('Set start date to:', startDate.value);
         }
         
         // Update form to handle edit mode
@@ -1664,6 +1670,7 @@ class SaaSAdminDashboard {
         if (form) {
             form.dataset.mode = 'edit';
             form.dataset.subscriptionId = subscription.ID;
+            console.log('Set form mode to edit, subscription ID:', subscription.ID);
         }
     }
 
