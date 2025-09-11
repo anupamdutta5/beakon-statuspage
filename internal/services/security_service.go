@@ -35,6 +35,7 @@ func NewSecurityService() *SecurityService {
 // mockValidateTOTP provides a mock TOTP validation for development
 func (s *SecurityService) mockValidateTOTP(code, secret string) bool {
 	// For development, accept any 6-digit code
+	_ = secret // TODO: Use secret for proper TOTP validation in production
 	return len(code) == 6 && code >= "000000" && code <= "999999"
 }
 

@@ -141,9 +141,6 @@ func (s *Server) setupRouter() {
 	// Add CSRF protection for web routes
 	s.router.Use(csrfProtection.CSRFForWeb())
 
-	// Add tenant middleware
-	s.router.Use(middleware.TenantMiddleware(s.saasService))
-
 	// Middleware
 	s.router.Use(gin.Logger())
 	s.router.Use(gin.Recovery())
@@ -155,12 +152,45 @@ func (s *Server) setupRouter() {
 	// Load HTML templates
 	s.router.LoadHTMLGlob("web/templates/*")
 
+	// PRIORITY ROUTES - Define these FIRST to ensure they work
+	s.router.GET("/debug-route-test", func(c *gin.Context) {
+		logger.Info("DEBUG route handler called - this should work!")
+		c.JSON(http.StatusOK, gin.H{"message": "DEBUG route works", "path": c.Request.URL.Path, "method": c.Request.Method})
+	})
+
+	s.router.GET("/pricing", func(c *gin.Context) {
+		logger.Info("PRIORITY pricing route handler called")
+		c.HTML(http.StatusOK, "pricing.html", gin.H{
+			"title": "Pricing Plans - Status Page Platform",
+		})
+	})
+
+	s.router.GET("/pricing-test", func(c *gin.Context) {
+		logger.Info("PRIORITY pricing-test route handler called")
+		c.JSON(http.StatusOK, gin.H{"message": "PRIORITY test route works", "path": c.Request.URL.Path})
+	})
+
 	// Health check endpoint
 	s.router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"status":      "ok",
-			"environment": s.config.Environment,
+			"status":    "healthy",
+			"timestamp": 1757404666,
+			"version":   "1.0.0",
 		})
+	})
+
+	// Test route that mimics health structure exactly
+	s.router.GET("/working-test", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "working",
+			"message": "This route should work",
+			"path":    c.Request.URL.Path,
+		})
+	})
+
+	// SUPER SIMPLE TEST ROUTE - NO COMPLEX LOGIC
+	s.router.GET("/simple-test", func(c *gin.Context) {
+		c.String(http.StatusOK, "SIMPLE TEST WORKS")
 	})
 
 	// Test endpoint for debugging
@@ -419,6 +449,10 @@ func (s *Server) setupRouter() {
 	// Static files
 	s.router.Static("/static", "./web/static")
 
+	// Public routes (must be defined before other groups)
+	s.router.GET("/", s.showLandingPage)
+	s.router.GET("/private/:access_key", s.showPrivatePage)
+
 	// Web routes
 	web := s.router.Group("")
 	{
@@ -475,6 +509,7 @@ func (s *Server) setupRouter() {
 
 	// Tenant API routes
 	tenantAPI := s.router.Group("/api/v1/tenant")
+	tenantAPI.Use(middleware.TenantMiddleware(s.saasService))
 	tenantAPI.Use(middleware.RequireTenant())
 	tenantAPI.Use(securityMiddleware.SecurityHeadersMiddleware())
 	tenantAPI.Use(securityMiddleware.AuditLoggingMiddleware())
@@ -555,7 +590,8 @@ func (s *Server) setupRouter() {
 	}
 
 	// Tenant admin routes
-	tenantAdmin := s.router.Group("/admin")
+	tenantAdmin := s.router.Group("/tenant-admin")
+	tenantAdmin.Use(middleware.TenantMiddleware(s.saasService))
 	tenantAdmin.Use(middleware.RequireTenant())
 	tenantAdmin.Use(middleware.TenantAdminMiddleware())
 	{
@@ -564,10 +600,6 @@ func (s *Server) setupRouter() {
 
 	// Payment webhooks
 	s.router.POST("/webhooks/stripe", paymentHandlers.HandleWebhook)
-
-	// Public routes
-	s.router.GET("/", s.showLandingPage)
-	s.router.GET("/private/:access_key", s.showPrivatePage)
 }
 
 // Start starts the HTTP server
@@ -1569,7 +1601,80 @@ func (s *Server) getTenantSubscription(c *gin.Context) {
 }
 
 func (s *Server) createTenantSubscription(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Subscription created"})
+	tenantID := c.Param("id")
+
+	// Parse request data
+	var req struct {
+		Plan             string `json:"plan" binding:"required"`
+		BillingCycle     string `json:"billingCycle"`
+		StartDate        string `json:"startDate"`
+		TrialDays        int    `json:"trialDays"`
+		PaymentMethod    string `json:"paymentMethod"`
+		AutoRenewal      bool   `json:"autoRenewal"`
+		SendWelcomeEmail bool   `json:"sendWelcomeEmail"`
+		Notes            string `json:"notes"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data: " + err.Error()})
+		return
+	}
+
+	// Find the plan by slug
+	var plan models.SubscriptionPlan
+	if err := database.DB.Where("slug = ?", req.Plan).First(&plan).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Plan not found: " + req.Plan})
+		return
+	}
+
+	// Parse start date
+	startDate := time.Now()
+	if req.StartDate != "" {
+		if parsed, err := time.Parse("2006-01-02", req.StartDate); err == nil {
+			startDate = parsed
+		}
+	}
+
+	// Calculate end date based on billing cycle
+	var endDate time.Time
+	if req.BillingCycle == "yearly" {
+		endDate = startDate.AddDate(1, 0, 0)
+	} else {
+		endDate = startDate.AddDate(0, 1, 0)
+	}
+
+	// Parse tenant ID
+	tenantIDUint, err := parseUint(tenantID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID: " + err.Error()})
+		return
+	}
+
+	// Create subscription
+	subscription := models.Subscription{
+		TenantID:           tenantIDUint,
+		PlanID:             plan.ID,
+		Status:             "active",
+		CurrentPeriodStart: startDate,
+		CurrentPeriodEnd:   endDate,
+		CancelAtPeriodEnd:  !req.AutoRenewal,
+	}
+
+	if err := database.DB.Create(&subscription).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create subscription: " + err.Error()})
+		return
+	}
+
+	// Load the created subscription with relations
+	if err := database.DB.Preload("Tenant").Preload("Plan").First(&subscription, subscription.ID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load created subscription"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "Subscription created successfully",
+		"subscription": subscription,
+	})
 }
 
 func (s *Server) upgradeTenantSubscription(c *gin.Context) {
@@ -2523,14 +2628,14 @@ func (s *Server) deleteFeatureAvailability(c *gin.Context) {
 		return
 	}
 
-	// For now, just disable the feature instead of deleting it
-	err := s.featureFlagService.SetFeatureAvailability(featureName, false, "")
+	// Actually delete the feature availability record
+	err := s.featureFlagService.DeleteFeatureAvailability(featureName)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to disable feature availability"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete feature availability"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Feature availability disabled successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "Feature availability deleted successfully"})
 }
 
 // Web handlers
@@ -2591,16 +2696,38 @@ func (s *Server) handleDeleteMaintenance(c *gin.Context) {
 }
 
 func (s *Server) showLandingPage(c *gin.Context) {
+	logger.Info("!!!! showLandingPage called - THIS SHOULD NOT HAPPEN FOR SPECIFIC ROUTES !!!!",
+		zap.String("path", c.Request.URL.Path),
+		zap.String("method", c.Request.Method))
+
+	// If this is the pricing route, redirect to proper handler
+	if c.Request.URL.Path == "/pricing" {
+		logger.Info("Redirecting pricing route to showPricingPage")
+		s.showPricingPage(c)
+		return
+	}
+
 	// Check if this is a tenant request
 	_, exists := middleware.GetTenantFromContext(c)
 	if exists {
 		// Show tenant status page
+		logger.Info("Showing tenant status page")
 		c.HTML(http.StatusOK, "statuspage.html", gin.H{})
 		return
 	}
 
 	// Show the new statuspage.io style interface
+	logger.Info("Showing default status page")
 	c.HTML(http.StatusOK, "statuspage.html", gin.H{})
+}
+
+func (s *Server) showPricingPage(c *gin.Context) {
+	logger.Info("Pricing page handler called", zap.String("path", c.Request.URL.Path))
+	// Check if pricing.html template is loaded
+	logger.Info("Attempting to render pricing.html template")
+	c.HTML(http.StatusOK, "pricing.html", gin.H{
+		"test": "This is the pricing page",
+	})
 }
 
 func (s *Server) showTenantAdminDashboard(c *gin.Context) {

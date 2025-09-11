@@ -10,6 +10,7 @@ class AdminDashboard {
 
     init() {
         console.log('AdminDashboard init called');
+        this.initializeSidebarState();
         this.setupEventListeners();
         this.setupModals();
         
@@ -28,32 +29,89 @@ class AdminDashboard {
         }, 100);
     }
 
+    initializeSidebarState() {
+        const sidebar = document.querySelector('.sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        
+        if (sidebar && sidebarToggle) {
+            // Get saved state from localStorage
+            const savedState = localStorage.getItem('admin-sidebar-state');
+            console.log('Saved sidebar state:', savedState);
+            
+            if (savedState === 'collapsed') {
+                // Set to collapsed state
+                sidebar.classList.remove('open');
+                sidebar.classList.add('collapsed');
+                sidebarToggle.querySelector('i').className = 'fas fa-chevron-right';
+                console.log('Sidebar initialized as collapsed');
+            } else {
+                // Default to open state
+                sidebar.classList.remove('collapsed');
+                sidebar.classList.add('open');
+                sidebarToggle.querySelector('i').className = 'fas fa-chevron-left';
+                console.log('Sidebar initialized as open');
+            }
+        }
+    }
+
     setupEventListeners() {
         // Sidebar toggle for mobile
         const sidebarToggle = document.getElementById('sidebarToggle');
         const sidebar = document.querySelector('.sidebar');
         
-        if (sidebarToggle) {
-            sidebarToggle.addEventListener('click', () => {
-                sidebar.classList.toggle('open');
-            });
+        if (sidebarToggle && sidebar) {
+            console.log('Setting up sidebar toggle...');
+            
+            // Function to toggle sidebar state
+            const toggleSidebar = (e) => {
+                e.stopPropagation();
+                console.log('Sidebar toggle clicked!');
+                
+                // Toggle between open and collapsed states
+                if (sidebar.classList.contains('open')) {
+                    // If open, collapse it
+                    sidebar.classList.remove('open');
+                    sidebar.classList.add('collapsed');
+                    sidebarToggle.querySelector('i').className = 'fas fa-chevron-right';
+                    localStorage.setItem('admin-sidebar-state', 'collapsed');
+                    console.log('Sidebar collapsed');
+                } else if (sidebar.classList.contains('collapsed')) {
+                    // If collapsed, open it
+                    sidebar.classList.remove('collapsed');
+                    sidebar.classList.add('open');
+                    sidebarToggle.querySelector('i').className = 'fas fa-chevron-left';
+                    localStorage.setItem('admin-sidebar-state', 'open');
+                    console.log('Sidebar opened');
+                } else {
+                    // If hidden, open it
+                    sidebar.classList.add('open');
+                    sidebarToggle.querySelector('i').className = 'fas fa-chevron-left';
+                    localStorage.setItem('admin-sidebar-state', 'open');
+                    console.log('Sidebar opened from hidden');
+                }
+            };
+            
+            // Add event listener to sidebar toggle button
+            sidebarToggle.addEventListener('click', toggleSidebar);
         }
 
-        // Close sidebar when clicking outside on mobile
-        document.addEventListener('click', (e) => {
-            if (window.innerWidth <= 768 && sidebar.classList.contains('open')) {
-                if (!sidebar.contains(e.target) && !sidebarToggle.contains(e.target)) {
-                    sidebar.classList.remove('open');
-                }
-            }
-        });
+        // DISABLED: Don't close sidebar when clicking outside
+        // This was causing the sidebar to disappear when clicking elsewhere
+        // document.addEventListener('click', (e) => {
+        //     if (window.innerWidth <= 768 && sidebar.classList.contains('open')) {
+        //         if (!sidebar.contains(e.target) && !sidebarToggle.contains(e.target)) {
+        //             sidebar.classList.remove('open');
+        //         }
+        //     }
+        // });
 
-        // Close sidebar when window is resized to desktop size
-        window.addEventListener('resize', () => {
-            if (window.innerWidth > 768) {
-                sidebar.classList.remove('open');
-            }
-        });
+        // DISABLED: Don't auto-close sidebar on resize
+        // This was causing the sidebar to disappear when resizing
+        // window.addEventListener('resize', () => {
+        //     if (window.innerWidth > 768) {
+        //         sidebar.classList.remove('open');
+        //     }
+        // });
 
         // Sidebar navigation
         this.setupSidebarNavigation();

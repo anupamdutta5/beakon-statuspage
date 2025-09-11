@@ -47,19 +47,25 @@ func TenantMiddleware(saasService *services.SaaSService) gin.HandlerFunc {
 			return
 		}
 
-		// Skip tenant resolution for health check
-		if c.Request.URL.Path == "/health" {
-			c.Next()
-			return
+		// Skip tenant resolution for public routes
+		publicRoutes := []string{"/health", "/pricing", "/pricing-test", "/login", "/register", "/api/test", "/api/test-admin", "/working-test", "/debug-route-test"}
+		logger.Info("Tenant middleware called", zap.String("path", c.Request.URL.Path))
+		for _, route := range publicRoutes {
+			if c.Request.URL.Path == route {
+				logger.Info("Skipping tenant middleware for public route", zap.String("path", c.Request.URL.Path))
+				c.Next()
+				return
+			}
 		}
+		logger.Info("Continuing with tenant resolution", zap.String("path", c.Request.URL.Path))
 
 		// Get tenant from subdomain or custom domain
 		tenant, err := resolveTenant(c, saasService)
 		if err != nil {
 			logger.Error("Failed to resolve tenant", zap.Error(err))
-			// If no tenant found, show default landing page
-			c.HTML(http.StatusOK, "index.html", gin.H{})
-			c.Abort()
+			// If no tenant found, continue without tenant context (for non-tenant routes)
+			logger.Info("No tenant found, continuing without tenant context", zap.String("path", c.Request.URL.Path))
+			c.Next()
 			return
 		}
 

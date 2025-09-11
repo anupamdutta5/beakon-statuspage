@@ -389,6 +389,7 @@ func (s *MonitoringAnalyticsService) GetUptimeSummary(ctx context.Context, tenan
 
 // Helper function to calculate overall status
 func (s *MonitoringAnalyticsService) calculateOverallStatus(up, degraded, down int) string {
+	_ = up // TODO: Use up count for more detailed status calculation
 	if down > 0 {
 		return "down"
 	}

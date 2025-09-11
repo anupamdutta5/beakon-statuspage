@@ -278,6 +278,7 @@ func (s *AdvancedNotificationService) sendTwilioSMS(provider *SMSProvider, toNum
 func (s *AdvancedNotificationService) sendAWSSNS(provider *SMSProvider, toNumber, message string) error {
 	// AWS SNS SMS implementation
 	// This would use the AWS Go SDK
+	_ = provider // TODO: Use provider configuration for AWS SNS credentials
 	logger.Info("Sending AWS SNS SMS", zap.String("to", toNumber), zap.String("message", message))
 	return nil
 }
@@ -323,6 +324,7 @@ func (s *AdvancedNotificationService) sendPushNotification(tenantID uint, subscr
 func (s *AdvancedNotificationService) sendFCMPushNotification(token string, notification *PushNotification) error {
 	// Firebase Cloud Messaging implementation
 	// This would use the Firebase Go SDK
+	_ = notification // TODO: Use notification data for FCM payload
 	logger.Info("Sending FCM push notification", zap.String("token", token))
 	return nil
 }

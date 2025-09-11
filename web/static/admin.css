@@ -44,11 +44,96 @@ body.admin-body {
     z-index: 1000;
     display: flex;
     flex-direction: column;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+}
+
+.sidebar.open {
+    transform: translateX(0);
+}
+
+/* Collapsed sidebar state - show icons only */
+.sidebar.collapsed {
+    width: 60px;
+    transform: translateX(0);
+}
+
+.sidebar.collapsed .sidebar-header .logo span,
+.sidebar.collapsed .nav-link span,
+.sidebar.collapsed .sidebar-footer .nav-link span {
+    display: none;
+}
+
+.sidebar.collapsed .nav-link {
+    justify-content: center;
+    padding: 12px;
+}
+
+.sidebar.collapsed .nav-link i {
+    margin: 0;
+}
+
+.sidebar.collapsed .sidebar-header {
+    padding: 20px 12px;
+}
+
+.sidebar.collapsed .sidebar-footer {
+    padding: 20px 12px;
+}
+
+/* Tooltips for collapsed sidebar icons */
+.sidebar.collapsed .nav-link {
+    position: relative;
+}
+
+.sidebar.collapsed .nav-link::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #1f2937;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    z-index: 1001;
+    margin-left: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.sidebar.collapsed .nav-link::before {
+    content: '';
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    border: 6px solid transparent;
+    border-right-color: #1f2937;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    z-index: 1001;
+    margin-left: 4px;
+}
+
+.sidebar.collapsed .nav-link:hover::after,
+.sidebar.collapsed .nav-link:hover::before {
+    opacity: 1;
+    visibility: visible;
 }
 
 .sidebar-header {
     padding: 20px;
     border-bottom: 1px solid var(--border-color);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
 .logo {
@@ -108,8 +193,19 @@ body.admin-body {
 
 /* Main Content */
 .main-content {
-    margin-left: var(--sidebar-width);
+    margin-left: 0;
     min-height: 100vh;
+    transition: margin-left 0.3s ease;
+}
+
+/* Shift content when sidebar is open or collapsed */
+.sidebar.open + .main-content,
+.sidebar.collapsed + .main-content {
+    margin-left: var(--sidebar-width);
+}
+
+.sidebar.collapsed + .main-content {
+    margin-left: 60px;
 }
 
 .top-header {
@@ -132,18 +228,18 @@ body.admin-body {
 }
 
 .sidebar-toggle {
-    display: none;
     background: none;
     border: none;
-    font-size: 18px;
-    color: var(--text-secondary);
+    color: var(--text-primary);
+    font-size: 1.2rem;
     cursor: pointer;
-    padding: 8px;
-    border-radius: var(--border-radius);
+    padding: 0.5rem;
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
 }
 
 .sidebar-toggle:hover {
-    background-color: var(--background-color);
+    background-color: rgba(0, 0, 0, 0.1);
 }
 
 .page-title {
@@ -693,10 +789,146 @@ form {
     border-top: 1px solid var(--border-color);
 }
 
+
+/* Hamburger Menu Button */
+.hamburger-menu {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 8px;
+    margin-right: 12px;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+}
+
+.hamburger-menu:hover {
+    background-color: var(--hover-color);
+}
+
+/* Hamburger menu in sidebar header - positioned below logo */
+.hamburger-menu.sidebar-hamburger {
+    position: absolute;
+    top: 50px;
+    right: 20px;
+    background: none;
+    border: none;
+    color: var(--text-color);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+    z-index: 10;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hamburger-menu.sidebar-hamburger:hover {
+    background-color: var(--hover-color);
+}
+
+/* Show hamburger when sidebar is collapsed - positioned in center */
+.sidebar.collapsed .hamburger-menu.sidebar-hamburger {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    right: auto;
+}
+
+
+/* Tenant Features Styles */
+.tenant-features-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.tenant-feature-card {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.tenant-feature-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tenant-feature-header h3 {
+    margin: 0;
+    color: var(--text-color);
+    font-size: 18px;
+}
+
+.tenant-slug {
+    background: var(--primary-color);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.tenant-feature-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.tenant-feature-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+}
+
+.tenant-feature-item:hover {
+    background: var(--hover-color);
+}
+
+.feature-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.feature-name {
+    font-weight: 600;
+    color: var(--text-color);
+    font-size: 14px;
+}
+
+.feature-description {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.feature-toggle {
+    display: flex;
+    align-items: center;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .sidebar {
-        transform: translateX(-100%);
+        /* Keep sidebar visible on mobile - don't hide it */
+        transform: translateX(0);
         transition: transform 0.3s ease;
     }
     

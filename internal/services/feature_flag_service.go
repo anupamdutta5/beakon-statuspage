@@ -194,6 +194,18 @@ func (s *FeatureFlagService) GetAllFeatureAvailability() ([]models.SaaSFeatureAv
 	return availabilities, nil
 }
 
+// DeleteFeatureAvailability deletes a feature availability record
+func (s *FeatureFlagService) DeleteFeatureAvailability(feature string) error {
+	result := s.db.Where("feature = ?", feature).Delete(&models.SaaSFeatureAvailability{})
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete feature availability: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("feature availability not found")
+	}
+	return nil
+}
+
 // GetAvailableFeaturesForTenant returns features that are both available at SaaS level and enabled for tenant
 func (s *FeatureFlagService) GetAvailableFeaturesForTenant(tenantID uint) ([]models.FeatureFlag, error) {
 	var flags []models.FeatureFlag
@@ -209,10 +221,11 @@ func (s *FeatureFlagService) GetAvailableFeaturesForTenant(tenantID uint) ([]mod
 	for _, availability := range availabilities {
 		var flag models.FeatureFlag
 		err := s.db.Where("tenant_id = ? AND feature = ?", tenantID, availability.Feature).First(&flag).Error
-		if err == nil {
+		switch {
+		case err == nil:
 			// Tenant has this feature configured
 			flags = append(flags, flag)
-		} else if err == gorm.ErrRecordNotFound {
+		case err == gorm.ErrRecordNotFound:
 			// Tenant doesn't have this feature configured, create default disabled entry
 			flags = append(flags, models.FeatureFlag{
 				TenantID:  tenantID,

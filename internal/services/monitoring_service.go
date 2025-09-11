@@ -24,6 +24,14 @@ func NewMonitoringService() *MonitoringService {
 	}
 }
 
+// NewMonitoringServiceWithDB creates a new MonitoringService with a specific database connection
+func NewMonitoringServiceWithDB(db *gorm.DB) *MonitoringService {
+	return &MonitoringService{
+		db:         db,
+		httpClient: &http.Client{Timeout: 30 * time.Second},
+	}
+}
+
 // CheckServiceHealth performs health checks on services
 func (s *MonitoringService) CheckServiceHealth(service *models.Service) (*models.HealthCheck, error) {
 	startTime := time.Now()

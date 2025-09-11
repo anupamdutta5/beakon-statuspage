@@ -21,6 +21,13 @@ func NewBillingService() *BillingService {
 	}
 }
 
+// NewBillingServiceWithDB creates a new BillingService with a specific database connection
+func NewBillingServiceWithDB(db *gorm.DB) *BillingService {
+	return &BillingService{
+		db: db,
+	}
+}
+
 // CreateCustomer creates a new customer in the billing system
 func (s *BillingService) CreateCustomer(tenantID uint, email, name string) (*models.BillingCustomer, error) {
 	customer := &models.BillingCustomer{
@@ -353,18 +360,21 @@ func (s *BillingService) handlePaymentSucceeded(webhookData map[string]interface
 
 func (s *BillingService) handlePaymentFailed(webhookData map[string]interface{}) error {
 	// Handle failed payment
+	_ = webhookData // TODO: Process webhook data for payment failure
 	logger.Info("Payment failed webhook processed")
 	return nil
 }
 
 func (s *BillingService) handleSubscriptionUpdated(webhookData map[string]interface{}) error {
 	// Handle subscription update
+	_ = webhookData // TODO: Process webhook data for subscription update
 	logger.Info("Subscription updated webhook processed")
 	return nil
 }
 
 func (s *BillingService) handleSubscriptionCancelled(webhookData map[string]interface{}) error {
 	// Handle subscription cancellation
+	_ = webhookData // TODO: Process webhook data for subscription cancellation
 	logger.Info("Subscription cancelled webhook processed")
 	return nil
 }

@@ -301,6 +301,20 @@ func (m *SecurityMiddleware) isDataAccessOperation(method, path string) bool {
 		"/api/v1/tenant/billing",
 	}
 
+	// Only consider GET, POST, PUT, DELETE, PATCH as data access operations
+	allowedMethods := []string{"GET", "POST", "PUT", "DELETE", "PATCH"}
+	methodAllowed := false
+	for _, allowedMethod := range allowedMethods {
+		if method == allowedMethod {
+			methodAllowed = true
+			break
+		}
+	}
+
+	if !methodAllowed {
+		return false
+	}
+
 	for _, dataPath := range dataAccessPaths {
 		if strings.HasPrefix(path, dataPath) {
 			return true

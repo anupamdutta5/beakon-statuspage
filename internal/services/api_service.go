@@ -417,6 +417,7 @@ func (s *APIService) eventsFromJSON(eventsJSON string) ([]string, error) {
 	// Simple JSON parsing for events array
 	// In a real implementation, you'd use encoding/json
 	// For now, we'll return a mock implementation
+	_ = eventsJSON // TODO: Parse JSON string to extract events
 	return []string{"incident.created", "incident.updated", "maintenance.scheduled"}, nil
 }
 

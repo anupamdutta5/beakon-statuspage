@@ -352,6 +352,8 @@ func (s *BrandingService) generateSSLCertificate(domain *CustomDomain) {
 func (s *BrandingService) checkDomainVerification(domain, verificationCode string) (bool, error) {
 	// This would check DNS records or file-based verification
 	// For now, we'll simulate verification
+	_ = domain           // TODO: Use domain for DNS/file verification
+	_ = verificationCode // TODO: Use verification code for validation
 	return true, nil
 }
 

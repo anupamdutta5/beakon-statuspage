@@ -128,6 +128,7 @@ func (s *CustomDomainService) VerifyDomain(ctx context.Context, domain string) (
 // verifyDomain performs the actual domain verification
 func (s *CustomDomainService) verifyDomain(ctx context.Context, status *DomainVerificationStatus) error {
 	// Check DNS resolution
+	_ = ctx // TODO: Use context for cancellation/timeout in verification
 	if err := s.checkDNSResolution(status.Domain); err != nil {
 		return fmt.Errorf("DNS resolution failed: %w", err)
 	}

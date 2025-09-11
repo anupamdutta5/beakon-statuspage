@@ -21,6 +21,13 @@ func NewSubscriptionService() *SubscriptionService {
 	}
 }
 
+// NewSubscriptionServiceWithDB creates a new SubscriptionService with a specific database connection
+func NewSubscriptionServiceWithDB(db *gorm.DB) *SubscriptionService {
+	return &SubscriptionService{
+		db: db,
+	}
+}
+
 // CreateSubscription creates a new subscription for a tenant
 func (s *SubscriptionService) CreateSubscription(tenantID uint, planSlug string) (*models.Subscription, error) {
 	// Get the plan

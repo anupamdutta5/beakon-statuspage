@@ -6,6 +6,7 @@ import (
 
 	"github.com/enterprise-status/statuspage/internal/models"
 	"github.com/enterprise-status/statuspage/internal/services"
+	"github.com/enterprise-status/statuspage/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"gorm.io/driver/sqlite"
@@ -22,6 +23,9 @@ type ServiceTestSuite struct {
 }
 
 func (suite *ServiceTestSuite) SetupSuite() {
+	// Initialize logger for tests
+	logger.InitLogger("test")
+
 	// Setup test database
 	var err error
 	suite.db, err = gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -49,17 +53,63 @@ func (suite *ServiceTestSuite) SetupSuite() {
 		&models.BillingSubscription{},
 		&models.BillingInvoice{},
 		&models.BillingPayment{},
+		&models.Monitor{},
+		&models.Heartbeat{},
+		&models.IncidentTemplate{},
+		&models.MaintenanceTemplate{},
+		&models.AuditLog{},
+		&models.Branding{},
+		&models.Integration{},
+		&models.SystemMetric{},
+		&models.ThirdPartyService{},
+		&models.PrivatePage{},
+		&models.StatusUpdate{},
 	)
 	assert.NoError(suite.T(), err)
 
-	// Initialize services
-	suite.subscriptionService = services.NewSubscriptionService()
-	suite.billingService = services.NewBillingService()
-	suite.monitoringService = services.NewMonitoringService()
+	// Initialize services with test database
+	suite.subscriptionService = services.NewSubscriptionServiceWithDB(suite.db)
+	suite.billingService = services.NewBillingServiceWithDB(suite.db)
+	suite.monitoringService = services.NewMonitoringServiceWithDB(suite.db)
 	suite.analyticsService = services.NewAnalyticsService()
 
 	// Seed test data
 	suite.seedTestData()
+}
+
+func (suite *ServiceTestSuite) SetupTest() {
+	// Clear database before each test to avoid conflicts
+	suite.db.Exec("DELETE FROM subscriptions")
+	suite.db.Exec("DELETE FROM billing_customers")
+	suite.db.Exec("DELETE FROM billing_subscriptions")
+	suite.db.Exec("DELETE FROM billing_invoices")
+	suite.db.Exec("DELETE FROM billing_payments")
+	suite.db.Exec("DELETE FROM billing_events")
+	suite.db.Exec("DELETE FROM usage_metrics")
+	suite.db.Exec("DELETE FROM admin_settings")
+	suite.db.Exec("DELETE FROM system_notifications")
+	suite.db.Exec("DELETE FROM health_checks")
+	suite.db.Exec("DELETE FROM alerts")
+	suite.db.Exec("DELETE FROM uptime_stats")
+	suite.db.Exec("DELETE FROM feature_flags")
+	suite.db.Exec("DELETE FROM monitors")
+	suite.db.Exec("DELETE FROM heartbeats")
+	suite.db.Exec("DELETE FROM incident_templates")
+	suite.db.Exec("DELETE FROM maintenance_templates")
+	suite.db.Exec("DELETE FROM audit_logs")
+	suite.db.Exec("DELETE FROM brandings")
+	suite.db.Exec("DELETE FROM integrations")
+	suite.db.Exec("DELETE FROM system_metrics")
+	suite.db.Exec("DELETE FROM third_party_services")
+	suite.db.Exec("DELETE FROM private_pages")
+	suite.db.Exec("DELETE FROM status_updates")
+	suite.db.Exec("DELETE FROM incidents")
+	suite.db.Exec("DELETE FROM maintenances")
+	suite.db.Exec("DELETE FROM subscribers")
+	suite.db.Exec("DELETE FROM services")
+	suite.db.Exec("DELETE FROM users")
+	suite.db.Exec("DELETE FROM tenants")
+	suite.db.Exec("DELETE FROM subscription_plans")
 }
 
 func (suite *ServiceTestSuite) TearDownSuite() {
