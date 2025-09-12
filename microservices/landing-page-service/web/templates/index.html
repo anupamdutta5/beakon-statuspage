@@ -78,11 +78,11 @@
     <section class="hero">
         <div class="hero-container">
             <div class="hero-content">
-                <h1 class="hero-title">{{.Hero.Title}}</h1>
+                <h1 class="hero-title gradient-text">{{.Hero.Title}}</h1>
                 <p class="hero-subtitle">{{.Hero.Subtitle}}</p>
                 <p class="hero-description">{{.Hero.Description}}</p>
                 <div class="hero-actions">
-                    <a href="{{.Hero.ButtonURL}}" class="btn btn-primary btn-large">{{.Hero.ButtonText}}</a>
+                    <a href="{{.Hero.ButtonURL}}" class="btn btn-primary btn-large pulse">{{.Hero.ButtonText}}</a>
                     <a href="#demo" class="btn btn-outline btn-large">Watch Demo</a>
                 </div>
                 <div class="hero-stats">
@@ -125,8 +125,8 @@
             </div>
             <div class="features-grid">
                 {{range .Features}}
-                <div class="feature-card">
-                    <div class="feature-icon">
+                <div class="feature-card interactive">
+                    <div class="feature-icon floating">
                         <i class="{{.Icon}}"></i>
                     </div>
                     <h3 class="feature-title">{{.Title}}</h3>
