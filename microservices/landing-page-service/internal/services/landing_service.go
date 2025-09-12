@@ -23,10 +23,11 @@ type LandingService struct {
 
 // NewLandingService creates a new landing service.
 func NewLandingService(cfg *config.Config, logger *zap.Logger) (*LandingService, error) {
-	// Initialize database connection
+	// Try to initialize database connection, but don't fail if it doesn't work
 	db, err := initDatabase(cfg.Database)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize database: %w", err)
+		logger.Warn("Failed to initialize database, running without database", zap.Error(err))
+		db = nil // Set to nil to indicate no database
 	}
 
 	return &LandingService{
@@ -142,6 +143,12 @@ func (s *LandingService) GetLandingPageData(ctx context.Context) (*LandingPageDa
 func (s *LandingService) GetHeroSection(ctx context.Context) (*models.HeroSection, error) {
 	s.logger.Info("Getting hero section")
 
+	// If no database, return default data
+	if s.db == nil {
+		s.logger.Debug("No database available, returning default hero section")
+		return s.getDefaultHero(), nil
+	}
+
 	var hero models.HeroSection
 	if err := s.db.Where("status = ?", "active").Order("order ASC").First(&hero).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -186,6 +193,12 @@ func (s *LandingService) UpdateHeroSection(ctx context.Context, heroID uint, upd
 func (s *LandingService) GetFeatures(ctx context.Context) ([]*models.FeatureSection, error) {
 	s.logger.Info("Getting features")
 
+	// If no database, return default data
+	if s.db == nil {
+		s.logger.Debug("No database available, returning default features")
+		return s.getDefaultFeatures(), nil
+	}
+
 	var features []*models.FeatureSection
 	if err := s.db.Where("status = ?", "active").Order("order ASC").Find(&features).Error; err != nil {
 		s.logger.Error("Failed to get features", zap.Error(err))
@@ -226,6 +239,12 @@ func (s *LandingService) UpdateFeature(ctx context.Context, featureID uint, upda
 // GetPricingPlans retrieves all active pricing plans.
 func (s *LandingService) GetPricingPlans(ctx context.Context) ([]*PricingPlanData, error) {
 	s.logger.Info("Getting pricing plans")
+
+	// If no database, return default data
+	if s.db == nil {
+		s.logger.Debug("No database available, returning default pricing plans")
+		return s.getDefaultPricingPlans(), nil
+	}
 
 	var plans []*models.PricingPlan
 	if err := s.db.Where("status = ? AND is_active = ?", "active", true).Order("order ASC").Find(&plans).Error; err != nil {
@@ -281,6 +300,12 @@ func (s *LandingService) SyncPricingPlans(ctx context.Context, plans []*models.P
 func (s *LandingService) GetTestimonials(ctx context.Context) ([]*models.Testimonial, error) {
 	s.logger.Info("Getting testimonials")
 
+	// If no database, return default data
+	if s.db == nil {
+		s.logger.Debug("No database available, returning default testimonials")
+		return s.getDefaultTestimonials(), nil
+	}
+
 	var testimonials []*models.Testimonial
 	if err := s.db.Where("status = ?", "active").Order("order ASC").Find(&testimonials).Error; err != nil {
 		s.logger.Error("Failed to get testimonials", zap.Error(err))
@@ -321,6 +346,12 @@ func (s *LandingService) UpdateTestimonial(ctx context.Context, testimonialID ui
 // GetFAQs retrieves all active FAQs.
 func (s *LandingService) GetFAQs(ctx context.Context) ([]*models.FAQ, error) {
 	s.logger.Info("Getting FAQs")
+
+	// If no database, return default data
+	if s.db == nil {
+		s.logger.Debug("No database available, returning default FAQs")
+		return s.getDefaultFAQs(), nil
+	}
 
 	var faqs []*models.FAQ
 	if err := s.db.Where("status = ?", "active").Order("order ASC").Find(&faqs).Error; err != nil {
@@ -474,10 +505,14 @@ func (s *LandingService) SubscribeNewsletter(ctx context.Context, subscription *
 func (s *LandingService) Health(ctx context.Context) error {
 	s.logger.Debug("Checking landing service health")
 
-	// Check database connection
-	if err := s.db.Exec("SELECT 1").Error; err != nil {
-		s.logger.Error("Landing service health check failed", zap.Error(err))
-		return fmt.Errorf("landing service health check failed: %w", err)
+	// Check database connection if available
+	if s.db != nil {
+		if err := s.db.Exec("SELECT 1").Error; err != nil {
+			s.logger.Error("Landing service health check failed", zap.Error(err))
+			return fmt.Errorf("landing service health check failed: %w", err)
+		}
+	} else {
+		s.logger.Debug("Database not available, skipping database health check")
 	}
 
 	return nil
