@@ -1,0 +1,299 @@
+{
+  "environment": "testing",
+  "log_level": "debug",
+  "timeout": "10m",
+  "retry_attempts": 5,
+  "retry_delay": "2s",
+  "cleanup_on_exit": true,
+  "parallel_tests": false,
+  "coverage_report": true,
+  "test_data_dir": "./testdata",
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "statuspage_saas_admin_test",
+    "user": "postgres",
+    "password": "postgres",
+    "ssl_mode": "disable",
+    "max_connections": 10,
+    "max_idle_connections": 5,
+    "connection_max_lifetime": "1h"
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "password": "",
+    "db": 0,
+    "pool_size": 10,
+    "min_idle_connections": 5
+  },
+  "server": {
+    "port": 8092,
+    "health_path": "/health",
+    "base_url": "http://localhost:8092"
+  },
+  "services": {
+    "database_service": {
+      "base_url": "http://localhost:8090",
+      "timeout": "5s"
+    },
+    "event_store_service": {
+      "base_url": "http://localhost:8091",
+      "timeout": "5s"
+    },
+    "tenant_service": {
+      "base_url": "http://localhost:8081",
+      "timeout": "5s"
+    },
+    "user_service": {
+      "base_url": "http://localhost:8082",
+      "timeout": "5s"
+    },
+    "payment_service": {
+      "base_url": "http://localhost:8083",
+      "timeout": "5s"
+    }
+  },
+  "test_scenarios": {
+    "create_plan": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_plan": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "update_plan": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "delete_plan": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "list_plans": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "create_feature_flag": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_feature_flags": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "update_feature_flag": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "delete_feature_flag": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_platform_stats": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_tenant_stats": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "concurrency_test": {
+      "enabled": true,
+      "timeout": "30s",
+      "concurrent_requests": 10
+    },
+    "error_handling": {
+      "enabled": true,
+      "timeout": "5s"
+    }
+  },
+  "mock_data": {
+    "plans": [
+      {
+        "name": "Free Plan",
+        "description": "Free plan with basic features",
+        "price": 0,
+        "currency": "USD",
+        "billing_cycle": "monthly",
+        "features": {
+          "max_incidents": 10,
+          "max_components": 5,
+          "custom_domain": false,
+          "api_access": false,
+          "priority_support": false
+        },
+        "limits": {
+          "api_calls_per_month": 1000,
+          "storage_gb": 1,
+          "team_members": 1
+        },
+        "is_active": true
+      },
+      {
+        "name": "Pro Plan",
+        "description": "Professional plan with advanced features",
+        "price": 2999,
+        "currency": "USD",
+        "billing_cycle": "monthly",
+        "features": {
+          "max_incidents": 100,
+          "max_components": 50,
+          "custom_domain": true,
+          "api_access": true,
+          "priority_support": true
+        },
+        "limits": {
+          "api_calls_per_month": 10000,
+          "storage_gb": 10,
+          "team_members": 5
+        },
+        "is_active": true
+      },
+      {
+        "name": "Enterprise Plan",
+        "description": "Enterprise plan with unlimited features",
+        "price": 9999,
+        "currency": "USD",
+        "billing_cycle": "annual",
+        "features": {
+          "max_incidents": -1,
+          "max_components": -1,
+          "custom_domain": true,
+          "api_access": true,
+          "priority_support": true,
+          "sla": "99.9%"
+        },
+        "limits": {
+          "api_calls_per_month": -1,
+          "storage_gb": -1,
+          "team_members": -1
+        },
+        "is_active": true
+      }
+    ],
+    "feature_flags": [
+      {
+        "name": "new_dashboard",
+        "description": "New dashboard feature",
+        "is_enabled": true,
+        "type": "boolean",
+        "value": "true",
+        "target_audience": "all",
+        "metadata": {
+          "rollout_percentage": 100,
+          "release_date": "2024-01-01"
+        }
+      },
+      {
+        "name": "advanced_analytics",
+        "description": "Advanced analytics feature",
+        "is_enabled": false,
+        "type": "boolean",
+        "value": "false",
+        "target_audience": "enterprise",
+        "metadata": {
+          "rollout_percentage": 0,
+          "release_date": "2024-02-01"
+        }
+      },
+      {
+        "name": "api_rate_limit",
+        "description": "API rate limit configuration",
+        "is_enabled": true,
+        "type": "number",
+        "value": "1000",
+        "target_audience": "all",
+        "metadata": {
+          "rollout_percentage": 100,
+          "default_value": "1000"
+        }
+      }
+    ],
+    "platform_stats": {
+      "total_tenants": 150,
+      "total_users": 2500,
+      "total_incidents": 12500,
+      "total_components": 3500,
+      "revenue": {
+        "monthly": 45000,
+        "annual": 540000,
+        "currency": "USD"
+      },
+      "active_subscriptions": {
+        "free": 100,
+        "pro": 40,
+        "enterprise": 10
+      },
+      "growth_metrics": {
+        "new_tenants_this_month": 15,
+        "new_users_this_month": 250,
+        "churn_rate": 0.05
+      }
+    },
+    "tenant_stats": {
+      "tenant_id": "test-tenant-id",
+      "users": {
+        "total": 25,
+        "active": 20,
+        "admin": 2
+      },
+      "incidents": {
+        "total": 150,
+        "resolved": 140,
+        "active": 10
+      },
+      "components": {
+        "total": 45,
+        "operational": 40,
+        "degraded": 3,
+        "outage": 2
+      },
+      "subscription": {
+        "plan": "Pro Plan",
+        "status": "active",
+        "billing_cycle": "monthly",
+        "next_billing_date": "2024-02-01"
+      },
+      "usage": {
+        "api_calls_this_month": 8500,
+        "storage_used_gb": 7.5,
+        "incidents_created_this_month": 12
+      }
+    },
+    "plan_types": [
+      "free",
+      "pro",
+      "enterprise",
+      "custom"
+    ],
+    "billing_cycles": [
+      "monthly",
+      "quarterly",
+      "annual",
+      "lifetime"
+    ],
+    "currencies": [
+      "USD",
+      "EUR",
+      "GBP",
+      "CAD",
+      "AUD"
+    ],
+    "feature_flag_types": [
+      "boolean",
+      "string",
+      "number",
+      "json"
+    ],
+    "target_audiences": [
+      "all",
+      "free",
+      "pro",
+      "enterprise",
+      "beta"
+    ]
+  }
+}
+

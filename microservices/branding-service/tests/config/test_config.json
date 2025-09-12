@@ -1,0 +1,234 @@
+{
+  "environment": "testing",
+  "log_level": "debug",
+  "timeout": "10m",
+  "retry_attempts": 5,
+  "retry_delay": "2s",
+  "cleanup_on_exit": true,
+  "parallel_tests": false,
+  "coverage_report": true,
+  "test_data_dir": "./testdata",
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "statuspage_branding_test",
+    "user": "postgres",
+    "password": "postgres",
+    "ssl_mode": "disable",
+    "max_connections": 10,
+    "max_idle_connections": 5,
+    "connection_max_lifetime": "1h"
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "password": "",
+    "db": 0,
+    "pool_size": 10,
+    "min_idle_connections": 5
+  },
+  "server": {
+    "port": 8089,
+    "health_path": "/health",
+    "base_url": "http://localhost:8089"
+  },
+  "file_storage": {
+    "type": "local",
+    "local_path": "./uploads",
+    "max_file_size": "10MB",
+    "allowed_types": ["image/jpeg", "image/png", "image/gif", "image/svg+xml", "image/webp"],
+    "cdn_url": "https://cdn.example.com"
+  },
+  "services": {
+    "database_service": {
+      "base_url": "http://localhost:8090",
+      "timeout": "5s"
+    },
+    "event_store_service": {
+      "base_url": "http://localhost:8091",
+      "timeout": "5s"
+    }
+  },
+  "test_scenarios": {
+    "create_brand": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_brand": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "update_brand": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "delete_brand": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "list_brands": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "upload_asset": {
+      "enabled": true,
+      "timeout": "10s"
+    },
+    "get_assets": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "delete_asset": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_branding_settings": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "update_branding_settings": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "concurrency_test": {
+      "enabled": true,
+      "timeout": "30s",
+      "concurrent_requests": 10
+    },
+    "error_handling": {
+      "enabled": true,
+      "timeout": "5s"
+    }
+  },
+  "mock_data": {
+    "brands": [
+      {
+        "tenant_id": "test-tenant-id",
+        "name": "Test Brand",
+        "logo": "https://example.com/logo.png",
+        "favicon": "https://example.com/favicon.ico",
+        "primary_color": "#007bff",
+        "secondary_color": "#6c757d",
+        "font_family": "Inter",
+        "custom_css": ".custom { color: red; }",
+        "settings": {
+          "show_powered_by": false,
+          "custom_domain": "status.example.com"
+        }
+      },
+      {
+        "tenant_id": "test-tenant-id-2",
+        "name": "Another Brand",
+        "logo": "https://example.com/logo2.png",
+        "favicon": "https://example.com/favicon2.ico",
+        "primary_color": "#28a745",
+        "secondary_color": "#dc3545",
+        "font_family": "Roboto",
+        "custom_css": ".another { color: blue; }",
+        "settings": {
+          "show_powered_by": true,
+          "custom_domain": "status2.example.com"
+        }
+      }
+    ],
+    "assets": [
+      {
+        "tenant_id": "test-tenant-id",
+        "type": "logo",
+        "name": "Test Logo",
+        "url": "https://example.com/logo.png",
+        "description": "Test logo asset",
+        "size": 1024,
+        "mime_type": "image/png"
+      },
+      {
+        "tenant_id": "test-tenant-id",
+        "type": "favicon",
+        "name": "Test Favicon",
+        "url": "https://example.com/favicon.ico",
+        "description": "Test favicon asset",
+        "size": 512,
+        "mime_type": "image/x-icon"
+      },
+      {
+        "tenant_id": "test-tenant-id",
+        "type": "background",
+        "name": "Test Background",
+        "url": "https://example.com/background.jpg",
+        "description": "Test background asset",
+        "size": 2048,
+        "mime_type": "image/jpeg"
+      }
+    ],
+    "branding_settings": {
+      "show_powered_by": false,
+      "custom_domain": "status.example.com",
+      "analytics_enabled": true,
+      "social_links": {
+        "twitter": "https://twitter.com/example",
+        "linkedin": "https://linkedin.com/company/example",
+        "github": "https://github.com/example"
+      },
+      "theme": {
+        "primary_color": "#007bff",
+        "secondary_color": "#6c757d",
+        "font_family": "Inter",
+        "border_radius": "4px",
+        "box_shadow": "0 2px 4px rgba(0,0,0,0.1)"
+      },
+      "layout": {
+        "header_height": "60px",
+        "sidebar_width": "250px",
+        "footer_height": "40px"
+      }
+    },
+    "asset_types": [
+      "logo",
+      "favicon",
+      "background",
+      "icon",
+      "banner",
+      "thumbnail"
+    ],
+    "color_palettes": [
+      {
+        "name": "Blue Theme",
+        "primary": "#007bff",
+        "secondary": "#6c757d",
+        "success": "#28a745",
+        "danger": "#dc3545",
+        "warning": "#ffc107",
+        "info": "#17a2b8"
+      },
+      {
+        "name": "Green Theme",
+        "primary": "#28a745",
+        "secondary": "#6c757d",
+        "success": "#20c997",
+        "danger": "#dc3545",
+        "warning": "#ffc107",
+        "info": "#17a2b8"
+      },
+      {
+        "name": "Purple Theme",
+        "primary": "#6f42c1",
+        "secondary": "#6c757d",
+        "success": "#28a745",
+        "danger": "#dc3545",
+        "warning": "#ffc107",
+        "info": "#17a2b8"
+      }
+    ],
+    "font_families": [
+      "Inter",
+      "Roboto",
+      "Open Sans",
+      "Lato",
+      "Montserrat",
+      "Source Sans Pro",
+      "Nunito",
+      "Poppins"
+    ]
+  }
+}
+

@@ -1,0 +1,21 @@
+{
+  "environment": "test",
+  "log_level": "debug",
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "user": "test_user",
+    "password": "test_password",
+    "name": "notification_consumer_test"
+  },
+  "kafka": {
+    "brokers": ["localhost:9092"],
+    "group_id": "notification-consumer-test",
+    "topic": "notification-events"
+  },
+  "server": {
+    "port": 8080
+  },
+  "base_url": "http://localhost:8080"
+}
+

@@ -1,0 +1,737 @@
+openapi: 3.0.3
+info:
+  title: Branding Service API
+  description: API contract for the Branding Service
+  version: 1.0.0
+  contact:
+    name: Branding Service Team
+    email: branding-service@statuspage.com
+
+servers:
+  - url: http://localhost:8011
+    description: Development server
+  - url: https://branding-service.statuspage.com
+    description: Production server
+
+paths:
+  /branding/themes:
+    get:
+      summary: List branding themes
+      description: Get a list of branding themes for a tenant
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of branding themes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  themes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BrandingTheme'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create branding theme
+      description: Create a new branding theme
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateThemeRequest'
+      responses:
+        '201':
+          description: Theme created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrandingTheme'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /branding/themes/{theme_id}:
+    get:
+      summary: Get branding theme
+      description: Get a specific branding theme by ID
+      parameters:
+        - name: theme_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Theme details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrandingTheme'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update branding theme
+      description: Update an existing branding theme
+      parameters:
+        - name: theme_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateThemeRequest'
+      responses:
+        '200':
+          description: Theme updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrandingTheme'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete branding theme
+      description: Delete a branding theme
+      parameters:
+        - name: theme_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Theme deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /branding/themes/{theme_id}/activate:
+    post:
+      summary: Activate branding theme
+      description: Activate a branding theme for the tenant
+      parameters:
+        - name: theme_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Theme activated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrandingTheme'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /branding/assets:
+    get:
+      summary: List branding assets
+      description: Get a list of branding assets for a tenant
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [logo, favicon, background, icon]
+      responses:
+        '200':
+          description: List of branding assets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BrandingAsset'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Upload branding asset
+      description: Upload a new branding asset
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadAssetRequest'
+      responses:
+        '201':
+          description: Asset uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrandingAsset'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /branding/assets/{asset_id}:
+    get:
+      summary: Get branding asset
+      description: Get a specific branding asset by ID
+      parameters:
+        - name: asset_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Asset details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrandingAsset'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete branding asset
+      description: Delete a branding asset
+      parameters:
+        - name: asset_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Asset deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /branding/assets/{asset_id}/download:
+    get:
+      summary: Download branding asset
+      description: Download a branding asset file
+      parameters:
+        - name: asset_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Asset file
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /branding/custom-css:
+    get:
+      summary: Get custom CSS
+      description: Get custom CSS for a tenant
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Custom CSS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomCSS'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update custom CSS
+      description: Update custom CSS for a tenant
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCustomCSSRequest'
+      responses:
+        '200':
+          description: Custom CSS updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomCSS'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /branding/preview:
+    post:
+      summary: Preview branding changes
+      description: Preview branding changes without applying them
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreviewRequest'
+      responses:
+        '200':
+          description: Preview generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreviewResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    BrandingTheme:
+      type: object
+      required:
+        - id
+        - name
+        - tenant_id
+        - colors
+        - fonts
+        - is_active
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique theme identifier
+        name:
+          type: string
+          description: Theme name
+        description:
+          type: string
+          description: Theme description
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        colors:
+          $ref: '#/components/schemas/ThemeColors'
+        fonts:
+          $ref: '#/components/schemas/ThemeFonts'
+        layout:
+          $ref: '#/components/schemas/ThemeLayout'
+        is_active:
+          type: boolean
+          description: Whether theme is active
+        is_default:
+          type: boolean
+          description: Whether theme is default
+        created_at:
+          type: string
+          format: date-time
+          description: Theme creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Theme last update timestamp
+
+    ThemeColors:
+      type: object
+      required:
+        - primary
+        - secondary
+        - background
+        - text
+      properties:
+        primary:
+          type: string
+          description: Primary color
+        secondary:
+          type: string
+          description: Secondary color
+        background:
+          type: string
+          description: Background color
+        text:
+          type: string
+          description: Text color
+        accent:
+          type: string
+          description: Accent color
+        success:
+          type: string
+          description: Success color
+        warning:
+          type: string
+          description: Warning color
+        error:
+          type: string
+          description: Error color
+        info:
+          type: string
+          description: Info color
+
+    ThemeFonts:
+      type: object
+      required:
+        - primary
+        - secondary
+      properties:
+        primary:
+          type: string
+          description: Primary font family
+        secondary:
+          type: string
+          description: Secondary font family
+        heading:
+          type: string
+          description: Heading font family
+        body:
+          type: string
+          description: Body font family
+
+    ThemeLayout:
+      type: object
+      properties:
+        header_style:
+          type: string
+          enum: [minimal, standard, full]
+        sidebar_position:
+          type: string
+          enum: [left, right, none]
+        footer_style:
+          type: string
+          enum: [minimal, standard, full]
+        card_style:
+          type: string
+          enum: [flat, raised, outlined]
+        border_radius:
+          type: integer
+          description: Border radius in pixels
+        spacing:
+          type: string
+          enum: [compact, normal, spacious]
+
+    BrandingAsset:
+      type: object
+      required:
+        - id
+        - name
+        - type
+        - tenant_id
+        - url
+        - file_size
+        - mime_type
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique asset identifier
+        name:
+          type: string
+          description: Asset name
+        type:
+          type: string
+          enum: [logo, favicon, background, icon, custom]
+          description: Asset type
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        url:
+          type: string
+          description: Asset URL
+        file_size:
+          type: integer
+          description: File size in bytes
+        mime_type:
+          type: string
+          description: MIME type
+        width:
+          type: integer
+          description: Image width in pixels
+        height:
+          type: integer
+          description: Image height in pixels
+        alt_text:
+          type: string
+          description: Alt text for accessibility
+        is_active:
+          type: boolean
+          description: Whether asset is active
+        created_at:
+          type: string
+          format: date-time
+          description: Asset creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Asset last update timestamp
+
+    CustomCSS:
+      type: object
+      required:
+        - tenant_id
+        - css_content
+        - created_at
+      properties:
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        css_content:
+          type: string
+          description: Custom CSS content
+        is_active:
+          type: boolean
+          description: Whether custom CSS is active
+        created_at:
+          type: string
+          format: date-time
+          description: CSS creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: CSS last update timestamp
+
+    CreateThemeRequest:
+      type: object
+      required:
+        - name
+        - tenant_id
+        - colors
+        - fonts
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        tenant_id:
+          type: string
+        colors:
+          $ref: '#/components/schemas/ThemeColors'
+        fonts:
+          $ref: '#/components/schemas/ThemeFonts'
+        layout:
+          $ref: '#/components/schemas/ThemeLayout'
+
+    UpdateThemeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        colors:
+          $ref: '#/components/schemas/ThemeColors'
+        fonts:
+          $ref: '#/components/schemas/ThemeFonts'
+        layout:
+          $ref: '#/components/schemas/ThemeLayout'
+
+    UploadAssetRequest:
+      type: object
+      required:
+        - file
+        - tenant_id
+        - type
+      properties:
+        file:
+          type: string
+          format: binary
+          description: Asset file
+        tenant_id:
+          type: string
+        type:
+          type: string
+          enum: [logo, favicon, background, icon, custom]
+        name:
+          type: string
+        alt_text:
+          type: string
+
+    UpdateCustomCSSRequest:
+      type: object
+      required:
+        - css_content
+      properties:
+        css_content:
+          type: string
+        is_active:
+          type: boolean
+
+    PreviewRequest:
+      type: object
+      required:
+        - tenant_id
+      properties:
+        tenant_id:
+          type: string
+        theme:
+          $ref: '#/components/schemas/BrandingTheme'
+        custom_css:
+          type: string
+        assets:
+          type: array
+          items:
+            $ref: '#/components/schemas/BrandingAsset'
+
+    PreviewResponse:
+      type: object
+      required:
+        - preview_url
+        - expires_at
+      properties:
+        preview_url:
+          type: string
+          description: Preview URL
+        expires_at:
+          type: string
+          format: date-time
+          description: Preview expiration timestamp
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+

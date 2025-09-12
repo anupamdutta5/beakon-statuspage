@@ -1,0 +1,537 @@
+openapi: 3.0.3
+info:
+  title: Component Service API
+  description: API contract for the Component Service
+  version: 1.0.0
+  contact:
+    name: Component Service Team
+    email: component-service@statuspage.com
+
+servers:
+  - url: http://localhost:8003
+    description: Development server
+  - url: https://component-service.statuspage.com
+    description: Production server
+
+paths:
+  /components:
+    get:
+      summary: List components
+      description: Get a list of components with optional filtering
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [operational, degraded, partial_outage, major_outage, maintenance]
+        - name: group_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of components
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  components:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Component'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create component
+      description: Create a new component
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateComponentRequest'
+      responses:
+        '201':
+          description: Component created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Component'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /components/{component_id}:
+    get:
+      summary: Get component
+      description: Get a specific component by ID
+      parameters:
+        - name: component_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Component details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Component'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update component
+      description: Update an existing component
+      parameters:
+        - name: component_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateComponentRequest'
+      responses:
+        '200':
+          description: Component updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Component'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete component
+      description: Delete a component
+      parameters:
+        - name: component_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Component deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /components/{component_id}/status:
+    put:
+      summary: Update component status
+      description: Update the status of a component
+      parameters:
+        - name: component_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateComponentStatusRequest'
+      responses:
+        '200':
+          description: Component status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Component'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /component-groups:
+    get:
+      summary: List component groups
+      description: Get a list of component groups
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of component groups
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  groups:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ComponentGroup'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create component group
+      description: Create a new component group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateComponentGroupRequest'
+      responses:
+        '201':
+          description: Component group created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComponentGroup'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /component-groups/{group_id}:
+    get:
+      summary: Get component group
+      description: Get a specific component group by ID
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Component group details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComponentGroup'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update component group
+      description: Update an existing component group
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateComponentGroupRequest'
+      responses:
+        '200':
+          description: Component group updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComponentGroup'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete component group
+      description: Delete a component group
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Component group deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    Component:
+      type: object
+      required:
+        - id
+        - name
+        - tenant_id
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique component identifier
+        name:
+          type: string
+          description: Component name
+        description:
+          type: string
+          description: Component description
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        group_id:
+          type: string
+          description: Component group identifier
+        status:
+          type: string
+          enum: [operational, degraded, partial_outage, major_outage, maintenance]
+          description: Component status
+        position:
+          type: integer
+          description: Display position
+        show_uptime:
+          type: boolean
+          description: Whether to show uptime percentage
+        uptime_percentage:
+          type: number
+          format: float
+          description: Uptime percentage
+        created_at:
+          type: string
+          format: date-time
+          description: Component creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Component last update timestamp
+
+    ComponentGroup:
+      type: object
+      required:
+        - id
+        - name
+        - tenant_id
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique component group identifier
+        name:
+          type: string
+          description: Component group name
+        description:
+          type: string
+          description: Component group description
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        position:
+          type: integer
+          description: Display position
+        created_at:
+          type: string
+          format: date-time
+          description: Component group creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Component group last update timestamp
+
+    CreateComponentRequest:
+      type: object
+      required:
+        - name
+        - tenant_id
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        tenant_id:
+          type: string
+        group_id:
+          type: string
+        position:
+          type: integer
+        show_uptime:
+          type: boolean
+          default: true
+
+    UpdateComponentRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        group_id:
+          type: string
+        position:
+          type: integer
+        show_uptime:
+          type: boolean
+
+    UpdateComponentStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [operational, degraded, partial_outage, major_outage, maintenance]
+        uptime_percentage:
+          type: number
+          format: float
+
+    CreateComponentGroupRequest:
+      type: object
+      required:
+        - name
+        - tenant_id
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        tenant_id:
+          type: string
+        position:
+          type: integer
+
+    UpdateComponentGroupRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        position:
+          type: integer
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+

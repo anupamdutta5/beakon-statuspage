@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.SiteName}} - {{.SiteDescription}}</title>
+    <meta name="description" content="{{.SiteDescription}}">
+    <meta name="keywords" content="{{range $i, $keyword := .SiteKeywords}}{{if $i}}, {{end}}{{$keyword}}{{end}}">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="{{.SiteName}} - {{.SiteDescription}}">
+    <meta property="og:description" content="{{.SiteDescription}}">
+    <meta property="og:image" content="{{.OGImage}}">
+    <meta property="og:url" content="{{.SiteURL}}">
+    <meta property="og:type" content="website">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{.SiteName}} - {{.SiteDescription}}">
+    <meta name="twitter:description" content="{{.SiteDescription}}">
+    <meta name="twitter:image" content="{{.OGImage}}">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{.Favicon}}">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="/static/css/landing.css">
+    {{if .CustomCSS}}<style>{{.CustomCSS}}</style>{{end}}
+    
+    <!-- Analytics -->
+    {{if .AnalyticsID}}
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{.AnalyticsID}}"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', '{{.AnalyticsID}}');
+    </script>
+    {{end}}
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <img src="/static/images/logo.svg" alt="{{.SiteName}}" class="nav-logo">
+                <span class="nav-title">{{.SiteName}}</span>
+            </div>
+            <div class="nav-menu" id="nav-menu">
+                <a href="#features" class="nav-link">Features</a>
+                <a href="#pricing" class="nav-link">Pricing</a>
+                <a href="#testimonials" class="nav-link">Testimonials</a>
+                <a href="#faq" class="nav-link">FAQ</a>
+                <a href="/blog" class="nav-link">Blog</a>
+                <a href="#contact" class="nav-link">Contact</a>
+                <div class="nav-actions">
+                    <a href="/login" class="btn btn-outline">Sign In</a>
+                    <a href="/signup" class="btn btn-primary">Get Started</a>
+                </div>
+            </div>
+            <div class="nav-toggle" id="nav-toggle">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-container">
+            <div class="hero-content">
+                <h1 class="hero-title">{{.Hero.Title}}</h1>
+                <p class="hero-subtitle">{{.Hero.Subtitle}}</p>
+                <p class="hero-description">{{.Hero.Description}}</p>
+                <div class="hero-actions">
+                    <a href="{{.Hero.ButtonURL}}" class="btn btn-primary btn-large">{{.Hero.ButtonText}}</a>
+                    <a href="#demo" class="btn btn-outline btn-large">Watch Demo</a>
+                </div>
+                <div class="hero-stats">
+                    <div class="stat">
+                        <span class="stat-number">10,000+</span>
+                        <span class="stat-label">Teams</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number">99.9%</span>
+                        <span class="stat-label">Uptime</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number">24/7</span>
+                        <span class="stat-label">Support</span>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-visual">
+                {{if .Hero.VideoURL}}
+                <div class="hero-video">
+                    <video autoplay muted loop>
+                        <source src="{{.Hero.VideoURL}}" type="video/mp4">
+                    </video>
+                </div>
+                {{else}}
+                <div class="hero-image">
+                    <img src="{{.Hero.ImageURL}}" alt="StatusPage Pro Dashboard" class="hero-img">
+                </div>
+                {{end}}
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title">Everything you need to keep your team informed</h2>
+                <p class="section-description">Powerful features designed for modern teams who care about transparency and communication.</p>
+            </div>
+            <div class="features-grid">
+                {{range .Features}}
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="{{.Icon}}"></i>
+                    </div>
+                    <h3 class="feature-title">{{.Title}}</h3>
+                    <p class="feature-description">{{.Description}}</p>
+                </div>
+                {{end}}
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section class="pricing" id="pricing">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title">Simple, transparent pricing</h2>
+                <p class="section-description">Choose the plan that's right for your team. No hidden fees, no surprises.</p>
+            </div>
+            <div class="pricing-toggle">
+                <span class="toggle-label">Monthly</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="pricing-toggle">
+                    <span class="toggle-slider"></span>
+                </label>
+                <span class="toggle-label">Yearly <span class="discount-badge">Save 20%</span></span>
+            </div>
+            <div class="pricing-grid">
+                {{range .PricingPlans}}
+                <div class="pricing-card {{if .IsPopular}}popular{{end}}">
+                    {{if .IsPopular}}
+                    <div class="popular-badge">Most Popular</div>
+                    {{end}}
+                    <div class="pricing-header">
+                        <h3 class="pricing-name">{{.Name}}</h3>
+                        <p class="pricing-description">{{.Description}}</p>
+                        <div class="pricing-price">
+                            <span class="price-currency">{{.Currency}}</span>
+                            <span class="price-amount">{{.Price}}</span>
+                            <span class="price-period">/{{.BillingInterval}}</span>
+                        </div>
+                    </div>
+                    <div class="pricing-features">
+                        {{range .FeaturesList}}
+                        <div class="feature-item">
+                            <i class="fas fa-check"></i>
+                            <span>{{.}}</span>
+                        </div>
+                        {{end}}
+                    </div>
+                    <div class="pricing-action">
+                        <a href="{{.ButtonURL}}" class="btn {{if .IsPopular}}btn-primary{{else}}btn-outline{{end}} btn-full">{{.ButtonText}}</a>
+                    </div>
+                </div>
+                {{end}}
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials Section -->
+    <section class="testimonials" id="testimonials">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title">Loved by teams worldwide</h2>
+                <p class="section-description">See what our customers have to say about StatusPage Pro.</p>
+            </div>
+            <div class="testimonials-grid">
+                {{range .Testimonials}}
+                <div class="testimonial-card">
+                    <div class="testimonial-content">
+                        <div class="testimonial-rating">
+                            {{range $i := .Rating}}
+                            <i class="fas fa-star"></i>
+                            {{end}}
+                        </div>
+                        <p class="testimonial-text">"{{.Content}}"</p>
+                    </div>
+                    <div class="testimonial-author">
+                        <img src="{{.Avatar}}" alt="{{.Name}}" class="author-avatar">
+                        <div class="author-info">
+                            <h4 class="author-name">{{.Name}}</h4>
+                            <p class="author-title">{{.Position}} at {{.Company}}</p>
+                        </div>
+                    </div>
+                </div>
+                {{end}}
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="faq" id="faq">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title">Frequently Asked Questions</h2>
+                <p class="section-description">Everything you need to know about StatusPage Pro.</p>
+            </div>
+            <div class="faq-list">
+                {{range .FAQs}}
+                <div class="faq-item">
+                    <div class="faq-question">
+                        <h3>{{.Question}}</h3>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <div class="faq-answer">
+                        <p>{{.Answer}}</p>
+                    </div>
+                </div>
+                {{end}}
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta">
+        <div class="container">
+            <div class="cta-content">
+                <h2 class="cta-title">Ready to get started?</h2>
+                <p class="cta-description">Join thousands of teams who trust StatusPage Pro to keep their users informed.</p>
+                <div class="cta-actions">
+                    <a href="/signup" class="btn btn-primary btn-large">Start Free Trial</a>
+                    <a href="#contact" class="btn btn-outline btn-large">Contact Sales</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <div class="footer-brand">
+                        <img src="/static/images/logo.svg" alt="{{.SiteName}}" class="footer-logo">
+                        <span class="footer-title">{{.SiteName}}</span>
+                    </div>
+                    <p class="footer-description">{{.SiteDescription}}</p>
+                    <div class="social-links">
+                        {{range $key, $value := .SocialLinks}}
+                        <a href="{{$value}}" class="social-link" target="_blank" rel="noopener">
+                            <i class="fab fa-{{$key}}"></i>
+                        </a>
+                        {{end}}
+                    </div>
+                </div>
+                <div class="footer-section">
+                    <h4 class="footer-title">Product</h4>
+                    <ul class="footer-links">
+                        <li><a href="#features">Features</a></li>
+                        <li><a href="#pricing">Pricing</a></li>
+                        <li><a href="/integrations">Integrations</a></li>
+                        <li><a href="/api">API</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4 class="footer-title">Company</h4>
+                    <ul class="footer-links">
+                        <li><a href="/about">About</a></li>
+                        <li><a href="/blog">Blog</a></li>
+                        <li><a href="/careers">Careers</a></li>
+                        <li><a href="/contact">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4 class="footer-title">Support</h4>
+                    <ul class="footer-links">
+                        <li><a href="/help">Help Center</a></li>
+                        <li><a href="/docs">Documentation</a></li>
+                        <li><a href="/status">Status</a></li>
+                        <li><a href="/security">Security</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <div class="footer-copyright">
+                    <p>&copy; {{.CurrentYear}} {{.SiteName}}. All rights reserved.</p>
+                </div>
+                <div class="footer-legal">
+                    <a href="/privacy">Privacy Policy</a>
+                    <a href="/terms">Terms of Service</a>
+                    <a href="/cookies">Cookie Policy</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="/static/js/landing.js"></script>
+    {{if .CustomJS}}<script>{{.CustomJS}}</script>{{end}}
+</body>
+</html>
+

@@ -1,0 +1,623 @@
+openapi: 3.0.3
+info:
+  title: Payment Service API
+  description: API contract for the Payment Service
+  version: 1.0.0
+  contact:
+    name: Payment Service Team
+    email: payment-service@statuspage.com
+
+servers:
+  - url: http://localhost:8005
+    description: Development server
+  - url: https://payment-service.statuspage.com
+    description: Production server
+
+paths:
+  /payments:
+    get:
+      summary: List payments
+      description: Get a list of payments with optional filtering
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, completed, failed, refunded]
+      responses:
+        '200':
+          description: List of payments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Payment'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create payment
+      description: Create a new payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+      responses:
+        '201':
+          description: Payment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /payments/{payment_id}:
+    get:
+      summary: Get payment
+      description: Get a specific payment by ID
+      parameters:
+        - name: payment_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Payment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update payment
+      description: Update an existing payment
+      parameters:
+        - name: payment_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePaymentRequest'
+      responses:
+        '200':
+          description: Payment updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /payments/{payment_id}/process:
+    post:
+      summary: Process payment
+      description: Process a payment through the payment gateway
+      parameters:
+        - name: payment_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Payment processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /payments/{payment_id}/refund:
+    post:
+      summary: Refund payment
+      description: Refund a completed payment
+      parameters:
+        - name: payment_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundRequest'
+      responses:
+        '200':
+          description: Refund processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /subscriptions:
+    get:
+      summary: List subscriptions
+      description: Get a list of subscriptions with optional filtering
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, cancelled, past_due]
+      responses:
+        '200':
+          description: List of subscriptions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subscriptions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Subscription'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create subscription
+      description: Create a new subscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSubscriptionRequest'
+      responses:
+        '201':
+          description: Subscription created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /subscriptions/{subscription_id}:
+    get:
+      summary: Get subscription
+      description: Get a specific subscription by ID
+      parameters:
+        - name: subscription_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Subscription details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update subscription
+      description: Update an existing subscription
+      parameters:
+        - name: subscription_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSubscriptionRequest'
+      responses:
+        '200':
+          description: Subscription updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Cancel subscription
+      description: Cancel an existing subscription
+      parameters:
+        - name: subscription_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Subscription cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    Payment:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - amount
+        - currency
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique payment identifier
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        amount:
+          type: number
+          format: decimal
+          description: Payment amount
+        currency:
+          type: string
+          description: Payment currency (e.g., USD, EUR)
+        status:
+          type: string
+          enum: [pending, completed, failed, refunded]
+          description: Payment status
+        gateway:
+          type: string
+          enum: [stripe, paypal, razorpay]
+          description: Payment gateway used
+        gateway_transaction_id:
+          type: string
+          description: Gateway transaction ID
+        description:
+          type: string
+          description: Payment description
+        metadata:
+          type: object
+          description: Additional payment metadata
+        created_at:
+          type: string
+          format: date-time
+          description: Payment creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Payment last update timestamp
+
+    Subscription:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - plan
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique subscription identifier
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        plan:
+          type: string
+          enum: [free, basic, pro, enterprise]
+          description: Subscription plan
+        status:
+          type: string
+          enum: [active, inactive, cancelled, past_due]
+          description: Subscription status
+        current_period_start:
+          type: string
+          format: date-time
+          description: Current billing period start
+        current_period_end:
+          type: string
+          format: date-time
+          description: Current billing period end
+        amount:
+          type: number
+          format: decimal
+          description: Subscription amount
+        currency:
+          type: string
+          description: Subscription currency
+        gateway:
+          type: string
+          enum: [stripe, paypal, razorpay]
+          description: Payment gateway used
+        gateway_subscription_id:
+          type: string
+          description: Gateway subscription ID
+        created_at:
+          type: string
+          format: date-time
+          description: Subscription creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Subscription last update timestamp
+
+    CreatePaymentRequest:
+      type: object
+      required:
+        - tenant_id
+        - amount
+        - currency
+        - gateway
+      properties:
+        tenant_id:
+          type: string
+        amount:
+          type: number
+          format: decimal
+        currency:
+          type: string
+        gateway:
+          type: string
+          enum: [stripe, paypal, razorpay]
+        description:
+          type: string
+        metadata:
+          type: object
+
+    UpdatePaymentRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, completed, failed, refunded]
+        gateway_transaction_id:
+          type: string
+        description:
+          type: string
+        metadata:
+          type: object
+
+    CreateSubscriptionRequest:
+      type: object
+      required:
+        - tenant_id
+        - plan
+        - gateway
+      properties:
+        tenant_id:
+          type: string
+        plan:
+          type: string
+          enum: [free, basic, pro, enterprise]
+        gateway:
+          type: string
+          enum: [stripe, paypal, razorpay]
+        amount:
+          type: number
+          format: decimal
+        currency:
+          type: string
+          default: USD
+
+    UpdateSubscriptionRequest:
+      type: object
+      properties:
+        plan:
+          type: string
+          enum: [free, basic, pro, enterprise]
+        status:
+          type: string
+          enum: [active, inactive, cancelled, past_due]
+        amount:
+          type: number
+          format: decimal
+        currency:
+          type: string
+
+    RefundRequest:
+      type: object
+      required:
+        - amount
+      properties:
+        amount:
+          type: number
+          format: decimal
+          description: Refund amount (partial or full)
+        reason:
+          type: string
+          description: Refund reason
+
+    PaymentResult:
+      type: object
+      required:
+        - success
+        - payment
+      properties:
+        success:
+          type: boolean
+          description: Whether payment was successful
+        payment:
+          $ref: '#/components/schemas/Payment'
+        gateway_response:
+          type: object
+          description: Gateway response details
+
+    RefundResult:
+      type: object
+      required:
+        - success
+        - refund
+      properties:
+        success:
+          type: boolean
+          description: Whether refund was successful
+        refund:
+          type: object
+          properties:
+            id:
+              type: string
+            amount:
+              type: number
+              format: decimal
+            status:
+              type: string
+              enum: [pending, completed, failed]
+        gateway_response:
+          type: object
+          description: Gateway response details
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+

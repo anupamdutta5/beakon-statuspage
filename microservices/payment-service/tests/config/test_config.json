@@ -1,0 +1,207 @@
+{
+  "environment": "testing",
+  "log_level": "debug",
+  "timeout": "10m",
+  "retry_attempts": 5,
+  "retry_delay": "2s",
+  "cleanup_on_exit": true,
+  "parallel_tests": false,
+  "coverage_report": true,
+  "test_data_dir": "./testdata",
+  "server": {
+    "port": "8083",
+    "host": "localhost",
+    "read_timeout": "30s",
+    "write_timeout": "30s",
+    "idle_timeout": "120s"
+  },
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "statuspage_payment_test",
+    "user": "postgres",
+    "password": "postgres",
+    "ssl_mode": "disable",
+    "max_connections": 10,
+    "max_idle_connections": 5,
+    "connection_max_lifetime": "1h"
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "password": "",
+    "db": 0,
+    "pool_size": 10,
+    "min_idle_connections": 5
+  },
+  "payment_gateways": {
+    "stripe": {
+      "enabled": true,
+      "test_mode": true,
+      "public_key": "pk_test_123456789",
+      "secret_key": "sk_test_123456789",
+      "webhook_secret": "whsec_123456789"
+    },
+    "paypal": {
+      "enabled": false,
+      "test_mode": true,
+      "client_id": "test_client_id",
+      "client_secret": "test_client_secret"
+    },
+    "razorpay": {
+      "enabled": false,
+      "test_mode": true,
+      "key_id": "test_key_id",
+      "key_secret": "test_key_secret"
+    }
+  },
+  "services": {
+    "tenant_service": {
+      "base_url": "http://localhost:8082",
+      "timeout": "5s"
+    },
+    "user_service": {
+      "base_url": "http://localhost:8081",
+      "timeout": "5s"
+    },
+    "notification_service": {
+      "base_url": "http://localhost:8086",
+      "timeout": "5s"
+    }
+  },
+  "test_scenarios": {
+    "create_payment": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "update_payment": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "process_payment": {
+      "enabled": true,
+      "timeout": "10s"
+    },
+    "refund_payment": {
+      "enabled": true,
+      "timeout": "10s"
+    },
+    "list_payments": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "create_payment_method": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "create_subscription": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_payment_stats": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "performance_test": {
+      "enabled": true,
+      "timeout": "10s",
+      "bulk_operations": 20
+    }
+  },
+  "mock_data": {
+    "payments": [
+      {
+        "tenant_id": "test-tenant-id",
+        "user_id": "test-user-id",
+        "amount": 2999,
+        "currency": "USD",
+        "gateway": "stripe",
+        "status": "pending",
+        "description": "Monthly subscription",
+        "metadata": {
+          "plan_id": "pro-monthly",
+          "billing_cycle": "monthly"
+        }
+      },
+      {
+        "tenant_id": "test-tenant-id",
+        "user_id": "test-user-id-2",
+        "amount": 4999,
+        "currency": "USD",
+        "gateway": "stripe",
+        "status": "completed",
+        "description": "Annual subscription",
+        "metadata": {
+          "plan_id": "pro-annual",
+          "billing_cycle": "annual"
+        }
+      }
+    ],
+    "payment_methods": [
+      {
+        "tenant_id": "test-tenant-id",
+        "user_id": "test-user-id",
+        "type": "card",
+        "gateway": "stripe",
+        "metadata": {
+          "last4": "4242",
+          "brand": "visa"
+        }
+      },
+      {
+        "tenant_id": "test-tenant-id",
+        "user_id": "test-user-id",
+        "type": "card",
+        "gateway": "stripe",
+        "metadata": {
+          "last4": "5555",
+          "brand": "mastercard"
+        }
+      }
+    ],
+    "subscriptions": [
+      {
+        "tenant_id": "test-tenant-id",
+        "user_id": "test-user-id",
+        "plan_id": "pro-monthly",
+        "status": "active",
+        "amount": 2999,
+        "currency": "USD",
+        "billing_cycle": "monthly",
+        "metadata": {
+          "trial_end": "2024-02-01T00:00:00Z"
+        }
+      }
+    ],
+    "subscription_plans": [
+      {
+        "id": "free",
+        "name": "Free Plan",
+        "description": "Basic status page",
+        "price": 0,
+        "currency": "USD",
+        "billing_cycle": "monthly",
+        "features": ["1 status page", "Basic monitoring"]
+      },
+      {
+        "id": "pro-monthly",
+        "name": "Pro Monthly",
+        "description": "Professional status page",
+        "price": 2999,
+        "currency": "USD",
+        "billing_cycle": "monthly",
+        "features": ["Unlimited status pages", "Advanced monitoring", "Custom domains"]
+      },
+      {
+        "id": "pro-annual",
+        "name": "Pro Annual",
+        "description": "Professional status page (annual)",
+        "price": 29999,
+        "currency": "USD",
+        "billing_cycle": "annual",
+        "features": ["Unlimited status pages", "Advanced monitoring", "Custom domains", "2 months free"]
+      }
+    ]
+  }
+}
+

@@ -1,0 +1,882 @@
+openapi: 3.0.3
+info:
+  title: SaaS Admin Service API
+  description: API contract for the SaaS Admin Service
+  version: 1.0.0
+  contact:
+    name: SaaS Admin Service Team
+    email: saas-admin-service@statuspage.com
+
+servers:
+  - url: http://localhost:8009
+    description: Development server
+  - url: https://saas-admin-service.statuspage.com
+    description: Production server
+
+paths:
+  /admin/tenants:
+    get:
+      summary: List all tenants
+      description: Get a list of all tenants across the platform
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, suspended]
+        - name: plan
+          in: query
+          schema:
+            type: string
+            enum: [free, basic, pro, enterprise]
+      responses:
+        '200':
+          description: List of all tenants
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tenants:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminTenant'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/tenants/{tenant_id}:
+    get:
+      summary: Get tenant details
+      description: Get detailed information about a specific tenant
+      parameters:
+        - name: tenant_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tenant details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTenant'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update tenant
+      description: Update tenant information and settings
+      parameters:
+        - name: tenant_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTenantRequest'
+      responses:
+        '200':
+          description: Tenant updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTenant'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete tenant
+      description: Delete a tenant and all associated data
+      parameters:
+        - name: tenant_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Tenant deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/plans:
+    get:
+      summary: List subscription plans
+      description: Get all available subscription plans
+      responses:
+        '200':
+          description: List of subscription plans
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plans:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SubscriptionPlan'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create subscription plan
+      description: Create a new subscription plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlanRequest'
+      responses:
+        '201':
+          description: Plan created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/plans/{plan_id}:
+    get:
+      summary: Get subscription plan
+      description: Get a specific subscription plan
+      parameters:
+        - name: plan_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Plan details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionPlan'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update subscription plan
+      description: Update an existing subscription plan
+      parameters:
+        - name: plan_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePlanRequest'
+      responses:
+        '200':
+          description: Plan updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete subscription plan
+      description: Delete a subscription plan
+      parameters:
+        - name: plan_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Plan deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/feature-flags:
+    get:
+      summary: List feature flags
+      description: Get all platform feature flags
+      responses:
+        '200':
+          description: List of feature flags
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  feature_flags:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FeatureFlag'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create feature flag
+      description: Create a new platform feature flag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFeatureFlagRequest'
+      responses:
+        '201':
+          description: Feature flag created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureFlag'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/feature-flags/{flag_id}:
+    get:
+      summary: Get feature flag
+      description: Get a specific feature flag
+      parameters:
+        - name: flag_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Feature flag details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureFlag'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update feature flag
+      description: Update an existing feature flag
+      parameters:
+        - name: flag_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFeatureFlagRequest'
+      responses:
+        '200':
+          description: Feature flag updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureFlag'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete feature flag
+      description: Delete a feature flag
+      parameters:
+        - name: flag_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Feature flag deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/statistics:
+    get:
+      summary: Get platform statistics
+      description: Get platform-wide statistics and metrics
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [24h, 7d, 30d, 90d]
+            default: 7d
+      responses:
+        '200':
+          description: Platform statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformStatistics'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/audit-logs:
+    get:
+      summary: Get audit logs
+      description: Get platform audit logs
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: tenant_id
+          in: query
+          schema:
+            type: string
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: List of audit logs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  audit_logs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditLog'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    AdminTenant:
+      type: object
+      required:
+        - id
+        - name
+        - subdomain
+        - status
+        - plan
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique tenant identifier
+        name:
+          type: string
+          description: Tenant name
+        subdomain:
+          type: string
+          description: Tenant subdomain
+        domain:
+          type: string
+          description: Custom domain
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+          description: Tenant status
+        plan:
+          type: string
+          enum: [free, basic, pro, enterprise]
+          description: Subscription plan
+        user_count:
+          type: integer
+          description: Number of users
+        component_count:
+          type: integer
+          description: Number of components
+        incident_count:
+          type: integer
+          description: Number of incidents
+        last_activity:
+          type: string
+          format: date-time
+          description: Last activity timestamp
+        created_at:
+          type: string
+          format: date-time
+          description: Tenant creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Tenant last update timestamp
+
+    SubscriptionPlan:
+      type: object
+      required:
+        - id
+        - name
+        - price
+        - currency
+        - features
+        - limits
+        - is_active
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique plan identifier
+        name:
+          type: string
+          description: Plan name
+        description:
+          type: string
+          description: Plan description
+        price:
+          type: number
+          format: decimal
+          description: Plan price
+        currency:
+          type: string
+          description: Currency code
+        billing_interval:
+          type: string
+          enum: [monthly, yearly]
+          description: Billing interval
+        features:
+          type: array
+          items:
+            type: string
+          description: Plan features
+        limits:
+          type: object
+          properties:
+            max_users:
+              type: integer
+            max_components:
+              type: integer
+            max_incidents:
+              type: integer
+            max_monitors:
+              type: integer
+            custom_domain:
+              type: boolean
+            sso:
+              type: boolean
+            api_access:
+              type: boolean
+        is_active:
+          type: boolean
+          description: Whether plan is active
+        created_at:
+          type: string
+          format: date-time
+          description: Plan creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Plan last update timestamp
+
+    FeatureFlag:
+      type: object
+      required:
+        - id
+        - name
+        - key
+        - enabled
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique feature flag identifier
+        name:
+          type: string
+          description: Feature flag name
+        key:
+          type: string
+          description: Feature flag key
+        description:
+          type: string
+          description: Feature flag description
+        enabled:
+          type: boolean
+          description: Whether flag is enabled
+        rollout_percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Rollout percentage
+        target_tenants:
+          type: array
+          items:
+            type: string
+          description: Target tenant IDs
+        created_at:
+          type: string
+          format: date-time
+          description: Flag creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Flag last update timestamp
+
+    PlatformStatistics:
+      type: object
+      required:
+        - period
+        - total_tenants
+        - active_tenants
+        - total_users
+        - total_incidents
+      properties:
+        period:
+          type: string
+          description: Statistics period
+        total_tenants:
+          type: integer
+          description: Total number of tenants
+        active_tenants:
+          type: integer
+          description: Number of active tenants
+        total_users:
+          type: integer
+          description: Total number of users
+        total_incidents:
+          type: integer
+          description: Total number of incidents
+        plan_distribution:
+          type: object
+          properties:
+            free:
+              type: integer
+            basic:
+              type: integer
+            pro:
+              type: integer
+            enterprise:
+              type: integer
+        growth_metrics:
+          type: object
+          properties:
+            new_tenants:
+              type: integer
+            new_users:
+              type: integer
+            revenue:
+              type: number
+              format: decimal
+        generated_at:
+          type: string
+          format: date-time
+          description: Statistics generation timestamp
+
+    AuditLog:
+      type: object
+      required:
+        - id
+        - action
+        - resource_type
+        - resource_id
+        - user_id
+        - tenant_id
+        - timestamp
+      properties:
+        id:
+          type: string
+          description: Unique audit log identifier
+        action:
+          type: string
+          description: Action performed
+        resource_type:
+          type: string
+          description: Type of resource
+        resource_id:
+          type: string
+          description: Resource identifier
+        user_id:
+          type: string
+          description: User who performed the action
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        details:
+          type: object
+          description: Additional action details
+        ip_address:
+          type: string
+          description: IP address
+        user_agent:
+          type: string
+          description: User agent
+        timestamp:
+          type: string
+          format: date-time
+          description: Action timestamp
+
+    UpdateTenantRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        domain:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+        plan:
+          type: string
+          enum: [free, basic, pro, enterprise]
+
+    CreatePlanRequest:
+      type: object
+      required:
+        - name
+        - price
+        - currency
+        - features
+        - limits
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: decimal
+        currency:
+          type: string
+        billing_interval:
+          type: string
+          enum: [monthly, yearly]
+        features:
+          type: array
+          items:
+            type: string
+        limits:
+          type: object
+          properties:
+            max_users:
+              type: integer
+            max_components:
+              type: integer
+            max_incidents:
+              type: integer
+            max_monitors:
+              type: integer
+            custom_domain:
+              type: boolean
+            sso:
+              type: boolean
+            api_access:
+              type: boolean
+
+    UpdatePlanRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: decimal
+        currency:
+          type: string
+        billing_interval:
+          type: string
+          enum: [monthly, yearly]
+        features:
+          type: array
+          items:
+            type: string
+        limits:
+          type: object
+          properties:
+            max_users:
+              type: integer
+            max_components:
+              type: integer
+            max_incidents:
+              type: integer
+            max_monitors:
+              type: integer
+            custom_domain:
+              type: boolean
+            sso:
+              type: boolean
+            api_access:
+              type: boolean
+        is_active:
+          type: boolean
+
+    CreateFeatureFlagRequest:
+      type: object
+      required:
+        - name
+        - key
+      properties:
+        name:
+          type: string
+        key:
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+          default: false
+        rollout_percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+          default: 0
+        target_tenants:
+          type: array
+          items:
+            type: string
+
+    UpdateFeatureFlagRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+        rollout_percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+        target_tenants:
+          type: array
+          items:
+            type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+

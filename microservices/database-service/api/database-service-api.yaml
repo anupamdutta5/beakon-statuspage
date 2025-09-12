@@ -1,0 +1,745 @@
+openapi: 3.0.3
+info:
+  title: Database Service API
+  description: API contract for the Database Service
+  version: 1.0.0
+  contact:
+    name: Database Service Team
+    email: database-service@statuspage.com
+
+servers:
+  - url: http://localhost:8013
+    description: Development server
+  - url: https://database-service.statuspage.com
+    description: Production server
+
+paths:
+  /database/health:
+    get:
+      summary: Database health check
+      description: Check the health status of the database service
+      responses:
+        '200':
+          description: Database is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+        '503':
+          description: Database is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /database/backup:
+    post:
+      summary: Create database backup
+      description: Create a backup of the database
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBackupRequest'
+      responses:
+        '201':
+          description: Backup created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Backup'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /database/backups:
+    get:
+      summary: List database backups
+      description: Get a list of database backups
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, completed, failed]
+      responses:
+        '200':
+          description: List of database backups
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  backups:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Backup'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /database/backups/{backup_id}:
+    get:
+      summary: Get database backup
+      description: Get a specific database backup by ID
+      parameters:
+        - name: backup_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Backup details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Backup'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete database backup
+      description: Delete a database backup
+      parameters:
+        - name: backup_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Backup deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /database/restore:
+    post:
+      summary: Restore database from backup
+      description: Restore the database from a backup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RestoreRequest'
+      responses:
+        '200':
+          description: Database restore initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RestoreJob'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /database/migrations:
+    get:
+      summary: List database migrations
+      description: Get a list of database migrations
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, running, completed, failed]
+      responses:
+        '200':
+          description: List of database migrations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  migrations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Migration'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Run database migration
+      description: Run a database migration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunMigrationRequest'
+      responses:
+        '201':
+          description: Migration started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Migration'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /database/migrations/{migration_id}:
+    get:
+      summary: Get database migration
+      description: Get a specific database migration by ID
+      parameters:
+        - name: migration_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Migration details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Migration'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /database/statistics:
+    get:
+      summary: Get database statistics
+      description: Get database performance and usage statistics
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [1h, 24h, 7d, 30d]
+            default: 24h
+      responses:
+        '200':
+          description: Database statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatabaseStatistics'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /database/query:
+    post:
+      summary: Execute database query
+      description: Execute a read-only database query
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: Query executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /database/cache:
+    get:
+      summary: Get cache statistics
+      description: Get cache performance statistics
+      responses:
+        '200':
+          description: Cache statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheStatistics'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /database/cache/clear:
+    post:
+      summary: Clear cache
+      description: Clear the database cache
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClearCacheRequest'
+      responses:
+        '200':
+          description: Cache cleared successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheClearResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy, degraded]
+          description: Health status
+        timestamp:
+          type: string
+          format: date-time
+          description: Health check timestamp
+        details:
+          type: object
+          properties:
+            database_connection:
+              type: boolean
+            cache_connection:
+              type: boolean
+            disk_space:
+              type: number
+              format: float
+            memory_usage:
+              type: number
+              format: float
+            cpu_usage:
+              type: number
+              format: float
+
+    Backup:
+      type: object
+      required:
+        - id
+        - name
+        - status
+        - size
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique backup identifier
+        name:
+          type: string
+          description: Backup name
+        description:
+          type: string
+          description: Backup description
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+          description: Backup status
+        size:
+          type: integer
+          description: Backup size in bytes
+        file_path:
+          type: string
+          description: Backup file path
+        checksum:
+          type: string
+          description: Backup file checksum
+        created_at:
+          type: string
+          format: date-time
+          description: Backup creation timestamp
+        completed_at:
+          type: string
+          format: date-time
+          description: Backup completion timestamp
+        error_message:
+          type: string
+          description: Error message if backup failed
+
+    Migration:
+      type: object
+      required:
+        - id
+        - name
+        - version
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique migration identifier
+        name:
+          type: string
+          description: Migration name
+        version:
+          type: string
+          description: Migration version
+        description:
+          type: string
+          description: Migration description
+        status:
+          type: string
+          enum: [pending, running, completed, failed, rolled_back]
+          description: Migration status
+        sql_up:
+          type: string
+          description: SQL for migration up
+        sql_down:
+          type: string
+          description: SQL for migration down
+        executed_at:
+          type: string
+          format: date-time
+          description: Migration execution timestamp
+        created_at:
+          type: string
+          format: date-time
+          description: Migration creation timestamp
+        error_message:
+          type: string
+          description: Error message if migration failed
+
+    RestoreJob:
+      type: object
+      required:
+        - id
+        - backup_id
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique restore job identifier
+        backup_id:
+          type: string
+          description: Backup identifier
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+          description: Restore job status
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Restore progress percentage
+        created_at:
+          type: string
+          format: date-time
+          description: Restore job creation timestamp
+        completed_at:
+          type: string
+          format: date-time
+          description: Restore job completion timestamp
+        error_message:
+          type: string
+          description: Error message if restore failed
+
+    DatabaseStatistics:
+      type: object
+      required:
+        - period
+        - connection_count
+        - query_count
+        - average_query_time
+      properties:
+        period:
+          type: string
+          description: Statistics period
+        connection_count:
+          type: integer
+          description: Number of active connections
+        query_count:
+          type: integer
+          description: Total number of queries
+        average_query_time:
+          type: number
+          format: float
+          description: Average query time in milliseconds
+        slow_queries:
+          type: integer
+          description: Number of slow queries
+        cache_hit_rate:
+          type: number
+          format: float
+          description: Cache hit rate percentage
+        disk_usage:
+          type: number
+          format: float
+          description: Disk usage in bytes
+        memory_usage:
+          type: number
+          format: float
+          description: Memory usage in bytes
+        generated_at:
+          type: string
+          format: date-time
+          description: Statistics generation timestamp
+
+    CacheStatistics:
+      type: object
+      required:
+        - hit_count
+        - miss_count
+        - hit_rate
+        - memory_usage
+      properties:
+        hit_count:
+          type: integer
+          description: Number of cache hits
+        miss_count:
+          type: integer
+          description: Number of cache misses
+        hit_rate:
+          type: number
+          format: float
+          description: Cache hit rate percentage
+        memory_usage:
+          type: number
+          format: float
+          description: Cache memory usage in bytes
+        key_count:
+          type: integer
+          description: Number of cached keys
+        eviction_count:
+          type: integer
+          description: Number of evicted keys
+        generated_at:
+          type: string
+          format: date-time
+          description: Statistics generation timestamp
+
+    QueryRequest:
+      type: object
+      required:
+        - query
+        - query_type
+      properties:
+        query:
+          type: string
+          description: SQL query to execute
+        query_type:
+          type: string
+          enum: [select, explain, describe]
+          description: Type of query
+        parameters:
+          type: array
+          items:
+            type: string
+          description: Query parameters
+        timeout:
+          type: integer
+          description: Query timeout in seconds
+          default: 30
+
+    QueryResponse:
+      type: object
+      required:
+        - success
+        - execution_time
+      properties:
+        success:
+          type: boolean
+          description: Whether query executed successfully
+        data:
+          type: array
+          items:
+            type: object
+          description: Query result data
+        columns:
+          type: array
+          items:
+            type: string
+          description: Column names
+        row_count:
+          type: integer
+          description: Number of rows returned
+        execution_time:
+          type: number
+          format: float
+          description: Query execution time in milliseconds
+        error_message:
+          type: string
+          description: Error message if query failed
+
+    CreateBackupRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        include_data:
+          type: boolean
+          default: true
+        compression:
+          type: boolean
+          default: true
+
+    RestoreRequest:
+      type: object
+      required:
+        - backup_id
+      properties:
+        backup_id:
+          type: string
+        confirm:
+          type: boolean
+          description: Confirmation flag for restore operation
+
+    RunMigrationRequest:
+      type: object
+      required:
+        - migration_id
+      properties:
+        migration_id:
+          type: string
+        direction:
+          type: string
+          enum: [up, down]
+          default: up
+
+    ClearCacheRequest:
+      type: object
+      properties:
+        pattern:
+          type: string
+          description: Cache key pattern to clear
+        all:
+          type: boolean
+          description: Whether to clear all cache
+
+    CacheClearResponse:
+      type: object
+      required:
+        - cleared_keys
+        - success
+      properties:
+        cleared_keys:
+          type: integer
+          description: Number of keys cleared
+        success:
+          type: boolean
+          description: Whether cache clear was successful
+        message:
+          type: string
+          description: Clear operation message
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+
