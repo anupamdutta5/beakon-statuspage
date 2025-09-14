@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -22,9 +23,10 @@ func TestIncidentHandler_HealthCheck(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	incidentService := services.NewIncidentService(db, nil)
-	handler := handlers.NewIncidentHandler(incidentService, nil)
+	incidentService := services.NewIncidentService(db, logger)
+	handler := handlers.NewIncidentHandler(incidentService, logger)
 
 	router := gin.New()
 	router.GET("/health", handler.Health)
@@ -49,23 +51,29 @@ func TestIncidentHandler_CreateIncident(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	incidentService := services.NewIncidentService(db, nil)
-	handler := handlers.NewIncidentHandler(incidentService, nil)
+	incidentService := services.NewIncidentService(db, logger)
+	handler := handlers.NewIncidentHandler(incidentService, logger)
 
 	router := gin.New()
-	router.POST("/incidents", handler.CreateIncident)
+	router.POST("/incidents", func(c *gin.Context) {
+		// Set required context values for authentication
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		handler.CreateIncident(c)
+	})
 
-	incident := models.Incident{
-		Title:       "API Server Outage",
-		Description: "API server is experiencing downtime",
-		Status:      "investigating",
-		Severity:    "major",
-		TenantID:    1,
-		Metadata:    `{"affected_users":1000,"region":"us-east-1"}`,
+	incidentRequest := map[string]interface{}{
+		"title":       "API Server Outage",
+		"description": "API server is experiencing downtime",
+		"status":      "investigating",
+		"impact":      "major",
+		"severity":    "major",
+		"metadata":    `{"affected_users":1000,"region":"us-east-1"}`,
 	}
 
-	jsonData, _ := json.Marshal(incident)
+	jsonData, _ := json.Marshal(incidentRequest)
 	req, _ := http.NewRequest("POST", "/incidents", bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -75,24 +83,29 @@ func TestIncidentHandler_CreateIncident(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var response models.Incident
+	var response struct {
+		Message  string          `json:"message"`
+		Incident models.Incident `json:"incident"`
+	}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, incident.Title, response.Title)
-	assert.Equal(t, incident.Description, response.Description)
-	assert.Equal(t, incident.Status, response.Status)
-	assert.Equal(t, incident.Severity, response.Severity)
-	assert.NotEmpty(t, response.ID)
+	assert.Equal(t, "Incident created successfully", response.Message)
+	assert.Equal(t, "API Server Outage", response.Incident.Title)
+	assert.Equal(t, "API server is experiencing downtime", response.Incident.Description)
+	assert.Equal(t, "investigating", response.Incident.Status)
+	assert.Equal(t, "major", response.Incident.Severity)
+	assert.NotZero(t, response.Incident.ID)
 }
 
 func TestIncidentHandler_GetIncident(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	incidentService := services.NewIncidentService(db, nil)
-	handler := handlers.NewIncidentHandler(incidentService, nil)
+	incidentService := services.NewIncidentService(db, logger)
+	handler := handlers.NewIncidentHandler(incidentService, logger)
 
 	// Create an incident first
 	incident := models.Incident{
@@ -128,9 +141,10 @@ func TestIncidentHandler_UpdateIncident(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	incidentService := services.NewIncidentService(db, nil)
-	handler := handlers.NewIncidentHandler(incidentService, nil)
+	incidentService := services.NewIncidentService(db, logger)
+	handler := handlers.NewIncidentHandler(incidentService, logger)
 
 	// Create an incident first
 	incident := models.Incident{
@@ -183,9 +197,10 @@ func TestIncidentHandler_ListIncidents(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	incidentService := services.NewIncidentService(db, nil)
-	handler := handlers.NewIncidentHandler(incidentService, nil)
+	incidentService := services.NewIncidentService(db, logger)
+	handler := handlers.NewIncidentHandler(incidentService, logger)
 
 	// Create multiple incidents
 	incidents := []models.Incident{
@@ -227,9 +242,10 @@ func TestIncidentHandler_DeleteIncident(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	incidentService := services.NewIncidentService(db, nil)
-	handler := handlers.NewIncidentHandler(incidentService, nil)
+	incidentService := services.NewIncidentService(db, logger)
+	handler := handlers.NewIncidentHandler(incidentService, logger)
 
 	// Create an incident first
 	incident := models.Incident{
@@ -268,9 +284,10 @@ func TestIncidentHandler_UpdateIncidentStatus(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	incidentService := services.NewIncidentService(db, nil)
-	handler := handlers.NewIncidentHandler(incidentService, nil)
+	incidentService := services.NewIncidentService(db, logger)
+	handler := handlers.NewIncidentHandler(incidentService, logger)
 
 	// Create an incident first
 	incident := models.Incident{
@@ -313,9 +330,10 @@ func TestIncidentHandler_AddIncidentUpdate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	incidentService := services.NewIncidentService(db, nil)
-	handler := handlers.NewIncidentHandler(incidentService, nil)
+	incidentService := services.NewIncidentService(db, logger)
+	handler := handlers.NewIncidentHandler(incidentService, logger)
 
 	// Create an incident first
 	incident := models.Incident{
@@ -360,9 +378,10 @@ func TestIncidentHandler_GetIncidentUpdates(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	incidentService := services.NewIncidentService(db, nil)
-	handler := handlers.NewIncidentHandler(incidentService, nil)
+	incidentService := services.NewIncidentService(db, logger)
+	handler := handlers.NewIncidentHandler(incidentService, logger)
 
 	// Create an incident first
 	incident := models.Incident{
@@ -413,9 +432,10 @@ func TestIncidentHandler_GetIncidentsByStatus(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	incidentService := services.NewIncidentService(db, nil)
-	handler := handlers.NewIncidentHandler(incidentService, nil)
+	incidentService := services.NewIncidentService(db, logger)
+	handler := handlers.NewIncidentHandler(incidentService, logger)
 
 	// Create incidents with different statuses
 	incidents := []models.Incident{
@@ -460,9 +480,10 @@ func TestIncidentHandler_GetIncidentsBySeverity(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	incidentService := services.NewIncidentService(db, nil)
-	handler := handlers.NewIncidentHandler(incidentService, nil)
+	incidentService := services.NewIncidentService(db, logger)
+	handler := handlers.NewIncidentHandler(incidentService, logger)
 
 	// Create incidents with different severities
 	incidents := []models.Incident{

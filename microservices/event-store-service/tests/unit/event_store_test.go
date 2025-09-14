@@ -11,15 +11,27 @@ import (
 	"github.com/enterprise-status/statuspage-event-store-service/internal/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 func TestEventStoreService_ListStreams(t *testing.T) {
 	// Setup
-	_ = setupTestDB(t)
-	cfg := &config.Config{}
-	eventStoreService, _ := services.NewEventStoreService(cfg, nil)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
+	cfg := &config.Config{
+		Database: config.DatabaseConfig{
+			Host:     "localhost",
+			Port:     5432,
+			User:     "test",
+			Password: "test",
+			Name:     "test",
+		},
+	}
+	eventStoreService, _ := services.NewEventStoreService(cfg, logger)
+	// Override the database connection with our test database
+	eventStoreService.SetDB(db)
 
 	// Test
 	streams, err := eventStoreService.ListStreams(context.Background())
@@ -32,9 +44,20 @@ func TestEventStoreService_ListStreams(t *testing.T) {
 
 func TestEventStoreService_CreateStream(t *testing.T) {
 	// Setup
-	_ = setupTestDB(t)
-	cfg := &config.Config{}
-	eventStoreService, _ := services.NewEventStoreService(cfg, nil)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
+	cfg := &config.Config{
+		Database: config.DatabaseConfig{
+			Host:     "localhost",
+			Port:     5432,
+			User:     "test",
+			Password: "test",
+			Name:     "test",
+		},
+	}
+	eventStoreService, _ := services.NewEventStoreService(cfg, logger)
+	// Override the database connection with our test database
+	eventStoreService.SetDB(db)
 
 	// Test data
 	stream := &models.Stream{

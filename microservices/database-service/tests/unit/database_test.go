@@ -10,15 +10,27 @@ import (
 	"github.com/enterprise-status/statuspage-database-service/internal/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 func TestDatabaseService_ListDatabases(t *testing.T) {
 	// Setup
-	_ = setupTestDB(t)
-	cfg := &config.Config{}
-	databaseService, _ := services.NewDatabaseService(cfg, nil)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
+	cfg := &config.Config{
+		Database: config.DatabaseConfig{
+			Host:     "localhost",
+			Port:     5432,
+			User:     "test",
+			Password: "test",
+			Name:     "test",
+		},
+	}
+	databaseService, _ := services.NewDatabaseService(cfg, logger)
+	// Override the database connection with our test database
+	databaseService.SetDB(db)
 
 	// Test
 	databases, err := databaseService.ListDatabases(context.Background())
@@ -31,9 +43,20 @@ func TestDatabaseService_ListDatabases(t *testing.T) {
 
 func TestDatabaseService_CreateDatabase(t *testing.T) {
 	// Setup
-	_ = setupTestDB(t)
-	cfg := &config.Config{}
-	databaseService, _ := services.NewDatabaseService(cfg, nil)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
+	cfg := &config.Config{
+		Database: config.DatabaseConfig{
+			Host:     "localhost",
+			Port:     5432,
+			User:     "test",
+			Password: "test",
+			Name:     "test",
+		},
+	}
+	databaseService, _ := services.NewDatabaseService(cfg, logger)
+	// Override the database connection with our test database
+	databaseService.SetDB(db)
 
 	// Test data
 	database := &models.Database{
@@ -61,9 +84,20 @@ func TestDatabaseService_CreateDatabase(t *testing.T) {
 
 func TestDatabaseService_GetDatabase(t *testing.T) {
 	// Setup
-	_ = setupTestDB(t)
-	cfg := &config.Config{}
-	databaseService, _ := services.NewDatabaseService(cfg, nil)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
+	cfg := &config.Config{
+		Database: config.DatabaseConfig{
+			Host:     "localhost",
+			Port:     5432,
+			User:     "test",
+			Password: "test",
+			Name:     "test",
+		},
+	}
+	databaseService, _ := services.NewDatabaseService(cfg, logger)
+	// Override the database connection with our test database
+	databaseService.SetDB(db)
 
 	// Create a database first
 	database := &models.Database{

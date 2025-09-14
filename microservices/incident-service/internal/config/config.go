@@ -2,7 +2,7 @@
 package config
 
 import (
-	"encoding/json"
+	"gopkg.in/yaml.v3"
 	"fmt"
 	"os"
 	"strconv"
@@ -11,57 +11,57 @@ import (
 
 // Config represents the Incident Service configuration.
 type Config struct {
-	Server     ServerConfig     `json:"server"`
-	Database   DatabaseConfig   `json:"database"`
-	JWT        JWTConfig        `json:"jwt"`
-	Service    ServiceConfig    `json:"service"`
-	Monitoring MonitoringConfig `json:"monitoring"`
+	Server     ServerConfig     `yaml:"server"`
+	Database   DatabaseConfig   `yaml:"database"`
+	JWT        JWTConfig        `yaml:"jwt"`
+	Service    ServiceConfig    `yaml:"service"`
+	Monitoring MonitoringConfig `yaml:"monitoring"`
 }
 
 // ServerConfig represents server configuration.
 type ServerConfig struct {
-	Port         int    `json:"port"`
-	Host         string `json:"host"`
-	Environment  string `json:"environment"`
-	ReadTimeout  int    `json:"read_timeout"`
-	WriteTimeout int    `json:"write_timeout"`
-	IdleTimeout  int    `json:"idle_timeout"`
+	Port         int    `yaml:"port"`
+	Host         string `yaml:"host"`
+	Environment  string `yaml:"environment"`
+	ReadTimeout  int    `yaml:"read_timeout"`
+	WriteTimeout int    `yaml:"write_timeout"`
+	IdleTimeout  int    `yaml:"idle_timeout"`
 }
 
 // DatabaseConfig represents database configuration.
 type DatabaseConfig struct {
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	User     string `json:"user"`
-	Password string `json:"password"`
-	Name     string `json:"name"`
-	SSLMode  string `json:"ssl_mode"`
-	MaxConns int    `json:"max_conns"`
-	MinConns int    `json:"min_conns"`
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
+	Name     string `yaml:"name"`
+	SSLMode  string `yaml:"ssl_mode"`
+	MaxConns int    `yaml:"max_conns"`
+	MinConns int    `yaml:"min_conns"`
 }
 
 // JWTConfig represents JWT configuration.
 type JWTConfig struct {
-	Secret     string `json:"secret"`
-	Expiration int    `json:"expiration"` // in hours
-	Issuer     string `json:"issuer"`
+	Secret     string `yaml:"secret"`
+	Expiration int    `yaml:"expiration"` // in hours
+	Issuer     string `yaml:"issuer"`
 }
 
 // ServiceConfig represents service-specific configuration.
 type ServiceConfig struct {
-	Name        string            `json:"name"`
-	Version     string            `json:"version"`
-	Description string            `json:"description"`
-	Tags        []string          `json:"tags"`
-	Metadata    map[string]string `json:"metadata"`
+	Name        string            `yaml:"name"`
+	Version     string            `yaml:"version"`
+	Description string            `yaml:"description"`
+	Tags        []string          `yaml:"tags"`
+	Metadata    map[string]string `yaml:"metadata"`
 }
 
 // MonitoringConfig represents monitoring configuration.
 type MonitoringConfig struct {
-	Enabled     bool   `json:"enabled"`
-	MetricsPort int    `json:"metrics_port"`
-	HealthPort  int    `json:"health_port"`
-	LogLevel    string `json:"log_level"`
+	Enabled     bool   `yaml:"enabled"`
+	MetricsPort int    `yaml:"metrics_port"`
+	HealthPort  int    `yaml:"health_port"`
+	LogLevel    string `yaml:"log_level"`
 }
 
 // Load loads configuration from environment variables and config file.
@@ -122,7 +122,7 @@ func loadConfigFromFile(config *Config, configFile string) error {
 		return err
 	}
 
-	return json.Unmarshal(data, config)
+	return yaml.Unmarshal(data, config)
 }
 
 // getEnv gets an environment variable with a default value.

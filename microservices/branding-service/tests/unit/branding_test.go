@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -25,10 +26,21 @@ func TestBrandingHandler_HealthCheck(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
-	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, nil)
-	handler := handlers.NewBrandingHandler(brandingService, nil)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
+	cfg := &config.Config{
+		Database: config.DatabaseConfig{
+			Host:     "localhost",
+			Port:     5432,
+			User:     "test",
+			Password: "test",
+			Name:     "test",
+		},
+	}
+	brandingService, _ := services.NewBrandingService(cfg, logger)
+	// Override the database connection with our test database
+	brandingService.SetDB(db)
+	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	router := gin.New()
 	router.GET("/health", handler.HealthCheck)
@@ -53,10 +65,21 @@ func TestBrandingHandler_CreateBrand(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
-	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, nil)
-	handler := handlers.NewBrandingHandler(brandingService, nil)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
+	cfg := &config.Config{
+		Database: config.DatabaseConfig{
+			Host:     "localhost",
+			Port:     5432,
+			User:     "test",
+			Password: "test",
+			Name:     "test",
+		},
+	}
+	brandingService, _ := services.NewBrandingService(cfg, logger)
+	// Override the database connection with our test database
+	brandingService.SetDB(db)
+	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	router := gin.New()
 	router.POST("/brands", handler.CreateBrand)
@@ -82,15 +105,19 @@ func TestBrandingHandler_CreateBrand(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var response models.Brand
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Brand   models.Brand `json:"brand"`
+		Message string       `json:"message"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, brand.Name, response.Name)
-	assert.Equal(t, brand.Slug, response.Slug)
-	assert.Equal(t, brand.Description, response.Description)
-	assert.Equal(t, brand.Status, response.Status)
-	assert.Equal(t, brand.TenantID, response.TenantID)
+	assert.Equal(t, "Brand created successfully", responseWrapper.Message)
+	assert.Equal(t, brand.Name, responseWrapper.Brand.Name)
+	assert.Equal(t, brand.Slug, responseWrapper.Brand.Slug)
+	assert.Equal(t, brand.Description, responseWrapper.Brand.Description)
+	assert.Equal(t, brand.Status, responseWrapper.Brand.Status)
+	assert.Equal(t, brand.TenantID, responseWrapper.Brand.TenantID)
 }
 
 func TestBrandingHandler_GetBrand(t *testing.T) {

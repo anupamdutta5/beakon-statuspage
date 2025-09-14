@@ -1,0 +1,60 @@
+environment: development
+
+service:
+  name: component-service
+  version: 1.0.0
+  description: Component Service for StatusPage
+  tags:
+    - component
+    - microservice
+  metadata:
+    owner: platform-team
+    maintainer: devops@company.com
+
+server:
+  host: 0.0.0.0
+  port: 8002
+  read_timeout: 30
+  write_timeout: 30
+  idle_timeout: 120
+
+database:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: password
+  name: statuspage_component
+  ssl_mode: disable
+  max_conns: 25
+  min_conns: 5
+  max_idle: 10
+  max_lifetime: 3600
+
+cache:
+  provider: redis
+  host: localhost
+  port: 6379
+  password: ""
+  db: 0
+  ttl: 300
+
+logging:
+  level: debug
+  format: json
+  output: stdout
+
+jwt:
+  secret: dev-secret-key-change-in-production
+  expiration: 24
+  issuer: statuspage-dev
+
+monitoring:
+  enabled: true
+  metrics_port: 9002
+  health_port: 10002
+  log_level: debug
+
+monitoring:
+  check_interval: 30s
+  timeout: 10s
+  retry_attempts: 3

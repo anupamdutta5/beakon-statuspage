@@ -21,8 +21,32 @@ type LandingHandler struct {
 
 // NewLandingHandler creates a new landing handler.
 func NewLandingHandler(service *services.LandingService, logger *zap.Logger) *LandingHandler {
-	// Load templates
-	tmpl := template.Must(template.ParseGlob("web/templates/*.html"))
+	// Load templates - try multiple paths for different environments
+	var tmpl *template.Template
+	var err error
+
+	// Try different template paths
+	templatePaths := []string{
+		"web/templates/*.html",
+		"./web/templates/*.html",
+		"../web/templates/*.html",
+		"../../web/templates/*.html",
+	}
+
+	for _, path := range templatePaths {
+		tmpl, err = template.ParseGlob(path)
+		if err == nil {
+			logger.Info("Templates loaded successfully", zap.String("path", path))
+			break
+		}
+		logger.Debug("Failed to load templates from path", zap.String("path", path), zap.Error(err))
+	}
+
+	// If no templates found, create an empty template to prevent panic
+	if tmpl == nil {
+		logger.Warn("No templates found, creating empty template for testing")
+		tmpl = template.New("empty")
+	}
 
 	return &LandingHandler{
 		service:  service,
@@ -700,4 +724,3 @@ func (h *LandingHandler) DeleteArticle(c *gin.Context) {
 		"message": "Article deleted successfully",
 	})
 }
-

@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -23,9 +24,10 @@ func TestPaymentHandler_HealthCheck(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	paymentService := services.NewPaymentService(db, nil)
-	handler := handlers.NewPaymentHandler(paymentService, nil)
+	paymentService := services.NewPaymentService(db, logger)
+	handler := handlers.NewPaymentHandler(paymentService, logger)
 
 	router := gin.New()
 	router.GET("/health", handler.Health)
@@ -50,25 +52,29 @@ func TestPaymentHandler_CreatePayment(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	paymentService := services.NewPaymentService(db, nil)
-	handler := handlers.NewPaymentHandler(paymentService, nil)
+	paymentService := services.NewPaymentService(db, logger)
+	handler := handlers.NewPaymentHandler(paymentService, logger)
 
 	router := gin.New()
-	router.POST("/payments", handler.CreatePayment)
+	router.POST("/payments", func(c *gin.Context) {
+		// Set required context values for authentication
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		handler.CreatePayment(c)
+	})
 
-	payment := models.Payment{
-		TenantID:    1,
-		UserID:      1,
-		Amount:      29.99,
-		Currency:    "USD",
-		Gateway:     "stripe",
-		Status:      "pending",
-		Description: "Monthly subscription",
-		Metadata:    `{"plan_id":"pro-monthly","billing_cycle":"monthly"}`,
+	paymentRequest := map[string]interface{}{
+		"amount":         29.99,
+		"currency":       "USD",
+		"payment_method": "card",
+		"gateway":        "stripe",
+		"description":    "Monthly subscription",
+		"metadata":       `{"plan_id":"pro-monthly","billing_cycle":"monthly"}`,
 	}
 
-	jsonData, _ := json.Marshal(payment)
+	jsonData, _ := json.Marshal(paymentRequest)
 	req, _ := http.NewRequest("POST", "/payments", bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -78,25 +84,30 @@ func TestPaymentHandler_CreatePayment(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var response models.Payment
+	var response struct {
+		Message string         `json:"message"`
+		Payment models.Payment `json:"payment"`
+	}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, payment.TenantID, response.TenantID)
-	assert.Equal(t, payment.UserID, response.UserID)
-	assert.Equal(t, payment.Amount, response.Amount)
-	assert.Equal(t, payment.Currency, response.Currency)
-	assert.Equal(t, payment.Gateway, response.Gateway)
-	assert.NotEmpty(t, response.ID)
+	assert.Equal(t, "Payment created successfully", response.Message)
+	assert.Equal(t, uint(1), response.Payment.TenantID)
+	assert.Equal(t, uint(1), response.Payment.UserID)
+	assert.Equal(t, 29.99, response.Payment.Amount)
+	assert.Equal(t, "USD", response.Payment.Currency)
+	assert.Equal(t, "stripe", response.Payment.Gateway)
+	assert.NotZero(t, response.Payment.ID)
 }
 
 func TestPaymentHandler_GetPayment(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	paymentService := services.NewPaymentService(db, nil)
-	handler := handlers.NewPaymentHandler(paymentService, nil)
+	paymentService := services.NewPaymentService(db, logger)
+	handler := handlers.NewPaymentHandler(paymentService, logger)
 
 	// Create a payment first
 	payment := models.Payment{
@@ -134,9 +145,10 @@ func TestPaymentHandler_UpdatePayment(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	paymentService := services.NewPaymentService(db, nil)
-	handler := handlers.NewPaymentHandler(paymentService, nil)
+	paymentService := services.NewPaymentService(db, logger)
+	handler := handlers.NewPaymentHandler(paymentService, logger)
 
 	// Create a payment first
 	payment := models.Payment{
@@ -191,9 +203,10 @@ func TestPaymentHandler_ListPayments(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	paymentService := services.NewPaymentService(db, nil)
-	handler := handlers.NewPaymentHandler(paymentService, nil)
+	paymentService := services.NewPaymentService(db, logger)
+	handler := handlers.NewPaymentHandler(paymentService, logger)
 
 	// Create multiple payments
 	payments := []models.Payment{
@@ -235,9 +248,10 @@ func TestPaymentHandler_ProcessPayment(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	paymentService := services.NewPaymentService(db, nil)
-	handler := handlers.NewPaymentHandler(paymentService, nil)
+	paymentService := services.NewPaymentService(db, logger)
+	handler := handlers.NewPaymentHandler(paymentService, logger)
 
 	// Create a payment first
 	payment := models.Payment{
@@ -283,9 +297,10 @@ func TestPaymentHandler_RefundPayment(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	paymentService := services.NewPaymentService(db, nil)
-	handler := handlers.NewPaymentHandler(paymentService, nil)
+	paymentService := services.NewPaymentService(db, logger)
+	handler := handlers.NewPaymentHandler(paymentService, logger)
 
 	// Create a completed payment first
 	payment := models.Payment{
@@ -335,9 +350,10 @@ func TestPaymentHandler_GetPaymentMethods(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	paymentService := services.NewPaymentService(db, nil)
-	handler := handlers.NewPaymentHandler(paymentService, nil)
+	paymentService := services.NewPaymentService(db, logger)
+	handler := handlers.NewPaymentHandler(paymentService, logger)
 
 	router := gin.New()
 	router.GET("/payment-methods", handler.GetPayments)
@@ -352,7 +368,7 @@ func TestPaymentHandler_GetPaymentMethods(t *testing.T) {
 
 	var response struct {
 		Payments []models.Payment `json:"payments"`
-		Total          int                    `json:"total"`
+		Total    int              `json:"total"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
@@ -364,9 +380,10 @@ func TestPaymentHandler_CreatePaymentMethod(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	paymentService := services.NewPaymentService(db, nil)
-	handler := handlers.NewPaymentHandler(paymentService, nil)
+	paymentService := services.NewPaymentService(db, logger)
+	handler := handlers.NewPaymentHandler(paymentService, logger)
 
 	router := gin.New()
 	router.POST("/payment-methods", handler.CreatePayment)
@@ -417,9 +434,10 @@ func TestPaymentHandler_GetPaymentStats(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	paymentService := services.NewPaymentService(db, nil)
-	handler := handlers.NewPaymentHandler(paymentService, nil)
+	paymentService := services.NewPaymentService(db, logger)
+	handler := handlers.NewPaymentHandler(paymentService, logger)
 
 	router := gin.New()
 	router.GET("/payments/stats", handler.GetPayments)
@@ -446,9 +464,10 @@ func TestPaymentHandler_GetSubscriptionPlans(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	paymentService := services.NewPaymentService(db, nil)
-	handler := handlers.NewPaymentHandler(paymentService, nil)
+	paymentService := services.NewPaymentService(db, logger)
+	handler := handlers.NewPaymentHandler(paymentService, logger)
 
 	router := gin.New()
 	router.GET("/subscription-plans", handler.GetPlans)
@@ -463,7 +482,7 @@ func TestPaymentHandler_GetSubscriptionPlans(t *testing.T) {
 
 	var response struct {
 		Plans []models.Plan `json:"plans"`
-		Total int                       `json:"total"`
+		Total int           `json:"total"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
@@ -475,9 +494,10 @@ func TestPaymentHandler_CreateSubscription(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	paymentService := services.NewPaymentService(db, nil)
-	handler := handlers.NewPaymentHandler(paymentService, nil)
+	paymentService := services.NewPaymentService(db, logger)
+	handler := handlers.NewPaymentHandler(paymentService, logger)
 
 	router := gin.New()
 	router.POST("/subscriptions", handler.CreateSubscription)
@@ -524,7 +544,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 
 	// Auto migrate
-	err = db.AutoMigrate(&models.Payment{}, &models.Subscription{}, &models.Plan{})
+	err = db.AutoMigrate(&models.Payment{}, &models.PaymentTransaction{}, &models.Subscription{}, &models.Plan{})
 	require.NoError(t, err)
 
 	return db

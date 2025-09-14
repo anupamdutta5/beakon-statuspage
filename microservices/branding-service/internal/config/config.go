@@ -2,7 +2,7 @@
 package config
 
 import (
-	"encoding/json"
+	"gopkg.in/yaml.v3"
 	"fmt"
 	"os"
 	"strconv"
@@ -11,82 +11,82 @@ import (
 
 // Config represents the Branding Service configuration.
 type Config struct {
-	Environment string         `json:"environment"`
-	Service     ServiceConfig  `json:"service"`
-	Server      ServerConfig   `json:"server"`
-	Database    DatabaseConfig `json:"database"`
-	Storage     StorageConfig  `json:"storage"`
-	Branding    BrandingConfig `json:"branding"`
-	Logging     LoggingConfig  `json:"logging"`
+	Environment string         `yaml:"environment"`
+	Service     ServiceConfig  `yaml:"service"`
+	Server      ServerConfig   `yaml:"server"`
+	Database    DatabaseConfig `yaml:"database"`
+	Storage     StorageConfig  `yaml:"storage"`
+	Branding    BrandingConfig `yaml:"branding"`
+	Logging     LoggingConfig  `yaml:"logging"`
 }
 
 // ServiceConfig represents service-specific configuration.
 type ServiceConfig struct {
-	Name        string            `json:"name"`
-	Version     string            `json:"version"`
-	Description string            `json:"description"`
-	Tags        []string          `json:"tags"`
-	Metadata    map[string]string `json:"metadata"`
+	Name        string            `yaml:"name"`
+	Version     string            `yaml:"version"`
+	Description string            `yaml:"description"`
+	Tags        []string          `yaml:"tags"`
+	Metadata    map[string]string `yaml:"metadata"`
 }
 
 // ServerConfig represents server configuration.
 type ServerConfig struct {
-	Host         string `json:"host"`
-	Port         int    `json:"port"`
-	ReadTimeout  int    `json:"read_timeout"`
-	WriteTimeout int    `json:"write_timeout"`
-	IdleTimeout  int    `json:"idle_timeout"`
+	Host         string `yaml:"host"`
+	Port         int    `yaml:"port"`
+	ReadTimeout  int    `yaml:"read_timeout"`
+	WriteTimeout int    `yaml:"write_timeout"`
+	IdleTimeout  int    `yaml:"idle_timeout"`
 }
 
 // DatabaseConfig represents database configuration.
 type DatabaseConfig struct {
-	Host        string `json:"host"`
-	Port        int    `json:"port"`
-	User        string `json:"user"`
-	Password    string `json:"password"`
-	Name        string `json:"name"`
-	SSLMode     string `json:"ssl_mode"`
-	MaxConns    int    `json:"max_conns"`
-	MinConns    int    `json:"min_conns"`
-	MaxIdle     int    `json:"max_idle"`
-	MaxLifetime int    `json:"max_lifetime"`
+	Host        string `yaml:"host"`
+	Port        int    `yaml:"port"`
+	User        string `yaml:"user"`
+	Password    string `yaml:"password"`
+	Name        string `yaml:"name"`
+	SSLMode     string `yaml:"ssl_mode"`
+	MaxConns    int    `yaml:"max_conns"`
+	MinConns    int    `yaml:"min_conns"`
+	MaxIdle     int    `yaml:"max_idle"`
+	MaxLifetime int    `yaml:"max_lifetime"`
 }
 
 // StorageConfig represents file storage configuration.
 type StorageConfig struct {
-	Type         string   `json:"type"` // local, s3, gcs, azure
-	LocalPath    string   `json:"local_path"`
-	S3Bucket     string   `json:"s3_bucket"`
-	S3Region     string   `json:"s3_region"`
-	S3AccessKey  string   `json:"s3_access_key"`
-	S3SecretKey  string   `json:"s3_secret_key"`
-	GCSPath      string   `json:"gcs_path"`
-	AzureAccount string   `json:"azure_account"`
-	AzureKey     string   `json:"azure_key"`
-	MaxFileSize  int64    `json:"max_file_size"` // in bytes
-	AllowedTypes []string `json:"allowed_types"`
+	Type         string   `yaml:"type"` // local, s3, gcs, azure
+	LocalPath    string   `yaml:"local_path"`
+	S3Bucket     string   `yaml:"s3_bucket"`
+	S3Region     string   `yaml:"s3_region"`
+	S3AccessKey  string   `yaml:"s3_access_key"`
+	S3SecretKey  string   `yaml:"s3_secret_key"`
+	GCSPath      string   `yaml:"gcs_path"`
+	AzureAccount string   `yaml:"azure_account"`
+	AzureKey     string   `yaml:"azure_key"`
+	MaxFileSize  int64    `yaml:"max_file_size"` // in bytes
+	AllowedTypes []string `yaml:"allowed_types"`
 }
 
 // BrandingConfig represents branding-specific configuration.
 type BrandingConfig struct {
-	DefaultTheme        string   `json:"default_theme"`
-	AvailableThemes     []string `json:"available_themes"`
-	CustomCSSEnabled    bool     `json:"custom_css_enabled"`
-	CustomJSEnabled     bool     `json:"custom_js_enabled"`
-	LogoMaxSize         int64    `json:"logo_max_size"`
-	FaviconMaxSize      int64    `json:"favicon_max_size"`
-	AllowedImageFormats []string `json:"allowed_image_formats"`
-	AllowedFontFormats  []string `json:"allowed_font_formats"`
-	CDNEnabled          bool     `json:"cdn_enabled"`
-	CDNURL              string   `json:"cdn_url"`
-	CacheEnabled        bool     `json:"cache_enabled"`
-	CacheTTL            int      `json:"cache_ttl"`
+	DefaultTheme        string   `yaml:"default_theme"`
+	AvailableThemes     []string `yaml:"available_themes"`
+	CustomCSSEnabled    bool     `yaml:"custom_css_enabled"`
+	CustomJSEnabled     bool     `yaml:"custom_js_enabled"`
+	LogoMaxSize         int64    `yaml:"logo_max_size"`
+	FaviconMaxSize      int64    `yaml:"favicon_max_size"`
+	AllowedImageFormats []string `yaml:"allowed_image_formats"`
+	AllowedFontFormats  []string `yaml:"allowed_font_formats"`
+	CDNEnabled          bool     `yaml:"cdn_enabled"`
+	CDNURL              string   `yaml:"cdn_url"`
+	CacheEnabled        bool     `yaml:"cache_enabled"`
+	CacheTTL            int      `yaml:"cache_ttl"`
 }
 
 // LoggingConfig represents logging configuration.
 type LoggingConfig struct {
-	Level  string `json:"level"`
-	Format string `json:"format"` // json, console
+	Level  string `yaml:"level"`
+	Format string `yaml:"format"` // json, console
 }
 
 // Load loads configuration from environment variables and config file.
@@ -169,7 +169,7 @@ func loadConfigFromFile(config *Config, configFile string) error {
 		return err
 	}
 
-	return json.Unmarshal(data, config)
+	return yaml.Unmarshal(data, config)
 }
 
 // getEnv gets an environment variable with a default value.

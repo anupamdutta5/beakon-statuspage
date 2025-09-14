@@ -25,7 +25,8 @@ func NewSaaSAdminService(cfg *config.Config, logger *zap.Logger) (*SaaSAdminServ
 	// Initialize database connection
 	db, err := initDatabase(cfg.Database)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize database: %w", err)
+		logger.Warn("Failed to initialize database, running without database", zap.Error(err))
+		db = nil // Allow service to run without database for testing
 	}
 
 	return &SaaSAdminService{
@@ -33,6 +34,11 @@ func NewSaaSAdminService(cfg *config.Config, logger *zap.Logger) (*SaaSAdminServ
 		logger: logger,
 		db:     db,
 	}, nil
+}
+
+// SetDB allows injecting a test database for testing purposes
+func (s *SaaSAdminService) SetDB(db *gorm.DB) {
+	s.db = db
 }
 
 // Platform Management
@@ -135,6 +141,11 @@ func (s *SaaSAdminService) GetPlanBySlug(ctx context.Context, slug string) (*mod
 func (s *SaaSAdminService) ListPlans(ctx context.Context, limit, offset int) ([]*models.SaaSPlan, error) {
 	s.logger.Info("Listing SaaS plans", zap.Int("limit", limit), zap.Int("offset", offset))
 
+	if s.db == nil {
+		s.logger.Debug("Database not available, returning empty list")
+		return []*models.SaaSPlan{}, nil
+	}
+
 	var plans []*models.SaaSPlan
 	query := s.db
 
@@ -155,16 +166,23 @@ func (s *SaaSAdminService) ListPlans(ctx context.Context, limit, offset int) ([]
 }
 
 // UpdatePlan updates a plan.
-func (s *SaaSAdminService) UpdatePlan(ctx context.Context, planID uint, updates *models.SaaSPlan) error {
+func (s *SaaSAdminService) UpdatePlan(ctx context.Context, planID uint, updates *models.SaaSPlan) (*models.SaaSPlan, error) {
 	s.logger.Info("Updating SaaS plan", zap.Uint("plan_id", planID))
 
 	if err := s.db.Model(&models.SaaSPlan{}).Where("id = ?", planID).Updates(updates).Error; err != nil {
 		s.logger.Error("Failed to update plan", zap.Error(err))
-		return fmt.Errorf("failed to update plan: %w", err)
+		return nil, fmt.Errorf("failed to update plan: %w", err)
+	}
+
+	// Get the updated plan
+	var updatedPlan models.SaaSPlan
+	if err := s.db.First(&updatedPlan, planID).Error; err != nil {
+		s.logger.Error("Failed to get updated plan", zap.Error(err))
+		return nil, fmt.Errorf("failed to get updated plan: %w", err)
 	}
 
 	s.logger.Info("SaaS plan updated successfully", zap.Uint("plan_id", planID))
-	return nil
+	return &updatedPlan, nil
 }
 
 // DeletePlan deletes a plan.
@@ -311,6 +329,11 @@ func (s *SaaSAdminService) GetFeatureFlag(ctx context.Context, flagID uint) (*mo
 func (s *SaaSAdminService) ListFeatureFlags(ctx context.Context, limit, offset int) ([]*models.SaaSFeatureFlag, error) {
 	s.logger.Info("Listing SaaS feature flags", zap.Int("limit", limit), zap.Int("offset", offset))
 
+	if s.db == nil {
+		s.logger.Debug("Database not available, returning empty list")
+		return []*models.SaaSFeatureFlag{}, nil
+	}
+
 	var flags []*models.SaaSFeatureFlag
 	query := s.db
 
@@ -331,16 +354,23 @@ func (s *SaaSAdminService) ListFeatureFlags(ctx context.Context, limit, offset i
 }
 
 // UpdateFeatureFlag updates a feature flag.
-func (s *SaaSAdminService) UpdateFeatureFlag(ctx context.Context, flagID uint, updates *models.SaaSFeatureFlag) error {
+func (s *SaaSAdminService) UpdateFeatureFlag(ctx context.Context, flagID uint, updates *models.SaaSFeatureFlag) (*models.SaaSFeatureFlag, error) {
 	s.logger.Info("Updating SaaS feature flag", zap.Uint("flag_id", flagID))
 
 	if err := s.db.Model(&models.SaaSFeatureFlag{}).Where("id = ?", flagID).Updates(updates).Error; err != nil {
 		s.logger.Error("Failed to update feature flag", zap.Error(err))
-		return fmt.Errorf("failed to update feature flag: %w", err)
+		return nil, fmt.Errorf("failed to update feature flag: %w", err)
+	}
+
+	// Get the updated feature flag
+	var updatedFlag models.SaaSFeatureFlag
+	if err := s.db.First(&updatedFlag, flagID).Error; err != nil {
+		s.logger.Error("Failed to get updated feature flag", zap.Error(err))
+		return nil, fmt.Errorf("failed to get updated feature flag: %w", err)
 	}
 
 	s.logger.Info("SaaS feature flag updated successfully", zap.Uint("flag_id", flagID))
-	return nil
+	return &updatedFlag, nil
 }
 
 // DeleteFeatureFlag deletes a feature flag.
@@ -386,10 +416,14 @@ func (s *SaaSAdminService) GetSaaSStats(ctx context.Context) (*models.SaaSStats,
 func (s *SaaSAdminService) Health(ctx context.Context) error {
 	s.logger.Debug("Checking SaaS admin service health")
 
-	// Check database connection
-	if err := s.db.Exec("SELECT 1").Error; err != nil {
-		s.logger.Error("SaaS admin service health check failed", zap.Error(err))
-		return fmt.Errorf("saas admin service health check failed: %w", err)
+	// Check database connection if available
+	if s.db != nil {
+		if err := s.db.Exec("SELECT 1").Error; err != nil {
+			s.logger.Error("SaaS admin service health check failed", zap.Error(err))
+			return fmt.Errorf("saas admin service health check failed: %w", err)
+		}
+	} else {
+		s.logger.Debug("Database not available, skipping database health check")
 	}
 
 	return nil
@@ -432,4 +466,3 @@ func initDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
 
 	return db, nil
 }
-

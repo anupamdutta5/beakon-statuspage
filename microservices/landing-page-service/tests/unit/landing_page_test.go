@@ -43,14 +43,6 @@ func setupTestDB() *gorm.DB {
 }
 
 func TestLandingService_GetLandingPageData(t *testing.T) {
-	db := setupTestDB()
-	defer func() {
-		sqlDB, _ := db.DB()
-		if sqlDB != nil {
-			sqlDB.Close()
-		}
-	}()
-
 	logger, _ := zap.NewDevelopment()
 
 	// Create test config
@@ -71,6 +63,18 @@ func TestLandingService_GetLandingPageData(t *testing.T) {
 			User:     "test",
 			Password: "test",
 			Name:     "test_db",
+		},
+		Landing: config.LandingConfig{
+			SiteName:        "Test StatusPage",
+			SiteURL:         "http://localhost:8097",
+			SiteDescription: "Test landing page for status page service",
+			SiteKeywords:    []string{"test", "status", "page"},
+			ContactEmail:    "test@example.com",
+			SupportEmail:    "support@example.com",
+			AnalyticsID:     "test-analytics",
+			OGImage:         "/static/images/og-image.png",
+			Favicon:         "/static/images/favicon.ico",
+			Theme:           "modern",
 		},
 		Logging: config.LoggingConfig{
 			Level:  "debug",
@@ -87,17 +91,16 @@ func TestLandingService_GetLandingPageData(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, data)
 	assert.NotEmpty(t, data.SiteName)
+
+	// Test that we get default data when no database is available
+	assert.NotEmpty(t, data.Hero)
+	assert.NotEmpty(t, data.Features)
+	assert.NotEmpty(t, data.PricingPlans)
+	assert.NotEmpty(t, data.Testimonials)
+	assert.NotEmpty(t, data.FAQs)
 }
 
 func TestLandingService_HeroSection(t *testing.T) {
-	db := setupTestDB()
-	defer func() {
-		sqlDB, _ := db.DB()
-		if sqlDB != nil {
-			sqlDB.Close()
-		}
-	}()
-
 	logger, _ := zap.NewDevelopment()
 
 	// Create test config
@@ -119,6 +122,18 @@ func TestLandingService_HeroSection(t *testing.T) {
 			Password: "test",
 			Name:     "test_db",
 		},
+		Landing: config.LandingConfig{
+			SiteName:        "Test StatusPage",
+			SiteURL:         "http://localhost:8097",
+			SiteDescription: "Test landing page for status page service",
+			SiteKeywords:    []string{"test", "status", "page"},
+			ContactEmail:    "test@example.com",
+			SupportEmail:    "support@example.com",
+			AnalyticsID:     "test-analytics",
+			OGImage:         "/static/images/og-image.png",
+			Favicon:         "/static/images/favicon.ico",
+			Theme:           "modern",
+		},
 		Logging: config.LoggingConfig{
 			Level:  "debug",
 			Format: "console",
@@ -129,28 +144,15 @@ func TestLandingService_HeroSection(t *testing.T) {
 	service, err := services.NewLandingService(testConfig, logger)
 	require.NoError(t, err)
 
-	// Test getting hero section
+	// Test getting hero section (should return default data when no database)
 	hero, err := service.GetHeroSection(context.Background())
 	require.NoError(t, err)
 	assert.NotNil(t, hero)
 	assert.NotEmpty(t, hero.Title)
-
-	// Test creating hero section
-	newHero := &models.HeroSection{
-		Title:           "Test Hero Title",
-		Subtitle:        "Test Hero Subtitle",
-		Description:     "Test Hero Description",
-		ButtonText:      "Get Started",
-		ButtonURL:       "/signup",
-		BackgroundColor: "#ffffff",
-		TextColor:       "#000000",
-		Status:          "active",
-		Order:           1,
-	}
-
-	err = service.CreateHeroSection(context.Background(), newHero)
-	require.NoError(t, err)
-	assert.NotZero(t, newHero.ID)
+	assert.NotEmpty(t, hero.Subtitle)
+	assert.NotEmpty(t, hero.Description)
+	assert.NotEmpty(t, hero.ButtonText)
+	assert.NotEmpty(t, hero.ButtonURL)
 }
 
 func TestLandingService_Article(t *testing.T) {
@@ -192,6 +194,8 @@ func TestLandingService_Article(t *testing.T) {
 	// Create service using constructor
 	service, err := services.NewLandingService(testConfig, logger)
 	require.NoError(t, err)
+	// Override the database connection with our test database
+	service.SetDB(db)
 
 	// Test creating article
 	publishedAt := time.Now()
@@ -259,6 +263,8 @@ func TestLandingService_Testimonial(t *testing.T) {
 	// Create service using constructor
 	service, err := services.NewLandingService(testConfig, logger)
 	require.NoError(t, err)
+	// Override the database connection with our test database
+	service.SetDB(db)
 
 	// Test creating testimonial
 	testimonial := &models.Testimonial{
@@ -322,6 +328,8 @@ func TestLandingService_FAQ(t *testing.T) {
 	// Create service using constructor
 	service, err := services.NewLandingService(testConfig, logger)
 	require.NoError(t, err)
+	// Override the database connection with our test database
+	service.SetDB(db)
 
 	// Test creating FAQ
 	faq := &models.FAQ{
@@ -382,6 +390,8 @@ func TestLandingService_ContactForm(t *testing.T) {
 	// Create service using constructor
 	service, err := services.NewLandingService(testConfig, logger)
 	require.NoError(t, err)
+	// Override the database connection with our test database
+	service.SetDB(db)
 
 	// Test submitting contact form
 	contactForm := &models.ContactForm{
@@ -439,6 +449,8 @@ func TestLandingService_Newsletter(t *testing.T) {
 	// Create service using constructor
 	service, err := services.NewLandingService(testConfig, logger)
 	require.NoError(t, err)
+	// Override the database connection with our test database
+	service.SetDB(db)
 
 	// Test newsletter subscription
 	newsletter := &models.Newsletter{

@@ -2,7 +2,7 @@
 package config
 
 import (
-	"encoding/json"
+	"gopkg.in/yaml.v3"
 	"fmt"
 	"os"
 	"strconv"
@@ -11,70 +11,70 @@ import (
 
 // Config represents the SaaS Admin Service configuration.
 type Config struct {
-	Environment string         `json:"environment"`
-	Service     ServiceConfig  `json:"service"`
-	Server      ServerConfig   `json:"server"`
-	Database    DatabaseConfig `json:"database"`
-	SaaS        SaaSConfig     `json:"saas"`
-	Logging     LoggingConfig  `json:"logging"`
+	Environment string         `yaml:"environment"`
+	Service     ServiceConfig  `yaml:"service"`
+	Server      ServerConfig   `yaml:"server"`
+	Database    DatabaseConfig `yaml:"database"`
+	SaaS        SaaSConfig     `yaml:"saas"`
+	Logging     LoggingConfig  `yaml:"logging"`
 }
 
 // ServiceConfig represents service-specific configuration.
 type ServiceConfig struct {
-	Name        string            `json:"name"`
-	Version     string            `json:"version"`
-	Description string            `json:"description"`
-	Tags        []string          `json:"tags"`
-	Metadata    map[string]string `json:"metadata"`
+	Name        string            `yaml:"name"`
+	Version     string            `yaml:"version"`
+	Description string            `yaml:"description"`
+	Tags        []string          `yaml:"tags"`
+	Metadata    map[string]string `yaml:"metadata"`
 }
 
 // ServerConfig represents server configuration.
 type ServerConfig struct {
-	Host         string `json:"host"`
-	Port         int    `json:"port"`
-	ReadTimeout  int    `json:"read_timeout"`
-	WriteTimeout int    `json:"write_timeout"`
-	IdleTimeout  int    `json:"idle_timeout"`
+	Host         string `yaml:"host"`
+	Port         int    `yaml:"port"`
+	ReadTimeout  int    `yaml:"read_timeout"`
+	WriteTimeout int    `yaml:"write_timeout"`
+	IdleTimeout  int    `yaml:"idle_timeout"`
 }
 
 // DatabaseConfig represents database configuration.
 type DatabaseConfig struct {
-	Host        string `json:"host"`
-	Port        int    `json:"port"`
-	User        string `json:"user"`
-	Password    string `json:"password"`
-	Name        string `json:"name"`
-	SSLMode     string `json:"ssl_mode"`
-	MaxConns    int    `json:"max_conns"`
-	MinConns    int    `json:"min_conns"`
-	MaxIdle     int    `json:"max_idle"`
-	MaxLifetime int    `json:"max_lifetime"`
+	Host        string `yaml:"host"`
+	Port        int    `yaml:"port"`
+	User        string `yaml:"user"`
+	Password    string `yaml:"password"`
+	Name        string `yaml:"name"`
+	SSLMode     string `yaml:"ssl_mode"`
+	MaxConns    int    `yaml:"max_conns"`
+	MinConns    int    `yaml:"min_conns"`
+	MaxIdle     int    `yaml:"max_idle"`
+	MaxLifetime int    `yaml:"max_lifetime"`
 }
 
 // SaaSConfig represents SaaS-specific configuration.
 type SaaSConfig struct {
-	PlatformName        string   `json:"platform_name"`
-	PlatformURL         string   `json:"platform_url"`
-	AdminEmail          string   `json:"admin_email"`
-	SupportEmail        string   `json:"support_email"`
-	DefaultPlan         string   `json:"default_plan"`
-	AvailablePlans      []string `json:"available_plans"`
-	MaxTenantsPerPlan   int      `json:"max_tenants_per_plan"`
-	DefaultTrialDays    int      `json:"default_trial_days"`
-	BillingEnabled      bool     `json:"billing_enabled"`
-	AnalyticsEnabled    bool     `json:"analytics_enabled"`
-	MonitoringEnabled   bool     `json:"monitoring_enabled"`
-	FeatureFlagsEnabled bool     `json:"feature_flags_enabled"`
-	AuditLoggingEnabled bool     `json:"audit_logging_enabled"`
-	BackupEnabled       bool     `json:"backup_enabled"`
-	BackupInterval      int      `json:"backup_interval"`
-	RetentionDays       int      `json:"retention_days"`
+	PlatformName        string   `yaml:"platform_name"`
+	PlatformURL         string   `yaml:"platform_url"`
+	AdminEmail          string   `yaml:"admin_email"`
+	SupportEmail        string   `yaml:"support_email"`
+	DefaultPlan         string   `yaml:"default_plan"`
+	AvailablePlans      []string `yaml:"available_plans"`
+	MaxTenantsPerPlan   int      `yaml:"max_tenants_per_plan"`
+	DefaultTrialDays    int      `yaml:"default_trial_days"`
+	BillingEnabled      bool     `yaml:"billing_enabled"`
+	AnalyticsEnabled    bool     `yaml:"analytics_enabled"`
+	MonitoringEnabled   bool     `yaml:"monitoring_enabled"`
+	FeatureFlagsEnabled bool     `yaml:"feature_flags_enabled"`
+	AuditLoggingEnabled bool     `yaml:"audit_logging_enabled"`
+	BackupEnabled       bool     `yaml:"backup_enabled"`
+	BackupInterval      int      `yaml:"backup_interval"`
+	RetentionDays       int      `yaml:"retention_days"`
 }
 
 // LoggingConfig represents logging configuration.
 type LoggingConfig struct {
-	Level  string `json:"level"`
-	Format string `json:"format"` // json, console
+	Level  string `yaml:"level"`
+	Format string `yaml:"format"` // json, console
 }
 
 // Load loads configuration from environment variables and config file.
@@ -148,7 +148,7 @@ func loadConfigFromFile(config *Config, configFile string) error {
 		return err
 	}
 
-	return json.Unmarshal(data, config)
+	return yaml.Unmarshal(data, config)
 }
 
 // getEnv gets an environment variable with a default value.

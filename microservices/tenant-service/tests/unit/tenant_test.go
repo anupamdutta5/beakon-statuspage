@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -49,21 +50,29 @@ func TestTenantHandler_CreateTenant(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	tenantService := services.NewTenantService(db, nil)
-	handler := handlers.NewTenantHandler(tenantService, nil)
+	tenantService := services.NewTenantService(db, logger)
+	handler := handlers.NewTenantHandler(tenantService, logger)
 
 	router := gin.New()
-	router.POST("/tenants", handler.CreateTenant)
+	router.POST("/tenants", func(c *gin.Context) {
+		// Set required context values for authentication
+		c.Set("user_id", uint(1))
+		handler.CreateTenant(c)
+	})
 
-	tenant := models.Tenant{
-		Name:      "Test Company",
-		Subdomain: "testcompany",
-		Domain:    "testcompany.com",
-		Settings:  `{"theme":"dark","logo":"https://example.com/logo.png"}`,
+	tenantRequest := map[string]interface{}{
+		"name":          "Test Company",
+		"slug":          "test-company",
+		"domain":        "testcompany.com",
+		"subdomain":     "testcompany",
+		"contact_email": "admin@testcompany.com",
+		"billing_email": "billing@testcompany.com",
+		"plan":          "free",
 	}
 
-	jsonData, _ := json.Marshal(tenant)
+	jsonData, _ := json.Marshal(tenantRequest)
 	req, _ := http.NewRequest("POST", "/tenants", bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -73,14 +82,18 @@ func TestTenantHandler_CreateTenant(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var response models.Tenant
+	var response struct {
+		Message string        `json:"message"`
+		Tenant  models.Tenant `json:"tenant"`
+	}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, tenant.Name, response.Name)
-	assert.Equal(t, tenant.Subdomain, response.Subdomain)
-	assert.Equal(t, tenant.Domain, response.Domain)
-	assert.NotEmpty(t, response.ID)
+	assert.Equal(t, "Tenant created successfully", response.Message)
+	assert.Equal(t, "Test Company", response.Tenant.Name)
+	assert.Equal(t, "testcompany", response.Tenant.Subdomain)
+	assert.Equal(t, "testcompany.com", response.Tenant.Domain)
+	assert.NotZero(t, response.Tenant.ID)
 }
 
 func TestTenantHandler_GetTenant(t *testing.T) {
@@ -382,7 +395,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 
 	// Auto migrate
-	err = db.AutoMigrate(&models.Tenant{})
+	err = db.AutoMigrate(&models.Tenant{}, &models.TenantActivity{}, &models.TenantSettings{}, &models.TenantBilling{}, &models.TenantBranding{})
 	require.NoError(t, err)
 
 	return db

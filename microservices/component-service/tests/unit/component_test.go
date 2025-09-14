@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -22,9 +23,10 @@ func TestComponentHandler_HealthCheck(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	componentService := services.NewComponentService(db, nil)
-	handler := handlers.NewComponentHandler(componentService, nil)
+	componentService := services.NewComponentService(db, logger)
+	handler := handlers.NewComponentHandler(componentService, logger)
 
 	router := gin.New()
 	router.GET("/health", handler.Health)
@@ -49,11 +51,16 @@ func TestComponentHandler_CreateComponent(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	componentService := services.NewComponentService(db, nil)
-	handler := handlers.NewComponentHandler(componentService, nil)
+	componentService := services.NewComponentService(db, logger)
+	handler := handlers.NewComponentHandler(componentService, logger)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Next()
+	})
 	router.POST("/components", handler.CreateComponent)
 
 	component := models.Component{
@@ -74,14 +81,18 @@ func TestComponentHandler_CreateComponent(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var response models.Component
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Message   string           `json:"message"`
+		Component models.Component `json:"component"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, component.Name, response.Name)
-	assert.Equal(t, component.Description, response.Description)
-	assert.Equal(t, component.Status, response.Status)
-	assert.NotEmpty(t, response.ID)
+	assert.Equal(t, "Component created successfully", responseWrapper.Message)
+	assert.Equal(t, component.Name, responseWrapper.Component.Name)
+	assert.Equal(t, component.Description, responseWrapper.Component.Description)
+	assert.Equal(t, component.Status, responseWrapper.Component.Status)
+	assert.NotEmpty(t, responseWrapper.Component.ID)
 }
 
 func TestComponentHandler_GetComponent(t *testing.T) {
@@ -449,8 +460,16 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	// Auto migrate
-	err = db.AutoMigrate(&models.Component{})
+	// Auto migrate all models
+	err = db.AutoMigrate(
+		&models.Component{},
+		&models.ComponentGroup{},
+		&models.ComponentStatus{},
+		&models.ComponentHistory{},
+		&models.ComponentMetric{},
+		&models.ComponentAlert{},
+		&models.ComponentWebhook{},
+	)
 	require.NoError(t, err)
 
 	return db

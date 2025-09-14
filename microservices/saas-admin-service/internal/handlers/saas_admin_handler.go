@@ -225,7 +225,8 @@ func (h *SaaSAdminHandler) UpdatePlan(c *gin.Context) {
 
 	h.logger.Info("Updating SaaS plan", zap.Uint64("plan_id", planID))
 
-	if err := h.service.UpdatePlan(c.Request.Context(), uint(planID), &updates); err != nil {
+	updatedPlan, err := h.service.UpdatePlan(c.Request.Context(), uint(planID), &updates)
+	if err != nil {
 		h.logger.Error("Failed to update plan", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to update plan",
@@ -234,6 +235,7 @@ func (h *SaaSAdminHandler) UpdatePlan(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
+		"plan":    updatedPlan,
 		"message": "SaaS plan updated successfully",
 	})
 }
@@ -529,7 +531,8 @@ func (h *SaaSAdminHandler) UpdateFeatureFlag(c *gin.Context) {
 
 	h.logger.Info("Updating SaaS feature flag", zap.Uint64("flag_id", flagID))
 
-	if err := h.service.UpdateFeatureFlag(c.Request.Context(), uint(flagID), &updates); err != nil {
+	updatedFlag, err := h.service.UpdateFeatureFlag(c.Request.Context(), uint(flagID), &updates)
+	if err != nil {
 		h.logger.Error("Failed to update feature flag", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to update feature flag",
@@ -538,7 +541,8 @@ func (h *SaaSAdminHandler) UpdateFeatureFlag(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "SaaS feature flag updated successfully",
+		"feature_flag": updatedFlag,
+		"message":      "SaaS feature flag updated successfully",
 	})
 }
 
@@ -648,4 +652,3 @@ func (h *SaaSAdminHandler) GetBackup(c *gin.Context) {
 func (h *SaaSAdminHandler) DeleteBackup(c *gin.Context) {
 	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
 }
-

@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -23,9 +24,10 @@ func TestNotificationHandler_Health(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	notificationService := services.NewNotificationService(db, nil)
-	handler := handlers.NewNotificationHandler(notificationService, nil)
+	notificationService := services.NewNotificationService(db, logger)
+	handler := handlers.NewNotificationHandler(notificationService, logger)
 
 	router := gin.New()
 	router.GET("/health", handler.Health)
@@ -50,11 +52,17 @@ func TestNotificationHandler_CreateNotification(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	notificationService := services.NewNotificationService(db, nil)
-	handler := handlers.NewNotificationHandler(notificationService, nil)
+	notificationService := services.NewNotificationService(db, logger)
+	handler := handlers.NewNotificationHandler(notificationService, logger)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.POST("/notifications", handler.CreateNotification)
 
 	// Test data
@@ -80,17 +88,21 @@ func TestNotificationHandler_CreateNotification(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var response models.Notification
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Message      string              `json:"message"`
+		Notification models.Notification `json:"notification"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, notification.Type, response.Type)
-	assert.Equal(t, notification.Status, response.Status)
-	assert.Equal(t, notification.Priority, response.Priority)
-	assert.Equal(t, notification.Subject, response.Subject)
-	assert.Equal(t, notification.Content, response.Content)
-	assert.Equal(t, notification.Recipients, response.Recipients)
-	assert.Equal(t, notification.TenantID, response.TenantID)
+	assert.Equal(t, "Notification created successfully", responseWrapper.Message)
+	assert.Equal(t, notification.Type, responseWrapper.Notification.Type)
+	assert.Equal(t, notification.Status, responseWrapper.Notification.Status)
+	assert.Equal(t, notification.Priority, responseWrapper.Notification.Priority)
+	assert.Equal(t, notification.Subject, responseWrapper.Notification.Subject)
+	assert.Equal(t, notification.Content, responseWrapper.Notification.Content)
+	assert.Equal(t, notification.Recipients, responseWrapper.Notification.Recipients)
+	assert.Equal(t, notification.TenantID, responseWrapper.Notification.TenantID)
 }
 
 func TestNotificationHandler_GetNotification(t *testing.T) {

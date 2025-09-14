@@ -2,7 +2,7 @@
 package config
 
 import (
-	"encoding/json"
+	"gopkg.in/yaml.v3"
 	"fmt"
 	"os"
 	"strconv"
@@ -11,65 +11,65 @@ import (
 
 // Config represents the Event Store Service configuration.
 type Config struct {
-	Environment string           `json:"environment"`
-	Service     ServiceConfig    `json:"service"`
-	Server      ServerConfig     `json:"server"`
-	Database    DatabaseConfig   `json:"database"`
-	EventStore  EventStoreConfig `json:"event_store"`
-	Logging     LoggingConfig    `json:"logging"`
+	Environment string           `yaml:"environment"`
+	Service     ServiceConfig    `yaml:"service"`
+	Server      ServerConfig     `yaml:"server"`
+	Database    DatabaseConfig   `yaml:"database"`
+	EventStore  EventStoreConfig `yaml:"event_store"`
+	Logging     LoggingConfig    `yaml:"logging"`
 }
 
 // ServiceConfig represents service-specific configuration.
 type ServiceConfig struct {
-	Name        string            `json:"name"`
-	Version     string            `json:"version"`
-	Description string            `json:"description"`
-	Tags        []string          `json:"tags"`
-	Metadata    map[string]string `json:"metadata"`
+	Name        string            `yaml:"name"`
+	Version     string            `yaml:"version"`
+	Description string            `yaml:"description"`
+	Tags        []string          `yaml:"tags"`
+	Metadata    map[string]string `yaml:"metadata"`
 }
 
 // ServerConfig represents server configuration.
 type ServerConfig struct {
-	Host         string `json:"host"`
-	Port         int    `json:"port"`
-	ReadTimeout  int    `json:"read_timeout"`
-	WriteTimeout int    `json:"write_timeout"`
-	IdleTimeout  int    `json:"idle_timeout"`
+	Host         string `yaml:"host"`
+	Port         int    `yaml:"port"`
+	ReadTimeout  int    `yaml:"read_timeout"`
+	WriteTimeout int    `yaml:"write_timeout"`
+	IdleTimeout  int    `yaml:"idle_timeout"`
 }
 
 // DatabaseConfig represents database configuration.
 type DatabaseConfig struct {
-	Host        string `json:"host"`
-	Port        int    `json:"port"`
-	User        string `json:"user"`
-	Password    string `json:"password"`
-	Name        string `json:"name"`
-	SSLMode     string `json:"ssl_mode"`
-	MaxConns    int    `json:"max_conns"`
-	MinConns    int    `json:"min_conns"`
-	MaxIdle     int    `json:"max_idle"`
-	MaxLifetime int    `json:"max_lifetime"`
+	Host        string `yaml:"host"`
+	Port        int    `yaml:"port"`
+	User        string `yaml:"user"`
+	Password    string `yaml:"password"`
+	Name        string `yaml:"name"`
+	SSLMode     string `yaml:"ssl_mode"`
+	MaxConns    int    `yaml:"max_conns"`
+	MinConns    int    `yaml:"min_conns"`
+	MaxIdle     int    `yaml:"max_idle"`
+	MaxLifetime int    `yaml:"max_lifetime"`
 }
 
 // EventStoreConfig represents event store specific configuration.
 type EventStoreConfig struct {
-	MaxEventsPerStream int    `json:"max_events_per_stream"`
-	SnapshotInterval   int    `json:"snapshot_interval"`
-	CompressionEnabled bool   `json:"compression_enabled"`
-	EncryptionEnabled  bool   `json:"encryption_enabled"`
-	EncryptionKey      string `json:"encryption_key"`
-	RetentionDays      int    `json:"retention_days"`
-	MaxEventSize       int    `json:"max_event_size"`
-	BatchSize          int    `json:"batch_size"`
-	FlushInterval      int    `json:"flush_interval"`
-	ReplicationEnabled bool   `json:"replication_enabled"`
-	ReplicationFactor  int    `json:"replication_factor"`
+	MaxEventsPerStream int    `yaml:"max_events_per_stream"`
+	SnapshotInterval   int    `yaml:"snapshot_interval"`
+	CompressionEnabled bool   `yaml:"compression_enabled"`
+	EncryptionEnabled  bool   `yaml:"encryption_enabled"`
+	EncryptionKey      string `yaml:"encryption_key"`
+	RetentionDays      int    `yaml:"retention_days"`
+	MaxEventSize       int    `yaml:"max_event_size"`
+	BatchSize          int    `yaml:"batch_size"`
+	FlushInterval      int    `yaml:"flush_interval"`
+	ReplicationEnabled bool   `yaml:"replication_enabled"`
+	ReplicationFactor  int    `yaml:"replication_factor"`
 }
 
 // LoggingConfig represents logging configuration.
 type LoggingConfig struct {
-	Level  string `json:"level"`
-	Format string `json:"format"` // json, console
+	Level  string `yaml:"level"`
+	Format string `yaml:"format"` // json, console
 }
 
 // Load loads configuration from environment variables and config file.
@@ -138,7 +138,7 @@ func loadConfigFromFile(config *Config, configFile string) error {
 		return err
 	}
 
-	return json.Unmarshal(data, config)
+	return yaml.Unmarshal(data, config)
 }
 
 // getEnv gets an environment variable with a default value.

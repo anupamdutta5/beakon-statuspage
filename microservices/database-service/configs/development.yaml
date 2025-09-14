@@ -1,0 +1,59 @@
+environment: development
+
+service:
+  name: database-service
+  version: 1.0.0
+  description: Database Service for StatusPage
+  tags:
+    - database
+    - microservice
+  metadata:
+    owner: platform-team
+    maintainer: devops@company.com
+
+server:
+  host: 0.0.0.0
+  port: 8090
+  read_timeout: 30
+  write_timeout: 30
+  idle_timeout: 120
+
+database:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: password
+  name: statuspage_database
+  ssl_mode: disable
+  max_conns: 25
+  min_conns: 5
+  max_idle: 10
+  max_lifetime: 3600
+
+cache:
+  provider: redis
+  host: localhost
+  port: 6379
+  password: ""
+  db: 0
+  ttl: 300
+
+logging:
+  level: debug
+  format: json
+  output: stdout
+
+jwt:
+  secret: dev-secret-key-change-in-production
+  expiration: 24
+  issuer: statuspage-dev
+
+monitoring:
+  enabled: true
+  metrics_port: 9090
+  health_port: 10090
+  log_level: debug
+
+migrations:
+  auto_migrate: true
+  backup_before_migrate: true

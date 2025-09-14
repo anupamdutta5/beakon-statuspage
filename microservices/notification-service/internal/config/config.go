@@ -2,7 +2,7 @@
 package config
 
 import (
-	"encoding/json"
+	"gopkg.in/yaml.v3"
 	"fmt"
 	"os"
 	"strconv"
@@ -11,100 +11,100 @@ import (
 
 // Config represents the Notification Service configuration.
 type Config struct {
-	Server   ServerConfig   `json:"server"`
-	Database DatabaseConfig `json:"database"`
-	JWT      JWTConfig      `json:"jwt"`
-	Service  ServiceConfig  `json:"service"`
-	Email    EmailConfig    `json:"email"`
-	SMS      SMSConfig      `json:"sms"`
-	Webhook  WebhookConfig  `json:"webhook"`
-	Queue    QueueConfig    `json:"queue"`
+	Server   ServerConfig   `yaml:"server"`
+	Database DatabaseConfig `yaml:"database"`
+	JWT      JWTConfig      `yaml:"jwt"`
+	Service  ServiceConfig  `yaml:"service"`
+	Email    EmailConfig    `yaml:"email"`
+	SMS      SMSConfig      `yaml:"sms"`
+	Webhook  WebhookConfig  `yaml:"webhook"`
+	Queue    QueueConfig    `yaml:"queue"`
 }
 
 // ServerConfig represents server configuration.
 type ServerConfig struct {
-	Port         int    `json:"port"`
-	Host         string `json:"host"`
-	Environment  string `json:"environment"`
-	ReadTimeout  int    `json:"read_timeout"`
-	WriteTimeout int    `json:"write_timeout"`
-	IdleTimeout  int    `json:"idle_timeout"`
+	Port         int    `yaml:"port"`
+	Host         string `yaml:"host"`
+	Environment  string `yaml:"environment"`
+	ReadTimeout  int    `yaml:"read_timeout"`
+	WriteTimeout int    `yaml:"write_timeout"`
+	IdleTimeout  int    `yaml:"idle_timeout"`
 }
 
 // DatabaseConfig represents database configuration.
 type DatabaseConfig struct {
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	User     string `json:"user"`
-	Password string `json:"password"`
-	Name     string `json:"name"`
-	SSLMode  string `json:"ssl_mode"`
-	MaxConns int    `json:"max_conns"`
-	MinConns int    `json:"min_conns"`
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
+	Name     string `yaml:"name"`
+	SSLMode  string `yaml:"ssl_mode"`
+	MaxConns int    `yaml:"max_conns"`
+	MinConns int    `yaml:"min_conns"`
 }
 
 // JWTConfig represents JWT configuration.
 type JWTConfig struct {
-	Secret     string `json:"secret"`
-	Expiration int    `json:"expiration"` // in hours
-	Issuer     string `json:"issuer"`
+	Secret     string `yaml:"secret"`
+	Expiration int    `yaml:"expiration"` // in hours
+	Issuer     string `yaml:"issuer"`
 }
 
 // ServiceConfig represents service-specific configuration.
 type ServiceConfig struct {
-	Name        string            `json:"name"`
-	Version     string            `json:"version"`
-	Description string            `json:"description"`
-	Tags        []string          `json:"tags"`
-	Metadata    map[string]string `json:"metadata"`
+	Name        string            `yaml:"name"`
+	Version     string            `yaml:"version"`
+	Description string            `yaml:"description"`
+	Tags        []string          `yaml:"tags"`
+	Metadata    map[string]string `yaml:"metadata"`
 }
 
 // EmailConfig represents email configuration.
 type EmailConfig struct {
-	Enabled    bool   `json:"enabled"`
-	SMTPHost   string `json:"smtp_host"`
-	SMTPPort   int    `json:"smtp_port"`
-	SMTPUser   string `json:"smtp_user"`
-	SMTPPass   string `json:"smtp_pass"`
-	FromEmail  string `json:"from_email"`
-	FromName   string `json:"from_name"`
-	UseTLS     bool   `json:"use_tls"`
-	UseSSL     bool   `json:"use_ssl"`
-	MaxRetries int    `json:"max_retries"`
-	RetryDelay int    `json:"retry_delay"` // in seconds
+	Enabled    bool   `yaml:"enabled"`
+	SMTPHost   string `yaml:"smtp_host"`
+	SMTPPort   int    `yaml:"smtp_port"`
+	SMTPUser   string `yaml:"smtp_user"`
+	SMTPPass   string `yaml:"smtp_pass"`
+	FromEmail  string `yaml:"from_email"`
+	FromName   string `yaml:"from_name"`
+	UseTLS     bool   `yaml:"use_tls"`
+	UseSSL     bool   `yaml:"use_ssl"`
+	MaxRetries int    `yaml:"max_retries"`
+	RetryDelay int    `yaml:"retry_delay"` // in seconds
 }
 
 // SMSConfig represents SMS configuration.
 type SMSConfig struct {
-	Enabled    bool   `json:"enabled"`
-	Provider   string `json:"provider"` // twilio, aws_sns, etc.
-	AccountSID string `json:"account_sid"`
-	AuthToken  string `json:"auth_token"`
-	FromNumber string `json:"from_number"`
-	MaxRetries int    `json:"max_retries"`
-	RetryDelay int    `json:"retry_delay"` // in seconds
+	Enabled    bool   `yaml:"enabled"`
+	Provider   string `yaml:"provider"` // twilio, aws_sns, etc.
+	AccountSID string `yaml:"account_sid"`
+	AuthToken  string `yaml:"auth_token"`
+	FromNumber string `yaml:"from_number"`
+	MaxRetries int    `yaml:"max_retries"`
+	RetryDelay int    `yaml:"retry_delay"` // in seconds
 }
 
 // WebhookConfig represents webhook configuration.
 type WebhookConfig struct {
-	Enabled    bool   `json:"enabled"`
-	MaxRetries int    `json:"max_retries"`
-	RetryDelay int    `json:"retry_delay"` // in seconds
-	Timeout    int    `json:"timeout"`     // in seconds
-	Secret     string `json:"secret"`
+	Enabled    bool   `yaml:"enabled"`
+	MaxRetries int    `yaml:"max_retries"`
+	RetryDelay int    `yaml:"retry_delay"` // in seconds
+	Timeout    int    `yaml:"timeout"`     // in seconds
+	Secret     string `yaml:"secret"`
 }
 
 // QueueConfig represents message queue configuration.
 type QueueConfig struct {
-	Enabled    bool   `json:"enabled"`
-	Provider   string `json:"provider"` // redis, rabbitmq, kafka
-	Host       string `json:"host"`
-	Port       int    `json:"port"`
-	Username   string `json:"username"`
-	Password   string `json:"password"`
-	QueueName  string `json:"queue_name"`
-	MaxRetries int    `json:"max_retries"`
-	RetryDelay int    `json:"retry_delay"` // in seconds
+	Enabled    bool   `yaml:"enabled"`
+	Provider   string `yaml:"provider"` // redis, rabbitmq, kafka
+	Host       string `yaml:"host"`
+	Port       int    `yaml:"port"`
+	Username   string `yaml:"username"`
+	Password   string `yaml:"password"`
+	QueueName  string `yaml:"queue_name"`
+	MaxRetries int    `yaml:"max_retries"`
+	RetryDelay int    `yaml:"retry_delay"` // in seconds
 }
 
 // Load loads configuration from environment variables and config file.
@@ -199,7 +199,7 @@ func loadConfigFromFile(config *Config, configFile string) error {
 		return err
 	}
 
-	return json.Unmarshal(data, config)
+	return yaml.Unmarshal(data, config)
 }
 
 // getEnv gets an environment variable with a default value.

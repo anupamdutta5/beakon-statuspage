@@ -1,0 +1,64 @@
+environment: development
+
+service:
+  name: branding-service
+  version: 1.0.0
+  description: Branding Service for StatusPage
+  tags:
+    - branding
+    - microservice
+  metadata:
+    owner: platform-team
+    maintainer: devops@company.com
+
+server:
+  host: 0.0.0.0
+  port: 8098
+  read_timeout: 30
+  write_timeout: 30
+  idle_timeout: 120
+
+database:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: password
+  name: statuspage_branding
+  ssl_mode: disable
+  max_conns: 25
+  min_conns: 5
+  max_idle: 10
+  max_lifetime: 3600
+
+cache:
+  provider: redis
+  host: localhost
+  port: 6379
+  password: ""
+  db: 0
+  ttl: 300
+
+logging:
+  level: debug
+  format: json
+  output: stdout
+
+jwt:
+  secret: dev-secret-key-change-in-production
+  expiration: 24
+  issuer: statuspage-dev
+
+monitoring:
+  enabled: true
+  metrics_port: 9098
+  health_port: 10098
+  log_level: debug
+
+storage:
+  provider: local
+  path: ./uploads/branding
+  max_file_size: 10MB
+  allowed_types:
+    - image/jpeg
+    - image/png
+    - image/svg+xml

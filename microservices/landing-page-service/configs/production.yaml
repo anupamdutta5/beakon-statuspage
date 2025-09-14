@@ -1,0 +1,70 @@
+environment: production
+
+service:
+  name: landing-page-service
+  version: 1.0.0
+  description: Landing Page Service for StatusPage
+  tags:
+    - landing
+    - marketing
+    - frontend
+  metadata:
+    owner: platform-team
+    maintainer: devops@company.com
+
+server:
+  host: 0.0.0.0
+  port: 8100
+  read_timeout: 30
+  write_timeout: 30
+  idle_timeout: 120
+
+database:
+  host: ${DB_HOST}
+  port: 5432
+  user: ${DB_USER}
+  password: ${DB_PASSWORD}
+  name: ${DB_NAME}
+  ssl_mode: require
+  max_conns: 100
+  min_conns: 10
+  max_idle: 20
+  max_lifetime: 3600
+
+cache:
+  provider: redis
+  host: ${REDIS_HOST}
+  port: 6379
+  password: ${REDIS_PASSWORD}
+  db: 0
+  ttl: 300
+
+logging:
+  level: info
+  format: json
+  output: stdout
+
+templates:
+  path: web/templates
+  cache: true
+
+static:
+  path: web/static
+  cache_control: "public, max-age=86400"
+
+services:
+  database_service:
+    base_url: ${DATABASE_SERVICE_URL}
+    timeout: 5s
+  event_store_service:
+    base_url: ${EVENT_STORE_SERVICE_URL}
+    timeout: 5s
+  saas_admin_service:
+    base_url: ${SAAS_ADMIN_SERVICE_URL}
+    timeout: 5s
+
+features:
+  enable_analytics: true
+  enable_contact_form: true
+  enable_newsletter: true
+  enable_blog: true

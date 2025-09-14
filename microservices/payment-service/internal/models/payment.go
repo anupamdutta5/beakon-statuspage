@@ -15,6 +15,7 @@ type Payment struct {
 	DeletedAt       gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 	TenantID        uint           `gorm:"not null;index" json:"tenant_id"`
 	UserID          uint           `gorm:"not null;index" json:"user_id"`
+	SubscriptionID  *uint          `gorm:"index" json:"subscription_id,omitempty"`
 	Amount          float64        `gorm:"not null" json:"amount"`
 	Currency        string         `gorm:"not null;default:USD" json:"currency"`
 	Status          string         `gorm:"default:pending" json:"status"`     // pending, processing, completed, failed, cancelled, refunded

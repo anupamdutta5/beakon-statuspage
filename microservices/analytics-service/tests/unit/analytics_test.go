@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -24,9 +25,10 @@ func TestAnalyticsHandler_Health(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	analyticsService := services.NewAnalyticsService(db, nil)
-	handler := handlers.NewAnalyticsHandler(analyticsService, nil)
+	analyticsService := services.NewAnalyticsService(db, logger)
+	handler := handlers.NewAnalyticsHandler(analyticsService, logger)
 
 	router := gin.New()
 	router.GET("/health", handler.Health)
@@ -51,9 +53,10 @@ func TestAnalyticsHandler_GetPublicMetrics(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	analyticsService := services.NewAnalyticsService(db, nil)
-	handler := handlers.NewAnalyticsHandler(analyticsService, nil)
+	analyticsService := services.NewAnalyticsService(db, logger)
+	handler := handlers.NewAnalyticsHandler(analyticsService, logger)
 
 	// Create a public metric
 	metric := models.Metric{
@@ -93,9 +96,10 @@ func TestAnalyticsHandler_CreateMetric(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	analyticsService := services.NewAnalyticsService(db, nil)
-	handler := handlers.NewAnalyticsHandler(analyticsService, nil)
+	analyticsService := services.NewAnalyticsService(db, logger)
+	handler := handlers.NewAnalyticsHandler(analyticsService, logger)
 
 	router := gin.New()
 	router.POST("/metrics", handler.CreateMetric)
@@ -138,9 +142,10 @@ func TestAnalyticsHandler_GetMetrics(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	analyticsService := services.NewAnalyticsService(db, nil)
-	handler := handlers.NewAnalyticsHandler(analyticsService, nil)
+	analyticsService := services.NewAnalyticsService(db, logger)
+	handler := handlers.NewAnalyticsHandler(analyticsService, logger)
 
 	// Create multiple metrics
 	metrics := []models.Metric{
@@ -178,9 +183,10 @@ func TestAnalyticsHandler_GetMetric(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	analyticsService := services.NewAnalyticsService(db, nil)
-	handler := handlers.NewAnalyticsHandler(analyticsService, nil)
+	analyticsService := services.NewAnalyticsService(db, logger)
+	handler := handlers.NewAnalyticsHandler(analyticsService, logger)
 
 	// Create a metric first
 	metric := models.Metric{
@@ -220,9 +226,10 @@ func TestAnalyticsHandler_UpdateMetric(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	analyticsService := services.NewAnalyticsService(db, nil)
-	handler := handlers.NewAnalyticsHandler(analyticsService, nil)
+	analyticsService := services.NewAnalyticsService(db, logger)
+	handler := handlers.NewAnalyticsHandler(analyticsService, logger)
 
 	// Create a metric first
 	metric := models.Metric{
@@ -273,9 +280,10 @@ func TestAnalyticsHandler_DeleteMetric(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	analyticsService := services.NewAnalyticsService(db, nil)
-	handler := handlers.NewAnalyticsHandler(analyticsService, nil)
+	analyticsService := services.NewAnalyticsService(db, logger)
+	handler := handlers.NewAnalyticsHandler(analyticsService, logger)
 
 	// Create a metric first
 	metric := models.Metric{
@@ -309,9 +317,10 @@ func TestAnalyticsHandler_AddMetricData(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	analyticsService := services.NewAnalyticsService(db, nil)
-	handler := handlers.NewAnalyticsHandler(analyticsService, nil)
+	analyticsService := services.NewAnalyticsService(db, logger)
+	handler := handlers.NewAnalyticsHandler(analyticsService, logger)
 
 	// Create a metric first
 	metric := models.Metric{
@@ -361,9 +370,10 @@ func TestAnalyticsHandler_GetMetricData(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	analyticsService := services.NewAnalyticsService(db, nil)
-	handler := handlers.NewAnalyticsHandler(analyticsService, nil)
+	analyticsService := services.NewAnalyticsService(db, logger)
+	handler := handlers.NewAnalyticsHandler(analyticsService, logger)
 
 	// Create a metric first
 	metric := models.Metric{

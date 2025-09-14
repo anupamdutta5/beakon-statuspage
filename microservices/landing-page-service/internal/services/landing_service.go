@@ -37,6 +37,11 @@ func NewLandingService(cfg *config.Config, logger *zap.Logger) (*LandingService,
 	}, nil
 }
 
+// SetDB sets the database connection (for testing)
+func (s *LandingService) SetDB(db *gorm.DB) {
+	s.db = db
+}
+
 // LandingPageData represents the data structure for the landing page template.
 type LandingPageData struct {
 	SiteName        string
@@ -307,7 +312,7 @@ func (s *LandingService) GetTestimonials(ctx context.Context) ([]*models.Testimo
 	}
 
 	var testimonials []*models.Testimonial
-	if err := s.db.Where("status = ?", "active").Order("order ASC").Find(&testimonials).Error; err != nil {
+	if err := s.db.Where("status = ?", "active").Order("`order` ASC").Find(&testimonials).Error; err != nil {
 		s.logger.Error("Failed to get testimonials", zap.Error(err))
 		return nil, fmt.Errorf("failed to get testimonials: %w", err)
 	}
@@ -318,6 +323,11 @@ func (s *LandingService) GetTestimonials(ctx context.Context) ([]*models.Testimo
 // CreateTestimonial creates a new testimonial.
 func (s *LandingService) CreateTestimonial(ctx context.Context, testimonial *models.Testimonial) error {
 	s.logger.Info("Creating testimonial", zap.String("name", testimonial.Name))
+
+	if s.db == nil {
+		s.logger.Warn("No database available, cannot create testimonial")
+		return fmt.Errorf("database not available")
+	}
 
 	if err := s.db.Create(testimonial).Error; err != nil {
 		s.logger.Error("Failed to create testimonial", zap.Error(err))
@@ -354,7 +364,7 @@ func (s *LandingService) GetFAQs(ctx context.Context) ([]*models.FAQ, error) {
 	}
 
 	var faqs []*models.FAQ
-	if err := s.db.Where("status = ?", "active").Order("order ASC").Find(&faqs).Error; err != nil {
+	if err := s.db.Where("status = ?", "active").Order("`order` ASC").Find(&faqs).Error; err != nil {
 		s.logger.Error("Failed to get FAQs", zap.Error(err))
 		return nil, fmt.Errorf("failed to get FAQs: %w", err)
 	}
@@ -365,6 +375,11 @@ func (s *LandingService) GetFAQs(ctx context.Context) ([]*models.FAQ, error) {
 // CreateFAQ creates a new FAQ.
 func (s *LandingService) CreateFAQ(ctx context.Context, faq *models.FAQ) error {
 	s.logger.Info("Creating FAQ", zap.String("question", faq.Question))
+
+	if s.db == nil {
+		s.logger.Warn("No database available, cannot create FAQ")
+		return fmt.Errorf("database not available")
+	}
 
 	if err := s.db.Create(faq).Error; err != nil {
 		s.logger.Error("Failed to create FAQ", zap.Error(err))
@@ -436,6 +451,11 @@ func (s *LandingService) GetArticle(ctx context.Context, slug string) (*models.A
 func (s *LandingService) CreateArticle(ctx context.Context, article *models.Article) error {
 	s.logger.Info("Creating article", zap.String("title", article.Title))
 
+	if s.db == nil {
+		s.logger.Warn("No database available, cannot create article")
+		return fmt.Errorf("database not available")
+	}
+
 	if err := s.db.Create(article).Error; err != nil {
 		s.logger.Error("Failed to create article", zap.Error(err))
 		return fmt.Errorf("failed to create article: %w", err)
@@ -477,6 +497,11 @@ func (s *LandingService) DeleteArticle(ctx context.Context, articleID uint) erro
 func (s *LandingService) SubmitContactForm(ctx context.Context, form *models.ContactForm) error {
 	s.logger.Info("Submitting contact form", zap.String("email", form.Email))
 
+	if s.db == nil {
+		s.logger.Warn("No database available, cannot submit contact form")
+		return fmt.Errorf("database not available")
+	}
+
 	if err := s.db.Create(form).Error; err != nil {
 		s.logger.Error("Failed to submit contact form", zap.Error(err))
 		return fmt.Errorf("failed to submit contact form: %w", err)
@@ -491,6 +516,11 @@ func (s *LandingService) SubmitContactForm(ctx context.Context, form *models.Con
 // SubscribeNewsletter subscribes to the newsletter.
 func (s *LandingService) SubscribeNewsletter(ctx context.Context, subscription *models.Newsletter) error {
 	s.logger.Info("Subscribing to newsletter", zap.String("email", subscription.Email))
+
+	if s.db == nil {
+		s.logger.Warn("No database available, cannot subscribe to newsletter")
+		return fmt.Errorf("database not available")
+	}
 
 	if err := s.db.Create(subscription).Error; err != nil {
 		s.logger.Error("Failed to subscribe to newsletter", zap.Error(err))

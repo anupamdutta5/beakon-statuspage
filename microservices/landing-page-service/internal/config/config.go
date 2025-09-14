@@ -2,81 +2,131 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Config represents the Landing Page Service configuration.
 type Config struct {
-	Environment string         `json:"environment"`
-	Service     ServiceConfig  `json:"service"`
-	Server      ServerConfig   `json:"server"`
-	Database    DatabaseConfig `json:"database"`
-	Landing     LandingConfig  `json:"landing"`
-	Logging     LoggingConfig  `json:"logging"`
+	Environment string          `yaml:"environment"`
+	Service     ServiceConfig   `yaml:"service"`
+	Server      ServerConfig    `yaml:"server"`
+	Database    DatabaseConfig  `yaml:"database"`
+	Cache       CacheConfig     `yaml:"cache"`
+	Templates   TemplatesConfig `yaml:"templates"`
+	Static      StaticConfig    `yaml:"static"`
+	Services    ServicesConfig  `yaml:"services"`
+	Features    FeaturesConfig  `yaml:"features"`
+	Landing     LandingConfig   `yaml:"landing"`
+	Logging     LoggingConfig   `yaml:"logging"`
 }
 
 // ServiceConfig represents service-specific configuration.
 type ServiceConfig struct {
-	Name        string            `json:"name"`
-	Version     string            `json:"version"`
-	Description string            `json:"description"`
-	Tags        []string          `json:"tags"`
-	Metadata    map[string]string `json:"metadata"`
+	Name        string            `yaml:"name"`
+	Version     string            `yaml:"version"`
+	Description string            `yaml:"description"`
+	Tags        []string          `yaml:"tags"`
+	Metadata    map[string]string `yaml:"metadata"`
 }
 
 // ServerConfig represents server configuration.
 type ServerConfig struct {
-	Host         string `json:"host"`
-	Port         int    `json:"port"`
-	ReadTimeout  int    `json:"read_timeout"`
-	WriteTimeout int    `json:"write_timeout"`
-	IdleTimeout  int    `json:"idle_timeout"`
+	Host         string `yaml:"host"`
+	Port         int    `yaml:"port"`
+	ReadTimeout  int    `yaml:"read_timeout"`
+	WriteTimeout int    `yaml:"write_timeout"`
+	IdleTimeout  int    `yaml:"idle_timeout"`
 }
 
 // DatabaseConfig represents database configuration.
 type DatabaseConfig struct {
-	Host        string `json:"host"`
-	Port        int    `json:"port"`
-	User        string `json:"user"`
-	Password    string `json:"password"`
-	Name        string `json:"name"`
-	SSLMode     string `json:"ssl_mode"`
-	MaxConns    int    `json:"max_conns"`
-	MinConns    int    `json:"min_conns"`
-	MaxIdle     int    `json:"max_idle"`
-	MaxLifetime int    `json:"max_lifetime"`
+	Host        string `yaml:"host"`
+	Port        int    `yaml:"port"`
+	User        string `yaml:"user"`
+	Password    string `yaml:"password"`
+	Name        string `yaml:"name"`
+	SSLMode     string `yaml:"ssl_mode"`
+	MaxConns    int    `yaml:"max_conns"`
+	MinConns    int    `yaml:"min_conns"`
+	MaxIdle     int    `yaml:"max_idle"`
+	MaxLifetime int    `yaml:"max_lifetime"`
 }
 
 // LandingConfig represents landing page-specific configuration.
 type LandingConfig struct {
-	SiteName        string   `json:"site_name"`
-	SiteURL         string   `json:"site_url"`
-	SiteDescription string   `json:"site_description"`
-	SiteKeywords    []string `json:"site_keywords"`
-	ContactEmail    string   `json:"contact_email"`
-	SupportEmail    string   `json:"support_email"`
-	SocialLinks     string   `json:"social_links"` // JSON object
-	AnalyticsID     string   `json:"analytics_id"`
-	CDNEnabled      bool     `json:"cdn_enabled"`
-	CDNURL          string   `json:"cdn_url"`
-	CacheEnabled    bool     `json:"cache_enabled"`
-	CacheTTL        int      `json:"cache_ttl"`
-	SEOEnabled      bool     `json:"seo_enabled"`
-	OGImage         string   `json:"og_image"`
-	Favicon         string   `json:"favicon"`
-	Theme           string   `json:"theme"`
-	CustomCSS       string   `json:"custom_css"`
-	CustomJS        string   `json:"custom_js"`
+	SiteName        string   `yaml:"site_name"`
+	SiteURL         string   `yaml:"site_url"`
+	SiteDescription string   `yaml:"site_description"`
+	SiteKeywords    []string `yaml:"site_keywords"`
+	ContactEmail    string   `yaml:"contact_email"`
+	SupportEmail    string   `yaml:"support_email"`
+	SocialLinks     string   `yaml:"social_links"` // JSON object
+	AnalyticsID     string   `yaml:"analytics_id"`
+	CDNEnabled      bool     `yaml:"cdn_enabled"`
+	CDNURL          string   `yaml:"cdn_url"`
+	CacheEnabled    bool     `yaml:"cache_enabled"`
+	CacheTTL        int      `yaml:"cache_ttl"`
+	SEOEnabled      bool     `yaml:"seo_enabled"`
+	OGImage         string   `yaml:"og_image"`
+	Favicon         string   `yaml:"favicon"`
+	Theme           string   `yaml:"theme"`
+	CustomCSS       string   `yaml:"custom_css"`
+	CustomJS        string   `yaml:"custom_js"`
+}
+
+// CacheConfig represents cache configuration.
+type CacheConfig struct {
+	Provider string `yaml:"provider"`
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Password string `yaml:"password"`
+	DB       int    `yaml:"db"`
+	TTL      int    `yaml:"ttl"`
+}
+
+// TemplatesConfig represents templates configuration.
+type TemplatesConfig struct {
+	Path  string `yaml:"path"`
+	Cache bool   `yaml:"cache"`
+}
+
+// StaticConfig represents static files configuration.
+type StaticConfig struct {
+	Path         string `yaml:"path"`
+	CacheControl string `yaml:"cache_control"`
+}
+
+// ServicesConfig represents external services configuration.
+type ServicesConfig struct {
+	DatabaseService   ServiceEndpoint `yaml:"database_service"`
+	EventStoreService ServiceEndpoint `yaml:"event_store_service"`
+	SaaSAdminService  ServiceEndpoint `yaml:"saas_admin_service"`
+}
+
+// ServiceEndpoint represents a service endpoint configuration.
+type ServiceEndpoint struct {
+	BaseURL string `yaml:"base_url"`
+	Timeout string `yaml:"timeout"`
+}
+
+// FeaturesConfig represents feature flags configuration.
+type FeaturesConfig struct {
+	EnableAnalytics   bool `yaml:"enable_analytics"`
+	EnableContactForm bool `yaml:"enable_contact_form"`
+	EnableNewsletter  bool `yaml:"enable_newsletter"`
+	EnableBlog        bool `yaml:"enable_blog"`
 }
 
 // LoggingConfig represents logging configuration.
 type LoggingConfig struct {
-	Level  string `json:"level"`
-	Format string `json:"format"` // json, console
+	Level  string `yaml:"level"`
+	Format string `yaml:"format"`
+	Output string `yaml:"output"`
 }
 
 // Load loads configuration from environment variables and config file.
@@ -107,6 +157,42 @@ func Load() (*Config, error) {
 			MinConns:    getEnvInt("DB_MIN_CONNS", 10),
 			MaxIdle:     getEnvInt("DB_MAX_IDLE", 10),
 			MaxLifetime: getEnvInt("DB_MAX_LIFETIME", 3600),
+		},
+		Cache: CacheConfig{
+			Provider: getEnv("CACHE_PROVIDER", "redis"),
+			Host:     getEnv("CACHE_HOST", "localhost"),
+			Port:     getEnvInt("CACHE_PORT", 6379),
+			Password: getEnv("CACHE_PASSWORD", ""),
+			DB:       getEnvInt("CACHE_DB", 0),
+			TTL:      getEnvInt("CACHE_TTL", 300),
+		},
+		Templates: TemplatesConfig{
+			Path:  getEnv("TEMPLATES_PATH", "web/templates"),
+			Cache: getEnvBool("TEMPLATES_CACHE", false),
+		},
+		Static: StaticConfig{
+			Path:         getEnv("STATIC_PATH", "web/static"),
+			CacheControl: getEnv("STATIC_CACHE_CONTROL", "public, max-age=3600"),
+		},
+		Services: ServicesConfig{
+			DatabaseService: ServiceEndpoint{
+				BaseURL: getEnv("DATABASE_SERVICE_URL", "http://localhost:8090"),
+				Timeout: getEnv("DATABASE_SERVICE_TIMEOUT", "5s"),
+			},
+			EventStoreService: ServiceEndpoint{
+				BaseURL: getEnv("EVENT_STORE_SERVICE_URL", "http://localhost:8091"),
+				Timeout: getEnv("EVENT_STORE_SERVICE_TIMEOUT", "5s"),
+			},
+			SaaSAdminService: ServiceEndpoint{
+				BaseURL: getEnv("SAAS_ADMIN_SERVICE_URL", "http://localhost:8092"),
+				Timeout: getEnv("SAAS_ADMIN_SERVICE_TIMEOUT", "5s"),
+			},
+		},
+		Features: FeaturesConfig{
+			EnableAnalytics:   getEnvBool("ENABLE_ANALYTICS", true),
+			EnableContactForm: getEnvBool("ENABLE_CONTACT_FORM", true),
+			EnableNewsletter:  getEnvBool("ENABLE_NEWSLETTER", true),
+			EnableBlog:        getEnvBool("ENABLE_BLOG", true),
 		},
 		Landing: LandingConfig{
 			SiteName:        getEnv("LANDING_SITE_NAME", "StatusPage Pro"),
@@ -145,14 +231,14 @@ func Load() (*Config, error) {
 	return config, nil
 }
 
-// loadConfigFromFile loads configuration from a JSON file.
+// loadConfigFromFile loads configuration from a YAML file.
 func loadConfigFromFile(config *Config, configFile string) error {
 	data, err := os.ReadFile(configFile)
 	if err != nil {
 		return err
 	}
 
-	return json.Unmarshal(data, config)
+	return yaml.Unmarshal(data, config)
 }
 
 // getEnv gets an environment variable with a default value.
@@ -201,10 +287,9 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("server port must be greater than 0")
 	}
 
-	if c.Landing.SiteName == "" {
-		return fmt.Errorf("site name is required")
+	if c.Service.Name == "" {
+		return fmt.Errorf("service name is required")
 	}
 
 	return nil
 }
-

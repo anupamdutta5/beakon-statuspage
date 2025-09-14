@@ -2,7 +2,7 @@
 package config
 
 import (
-	"encoding/json"
+	"gopkg.in/yaml.v3"
 	"fmt"
 	"os"
 	"strconv"
@@ -11,66 +11,66 @@ import (
 
 // Config represents the Audit Consumer configuration.
 type Config struct {
-	Environment string         `json:"environment"`
-	Service     ServiceConfig  `json:"service"`
-	Queue       QueueConfig    `json:"queue"`
-	Database    DatabaseConfig `json:"database"`
-	Audit       AuditConfig    `json:"audit"`
-	Logging     LoggingConfig  `json:"logging"`
+	Environment string         `yaml:"environment"`
+	Service     ServiceConfig  `yaml:"service"`
+	Queue       QueueConfig    `yaml:"queue"`
+	Database    DatabaseConfig `yaml:"database"`
+	Audit       AuditConfig    `yaml:"audit"`
+	Logging     LoggingConfig  `yaml:"logging"`
 }
 
 // ServiceConfig represents service-specific configuration.
 type ServiceConfig struct {
-	Name        string            `json:"name"`
-	Version     string            `json:"version"`
-	Description string            `json:"description"`
-	Tags        []string          `json:"tags"`
-	Metadata    map[string]string `json:"metadata"`
+	Name        string            `yaml:"name"`
+	Version     string            `yaml:"version"`
+	Description string            `yaml:"description"`
+	Tags        []string          `yaml:"tags"`
+	Metadata    map[string]string `yaml:"metadata"`
 }
 
 // QueueConfig represents message queue configuration.
 type QueueConfig struct {
-	Provider    string `json:"provider"` // redis, rabbitmq, kafka
-	Host        string `json:"host"`
-	Port        int    `json:"port"`
-	Username    string `json:"username"`
-	Password    string `json:"password"`
-	QueueName   string `json:"queue_name"`
-	MaxRetries  int    `json:"max_retries"`
-	RetryDelay  int    `json:"retry_delay"` // in seconds
-	BatchSize   int    `json:"batch_size"`
-	PollTimeout int    `json:"poll_timeout"` // in seconds
+	Provider    string `yaml:"provider"` // redis, rabbitmq, kafka
+	Host        string `yaml:"host"`
+	Port        int    `yaml:"port"`
+	Username    string `yaml:"username"`
+	Password    string `yaml:"password"`
+	QueueName   string `yaml:"queue_name"`
+	MaxRetries  int    `yaml:"max_retries"`
+	RetryDelay  int    `yaml:"retry_delay"` // in seconds
+	BatchSize   int    `yaml:"batch_size"`
+	PollTimeout int    `yaml:"poll_timeout"` // in seconds
 }
 
 // DatabaseConfig represents database configuration.
 type DatabaseConfig struct {
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	User     string `json:"user"`
-	Password string `json:"password"`
-	Name     string `json:"name"`
-	SSLMode  string `json:"ssl_mode"`
-	MaxConns int    `json:"max_conns"`
-	MinConns int    `json:"min_conns"`
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
+	Name     string `yaml:"name"`
+	SSLMode  string `yaml:"ssl_mode"`
+	MaxConns int    `yaml:"max_conns"`
+	MinConns int    `yaml:"min_conns"`
 }
 
 // AuditConfig represents audit-specific configuration.
 type AuditConfig struct {
-	ProcessingEnabled bool   `json:"processing_enabled"`
-	ComplianceEnabled bool   `json:"compliance_enabled"`
-	RetentionDays     int    `json:"retention_days"`
-	MaxConcurrency    int    `json:"max_concurrency"`
-	ProcessingDelay   int    `json:"processing_delay"` // in milliseconds
-	RetryBackoff      int    `json:"retry_backoff"`    // in seconds
-	DeadLetterQueue   string `json:"dead_letter_queue"`
-	EncryptionEnabled bool   `json:"encryption_enabled"`
-	EncryptionKey     string `json:"encryption_key"`
+	ProcessingEnabled bool   `yaml:"processing_enabled"`
+	ComplianceEnabled bool   `yaml:"compliance_enabled"`
+	RetentionDays     int    `yaml:"retention_days"`
+	MaxConcurrency    int    `yaml:"max_concurrency"`
+	ProcessingDelay   int    `yaml:"processing_delay"` // in milliseconds
+	RetryBackoff      int    `yaml:"retry_backoff"`    // in seconds
+	DeadLetterQueue   string `yaml:"dead_letter_queue"`
+	EncryptionEnabled bool   `yaml:"encryption_enabled"`
+	EncryptionKey     string `yaml:"encryption_key"`
 }
 
 // LoggingConfig represents logging configuration.
 type LoggingConfig struct {
-	Level  string `json:"level"`
-	Format string `json:"format"` // json, console
+	Level  string `yaml:"level"`
+	Format string `yaml:"format"` // json, console
 }
 
 // Load loads configuration from environment variables and config file.
@@ -140,7 +140,7 @@ func loadConfigFromFile(config *Config, configFile string) error {
 		return err
 	}
 
-	return json.Unmarshal(data, config)
+	return yaml.Unmarshal(data, config)
 }
 
 // getEnv gets an environment variable with a default value.

@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -24,9 +25,10 @@ func TestMonitoringHandler_Health(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, nil)
-	handler := handlers.NewMonitoringHandler(monitoringService, nil)
+	monitoringService := services.NewMonitoringService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, logger)
 
 	router := gin.New()
 	router.GET("/health", handler.Health)
@@ -51,28 +53,32 @@ func TestMonitoringHandler_CreateService(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, nil)
-	handler := handlers.NewMonitoringHandler(monitoringService, nil)
+	monitoringService := services.NewMonitoringService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, logger)
 
 	router := gin.New()
-	router.POST("/services", handler.CreateService)
+	router.POST("/services", func(c *gin.Context) {
+		// Set required context values for authentication
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		handler.CreateService(c)
+	})
 
 	// Test data
-	service := models.MonitoredService{
-		Name:          "Test Service",
-		Description:   "Test service description",
-		Type:          "http",
-		URL:           "https://example.com",
-		Status:        "unknown",
-		IsActive:      true,
-		CheckInterval: 60,
-		Timeout:       30,
-		Retries:       3,
-		TenantID:      1,
+	serviceRequest := map[string]interface{}{
+		"name":           "Test Service",
+		"description":    "Test service description",
+		"type":           "http",
+		"url":            "https://example.com",
+		"is_active":      true,
+		"check_interval": 60,
+		"timeout":        30,
+		"retries":        3,
 	}
 
-	jsonData, _ := json.Marshal(service)
+	jsonData, _ := json.Marshal(serviceRequest)
 	req, _ := http.NewRequest("POST", "/services", bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -82,24 +88,29 @@ func TestMonitoringHandler_CreateService(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var response models.MonitoredService
+	var response struct {
+		Message string                  `json:"message"`
+		Service models.MonitoredService `json:"service"`
+	}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, service.Name, response.Name)
-	assert.Equal(t, service.Description, response.Description)
-	assert.Equal(t, service.Type, response.Type)
-	assert.Equal(t, service.URL, response.URL)
-	assert.Equal(t, service.TenantID, response.TenantID)
+	assert.Equal(t, "Service created successfully", response.Message)
+	assert.Equal(t, "Test Service", response.Service.Name)
+	assert.Equal(t, "Test service description", response.Service.Description)
+	assert.Equal(t, "http", response.Service.Type)
+	assert.Equal(t, "https://example.com", response.Service.URL)
+	assert.NotZero(t, response.Service.ID)
 }
 
 func TestMonitoringHandler_GetService(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, nil)
-	handler := handlers.NewMonitoringHandler(monitoringService, nil)
+	monitoringService := services.NewMonitoringService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, logger)
 
 	// Create a service first
 	service := models.MonitoredService{
@@ -142,9 +153,10 @@ func TestMonitoringHandler_UpdateService(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, nil)
-	handler := handlers.NewMonitoringHandler(monitoringService, nil)
+	monitoringService := services.NewMonitoringService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, logger)
 
 	// Create a service first
 	service := models.MonitoredService{
@@ -203,9 +215,10 @@ func TestMonitoringHandler_DeleteService(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, nil)
-	handler := handlers.NewMonitoringHandler(monitoringService, nil)
+	monitoringService := services.NewMonitoringService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, logger)
 
 	// Create a service first
 	service := models.MonitoredService{
@@ -243,9 +256,10 @@ func TestMonitoringHandler_GetServices(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, nil)
-	handler := handlers.NewMonitoringHandler(monitoringService, nil)
+	monitoringService := services.NewMonitoringService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, logger)
 
 	// Create multiple services
 	services := []models.MonitoredService{
@@ -283,9 +297,10 @@ func TestMonitoringHandler_CreateHealthCheck(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, nil)
-	handler := handlers.NewMonitoringHandler(monitoringService, nil)
+	monitoringService := services.NewMonitoringService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, logger)
 
 	// Create a service first
 	service := models.MonitoredService{
@@ -344,9 +359,10 @@ func TestMonitoringHandler_CreateAlert(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, nil)
-	handler := handlers.NewMonitoringHandler(monitoringService, nil)
+	monitoringService := services.NewMonitoringService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, logger)
 
 	// Create a service first
 	service := models.MonitoredService{
@@ -407,9 +423,10 @@ func TestMonitoringHandler_GetAlerts(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, nil)
-	handler := handlers.NewMonitoringHandler(monitoringService, nil)
+	monitoringService := services.NewMonitoringService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, logger)
 
 	// Create a service first
 	service := models.MonitoredService{
@@ -463,9 +480,10 @@ func TestMonitoringHandler_AcknowledgeAlert(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, nil)
-	handler := handlers.NewMonitoringHandler(monitoringService, nil)
+	monitoringService := services.NewMonitoringService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, logger)
 
 	// Create a service first
 	service := models.MonitoredService{

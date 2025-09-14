@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -24,10 +25,12 @@ func TestSaaSAdminHandler_HealthCheck(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	db := setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, nil)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, nil)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
+	saasAdminService.SetDB(db)
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	router := gin.New()
 	router.GET("/health", handler.HealthCheck)
@@ -52,10 +55,12 @@ func TestSaaSAdminHandler_CreatePlan(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	db := setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, nil)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, nil)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
+	saasAdminService.SetDB(db)
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	router := gin.New()
 	router.POST("/plans", handler.CreatePlan)
@@ -82,27 +87,32 @@ func TestSaaSAdminHandler_CreatePlan(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var response models.SaaSPlan
+	var response struct {
+		Plan    models.SaaSPlan `json:"plan"`
+		Message string          `json:"message"`
+	}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, plan.Name, response.Name)
-	assert.Equal(t, plan.Description, response.Description)
-	assert.Equal(t, plan.Price, response.Price)
-	assert.Equal(t, plan.Currency, response.Currency)
-	assert.Equal(t, plan.BillingInterval, response.BillingInterval)
-	assert.Equal(t, plan.IsActive, response.IsActive)
-	assert.NotEmpty(t, response.ID)
+	assert.Equal(t, plan.Name, response.Plan.Name)
+	assert.Equal(t, plan.Description, response.Plan.Description)
+	assert.Equal(t, plan.Price, response.Plan.Price)
+	assert.Equal(t, plan.Currency, response.Plan.Currency)
+	assert.Equal(t, plan.BillingInterval, response.Plan.BillingInterval)
+	assert.Equal(t, plan.IsActive, response.Plan.IsActive)
+	assert.NotEmpty(t, response.Plan.ID)
 }
 
 func TestSaaSAdminHandler_GetPlan(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	db := setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, nil)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, nil)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
+	saasAdminService.SetDB(db)
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	// Create a plan first
 	plan := models.SaaSPlan{
@@ -129,22 +139,26 @@ func TestSaaSAdminHandler_GetPlan(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response models.SaaSPlan
+	var response struct {
+		Plan models.SaaSPlan `json:"plan"`
+	}
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, createdPlan.ID, response.ID)
-	assert.Equal(t, createdPlan.Name, response.Name)
+	assert.Equal(t, createdPlan.ID, response.Plan.ID)
+	assert.Equal(t, createdPlan.Name, response.Plan.Name)
 }
 
 func TestSaaSAdminHandler_UpdatePlan(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	db := setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, nil)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, nil)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
+	saasAdminService.SetDB(db)
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	// Create a plan first
 	plan := models.SaaSPlan{
@@ -183,24 +197,28 @@ func TestSaaSAdminHandler_UpdatePlan(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response models.SaaSPlan
+	var response struct {
+		Plan models.SaaSPlan `json:"plan"`
+	}
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, "Updated Plan", response.Name)
-	assert.Equal(t, "Updated description", response.Description)
-	assert.Equal(t, 2999.0, response.Price)
-	assert.Equal(t, "annual", response.BillingInterval)
+	assert.Equal(t, "Updated Plan", response.Plan.Name)
+	assert.Equal(t, "Updated description", response.Plan.Description)
+	assert.Equal(t, 2999.0, response.Plan.Price)
+	assert.Equal(t, "annual", response.Plan.BillingInterval)
 }
 
 func TestSaaSAdminHandler_DeletePlan(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	db := setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, nil)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, nil)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
+	saasAdminService.SetDB(db)
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	// Create a plan first
 	plan := models.SaaSPlan{
@@ -231,7 +249,7 @@ func TestSaaSAdminHandler_DeletePlan(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, "Plan deleted successfully", response["message"])
+	assert.Equal(t, "SaaS plan deleted successfully", response["message"])
 
 	// Verify deletion
 	_, err = saasAdminService.GetPlan(context.Background(), createdPlan.ID)
@@ -242,10 +260,12 @@ func TestSaaSAdminHandler_ListPlans(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	db := setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, nil)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, nil)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
+	saasAdminService.SetDB(db)
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	// Create multiple plans
 	plans := []models.SaaSPlan{
@@ -272,7 +292,7 @@ func TestSaaSAdminHandler_ListPlans(t *testing.T) {
 
 	var response struct {
 		Plans  []models.SaaSPlan `json:"plans"`
-		Total  int               `json:"total"`
+		Count  int               `json:"count"`
 		Limit  int               `json:"limit"`
 		Offset int               `json:"offset"`
 	}
@@ -280,17 +300,19 @@ func TestSaaSAdminHandler_ListPlans(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.GreaterOrEqual(t, len(response.Plans), 3)
-	assert.GreaterOrEqual(t, response.Total, 3)
+	assert.GreaterOrEqual(t, response.Count, 3)
 }
 
 func TestSaaSAdminHandler_CreateFeatureFlag(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	db := setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, nil)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, nil)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
+	saasAdminService.SetDB(db)
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	router := gin.New()
 	router.POST("/feature-flags", handler.CreateFeatureFlag)
@@ -313,24 +335,29 @@ func TestSaaSAdminHandler_CreateFeatureFlag(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var response models.SaaSFeatureFlag
+	var response struct {
+		FeatureFlag models.SaaSFeatureFlag `json:"feature_flag"`
+		Message     string                 `json:"message"`
+	}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, featureFlag.Name, response.Name)
-	assert.Equal(t, featureFlag.Description, response.Description)
-	assert.Equal(t, featureFlag.IsEnabled, response.IsEnabled)
-	assert.NotEmpty(t, response.ID)
+	assert.Equal(t, featureFlag.Name, response.FeatureFlag.Name)
+	assert.Equal(t, featureFlag.Description, response.FeatureFlag.Description)
+	assert.Equal(t, featureFlag.IsEnabled, response.FeatureFlag.IsEnabled)
+	assert.NotEmpty(t, response.FeatureFlag.ID)
 }
 
 func TestSaaSAdminHandler_GetFeatureFlags(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	db := setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, nil)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, nil)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
+	saasAdminService.SetDB(db)
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	// Create some feature flags
 	featureFlags := []models.SaaSFeatureFlag{
@@ -357,23 +384,25 @@ func TestSaaSAdminHandler_GetFeatureFlags(t *testing.T) {
 
 	var response struct {
 		FeatureFlags []models.SaaSFeatureFlag `json:"feature_flags"`
-		Total        int                      `json:"total"`
+		Count        int                      `json:"count"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
 	assert.GreaterOrEqual(t, len(response.FeatureFlags), 3)
-	assert.GreaterOrEqual(t, response.Total, 3)
+	assert.GreaterOrEqual(t, response.Count, 3)
 }
 
 func TestSaaSAdminHandler_GetPlatformStats(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	db := setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, nil)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, nil)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
+	saasAdminService.SetDB(db)
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	router := gin.New()
 	router.GET("/stats", handler.GetStats)
@@ -386,26 +415,30 @@ func TestSaaSAdminHandler_GetPlatformStats(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string]interface{}
+	var response struct {
+		Stats map[string]interface{} `json:"stats"`
+	}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Contains(t, response, "total_tenants")
-	assert.Contains(t, response, "total_users")
-	assert.Contains(t, response, "total_incidents")
-	assert.Contains(t, response, "total_components")
-	assert.Contains(t, response, "revenue")
-	assert.Contains(t, response, "active_subscriptions")
+	assert.Contains(t, response.Stats, "total_tenants")
+	assert.Contains(t, response.Stats, "total_users")
+	assert.Contains(t, response.Stats, "total_features")
+	assert.Contains(t, response.Stats, "total_plans")
+	assert.Contains(t, response.Stats, "total_revenue")
+	assert.Contains(t, response.Stats, "active_tenants")
 }
 
 func TestSaaSAdminHandler_UpdateFeatureFlag(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	db := setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, nil)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, nil)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
+	saasAdminService.SetDB(db)
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	// Create a feature flag first
 	featureFlag := models.SaaSFeatureFlag{
@@ -438,21 +471,25 @@ func TestSaaSAdminHandler_UpdateFeatureFlag(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response models.SaaSFeatureFlag
+	var response struct {
+		FeatureFlag models.SaaSFeatureFlag `json:"feature_flag"`
+	}
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, true, response.IsEnabled)
+	assert.Equal(t, true, response.FeatureFlag.IsEnabled)
 }
 
 func TestSaaSAdminHandler_DeleteFeatureFlag(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	db := setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, nil)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, nil)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
+	saasAdminService.SetDB(db)
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	// Create a feature flag first
 	featureFlag := models.SaaSFeatureFlag{
@@ -480,7 +517,7 @@ func TestSaaSAdminHandler_DeleteFeatureFlag(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	assert.Equal(t, "Feature flag deleted successfully", response["message"])
+	assert.Equal(t, "SaaS feature flag deleted successfully", response["message"])
 
 	// Verify deletion
 	_, err = saasAdminService.GetFeatureFlag(context.Background(), createdFlag.ID)
