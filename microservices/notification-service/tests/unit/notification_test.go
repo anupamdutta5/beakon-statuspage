@@ -109,9 +109,10 @@ func TestNotificationHandler_GetNotification(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	notificationService := services.NewNotificationService(db, nil)
-	handler := handlers.NewNotificationHandler(notificationService, nil)
+	notificationService := services.NewNotificationService(db, logger)
+	handler := handlers.NewNotificationHandler(notificationService, logger)
 
 	// Create a notification first
 	notification := models.Notification{
@@ -139,24 +140,27 @@ func TestNotificationHandler_GetNotification(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response models.Notification
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Notification models.Notification `json:"notification"`
+	}
+	err = json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, notification.Type, response.Type)
-	assert.Equal(t, notification.Status, response.Status)
-	assert.Equal(t, notification.Priority, response.Priority)
-	assert.Equal(t, notification.Subject, response.Subject)
-	assert.Equal(t, notification.Content, response.Content)
+	assert.Equal(t, notification.Type, responseWrapper.Notification.Type)
+	assert.Equal(t, notification.Status, responseWrapper.Notification.Status)
+	assert.Equal(t, notification.Priority, responseWrapper.Notification.Priority)
+	assert.Equal(t, notification.Subject, responseWrapper.Notification.Subject)
+	assert.Equal(t, notification.Content, responseWrapper.Notification.Content)
 }
 
 func TestNotificationHandler_UpdateNotification(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	notificationService := services.NewNotificationService(db, nil)
-	handler := handlers.NewNotificationHandler(notificationService, nil)
+	notificationService := services.NewNotificationService(db, logger)
+	handler := handlers.NewNotificationHandler(notificationService, logger)
 
 	// Create a notification first
 	notification := models.Notification{
@@ -194,23 +198,26 @@ func TestNotificationHandler_UpdateNotification(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response models.Notification
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Notification models.Notification `json:"notification"`
+	}
+	err = json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, "sent", response.Status)
-	assert.Equal(t, "high", response.Priority)
-	assert.Equal(t, "Updated Subject", response.Subject)
-	assert.Equal(t, "Updated content", response.Content)
+	assert.Equal(t, "sent", responseWrapper.Notification.Status)
+	assert.Equal(t, "high", responseWrapper.Notification.Priority)
+	assert.Equal(t, "Updated Subject", responseWrapper.Notification.Subject)
+	assert.Equal(t, "Updated content", responseWrapper.Notification.Content)
 }
 
 func TestNotificationHandler_DeleteNotification(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	notificationService := services.NewNotificationService(db, nil)
-	handler := handlers.NewNotificationHandler(notificationService, nil)
+	notificationService := services.NewNotificationService(db, logger)
+	handler := handlers.NewNotificationHandler(notificationService, logger)
 
 	// Create a notification first
 	notification := models.Notification{
@@ -247,9 +254,10 @@ func TestNotificationHandler_GetNotifications(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	notificationService := services.NewNotificationService(db, nil)
-	handler := handlers.NewNotificationHandler(notificationService, nil)
+	notificationService := services.NewNotificationService(db, logger)
+	handler := handlers.NewNotificationHandler(notificationService, logger)
 
 	// Create multiple notifications
 	notifications := []models.Notification{
@@ -264,6 +272,11 @@ func TestNotificationHandler_GetNotifications(t *testing.T) {
 	}
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.GET("/notifications", handler.GetNotifications)
 
 	// Test
@@ -287,9 +300,10 @@ func TestNotificationHandler_SendNotification(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	notificationService := services.NewNotificationService(db, nil)
-	handler := handlers.NewNotificationHandler(notificationService, nil)
+	notificationService := services.NewNotificationService(db, logger)
+	handler := handlers.NewNotificationHandler(notificationService, logger)
 
 	// Create a notification first
 	notification := models.Notification{
@@ -317,22 +331,30 @@ func TestNotificationHandler_SendNotification(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string]interface{}
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Message string `json:"message"`
+	}
+	err = json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, "sent", response["status"])
+	assert.Equal(t, "Notification sent successfully", responseWrapper.Message)
 }
 
 func TestNotificationHandler_CreateTemplate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	notificationService := services.NewNotificationService(db, nil)
-	handler := handlers.NewNotificationHandler(notificationService, nil)
+	notificationService := services.NewNotificationService(db, logger)
+	handler := handlers.NewNotificationHandler(notificationService, logger)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.POST("/templates", handler.CreateTemplate)
 
 	// Test data
@@ -360,26 +382,29 @@ func TestNotificationHandler_CreateTemplate(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var response models.Template
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Template models.Template `json:"template"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, template.Name, response.Name)
-	assert.Equal(t, template.Description, response.Description)
-	assert.Equal(t, template.Type, response.Type)
-	assert.Equal(t, template.Category, response.Category)
-	assert.Equal(t, template.Subject, response.Subject)
-	assert.Equal(t, template.Content, response.Content)
-	assert.Equal(t, template.TenantID, response.TenantID)
+	assert.Equal(t, template.Name, responseWrapper.Template.Name)
+	assert.Equal(t, template.Description, responseWrapper.Template.Description)
+	assert.Equal(t, template.Type, responseWrapper.Template.Type)
+	assert.Equal(t, template.Category, responseWrapper.Template.Category)
+	assert.Equal(t, template.Subject, responseWrapper.Template.Subject)
+	assert.Equal(t, template.Content, responseWrapper.Template.Content)
+	assert.Equal(t, template.TenantID, responseWrapper.Template.TenantID)
 }
 
 func TestNotificationHandler_GetTemplates(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	notificationService := services.NewNotificationService(db, nil)
-	handler := handlers.NewNotificationHandler(notificationService, nil)
+	notificationService := services.NewNotificationService(db, logger)
+	handler := handlers.NewNotificationHandler(notificationService, logger)
 
 	// Create multiple templates
 	templates := []models.Template{
@@ -394,6 +419,11 @@ func TestNotificationHandler_GetTemplates(t *testing.T) {
 	}
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.GET("/templates", handler.GetTemplates)
 
 	// Test
@@ -417,11 +447,17 @@ func TestNotificationHandler_CreateChannel(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	notificationService := services.NewNotificationService(db, nil)
-	handler := handlers.NewNotificationHandler(notificationService, nil)
+	notificationService := services.NewNotificationService(db, logger)
+	handler := handlers.NewNotificationHandler(notificationService, logger)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.POST("/channels", handler.CreateChannel)
 
 	// Test data
@@ -448,25 +484,28 @@ func TestNotificationHandler_CreateChannel(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var response models.Channel
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Channel models.Channel `json:"channel"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, channel.Name, response.Name)
-	assert.Equal(t, channel.Description, response.Description)
-	assert.Equal(t, channel.Type, response.Type)
-	assert.Equal(t, channel.Provider, response.Provider)
-	assert.Equal(t, channel.Config, response.Config)
-	assert.Equal(t, channel.TenantID, response.TenantID)
+	assert.Equal(t, channel.Name, responseWrapper.Channel.Name)
+	assert.Equal(t, channel.Description, responseWrapper.Channel.Description)
+	assert.Equal(t, channel.Type, responseWrapper.Channel.Type)
+	assert.Equal(t, channel.Provider, responseWrapper.Channel.Provider)
+	assert.Equal(t, channel.Config, responseWrapper.Channel.Config)
+	assert.Equal(t, channel.TenantID, responseWrapper.Channel.TenantID)
 }
 
 func TestNotificationHandler_GetChannels(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
+	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	notificationService := services.NewNotificationService(db, nil)
-	handler := handlers.NewNotificationHandler(notificationService, nil)
+	notificationService := services.NewNotificationService(db, logger)
+	handler := handlers.NewNotificationHandler(notificationService, logger)
 
 	// Create multiple channels
 	channels := []models.Channel{
@@ -481,6 +520,11 @@ func TestNotificationHandler_GetChannels(t *testing.T) {
 	}
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.GET("/channels", handler.GetChannels)
 
 	// Test

@@ -131,9 +131,11 @@ func TestDatabaseService_GetDatabase(t *testing.T) {
 
 func TestDatabaseService_UpdateDatabase(t *testing.T) {
 	// Setup
-	_ = setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
 	cfg := &config.Config{}
-	databaseService, _ := services.NewDatabaseService(cfg, nil)
+	databaseService, _ := services.NewDatabaseService(cfg, logger)
+	databaseService.SetDB(db)
 
 	// Create a database first
 	database := &models.Database{
@@ -174,9 +176,11 @@ func TestDatabaseService_UpdateDatabase(t *testing.T) {
 
 func TestDatabaseService_DeleteDatabase(t *testing.T) {
 	// Setup
-	_ = setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
 	cfg := &config.Config{}
-	databaseService, _ := services.NewDatabaseService(cfg, nil)
+	databaseService, _ := services.NewDatabaseService(cfg, logger)
+	databaseService.SetDB(db)
 
 	// Create a database first
 	database := &models.Database{
@@ -209,9 +213,11 @@ func TestDatabaseService_DeleteDatabase(t *testing.T) {
 
 func TestDatabaseService_ListTables(t *testing.T) {
 	// Setup
-	_ = setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
 	cfg := &config.Config{}
-	databaseService, _ := services.NewDatabaseService(cfg, nil)
+	databaseService, _ := services.NewDatabaseService(cfg, logger)
+	databaseService.SetDB(db)
 
 	// Create a database first
 	database := &models.Database{
@@ -242,9 +248,11 @@ func TestDatabaseService_ListTables(t *testing.T) {
 
 func TestDatabaseService_ExecuteQuery(t *testing.T) {
 	// Setup
-	_ = setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
 	cfg := &config.Config{}
-	databaseService, _ := services.NewDatabaseService(cfg, nil)
+	databaseService, _ := services.NewDatabaseService(cfg, logger)
+	databaseService.SetDB(db)
 
 	// Create a database first
 	database := &models.Database{
@@ -271,8 +279,10 @@ func TestDatabaseService_ExecuteQuery(t *testing.T) {
 	// Assertions
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Contains(t, result, "rows")
-	assert.Contains(t, result, "columns")
+	assert.Equal(t, database.ID, result.DatabaseID)
+	assert.Equal(t, query, result.Query)
+	assert.NotEmpty(t, result.Rows)
+	assert.GreaterOrEqual(t, result.RowCount, 0)
 }
 
 // Helper function to setup test database

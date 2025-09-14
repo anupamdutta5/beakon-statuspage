@@ -31,6 +31,11 @@ func TestAnalyticsHandler_Health(t *testing.T) {
 	handler := handlers.NewAnalyticsHandler(analyticsService, logger)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.GET("/health", handler.Health)
 
 	// Test
@@ -73,6 +78,11 @@ func TestAnalyticsHandler_GetPublicMetrics(t *testing.T) {
 	require.NoError(t, err)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.GET("/public/metrics", handler.GetPublicMetrics)
 
 	// Test
@@ -102,6 +112,11 @@ func TestAnalyticsHandler_CreateMetric(t *testing.T) {
 	handler := handlers.NewAnalyticsHandler(analyticsService, logger)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.POST("/metrics", handler.CreateMetric)
 
 	// Test data
@@ -126,16 +141,18 @@ func TestAnalyticsHandler_CreateMetric(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var response models.Metric
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Metric models.Metric `json:"metric"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, metricData.Name, response.Name)
-	assert.Equal(t, metricData.Description, response.Description)
-	assert.Equal(t, metricData.Type, response.Type)
-	assert.Equal(t, metricData.Unit, response.Unit)
-	assert.Equal(t, metricData.Category, response.Category)
-	assert.Equal(t, metricData.TenantID, response.TenantID)
+	assert.Equal(t, metricData.Name, responseWrapper.Metric.Name)
+	assert.Equal(t, metricData.Description, responseWrapper.Metric.Description)
+	assert.Equal(t, metricData.Type, responseWrapper.Metric.Type)
+	assert.Equal(t, metricData.Unit, responseWrapper.Metric.Unit)
+	assert.Equal(t, metricData.Category, responseWrapper.Metric.Category)
+	assert.Equal(t, metricData.TenantID, responseWrapper.Metric.TenantID)
 }
 
 func TestAnalyticsHandler_GetMetrics(t *testing.T) {
@@ -160,6 +177,11 @@ func TestAnalyticsHandler_GetMetrics(t *testing.T) {
 	}
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.GET("/metrics", handler.GetMetrics)
 
 	// Test
@@ -201,6 +223,11 @@ func TestAnalyticsHandler_GetMetric(t *testing.T) {
 	require.NoError(t, err)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.GET("/metrics/:id", handler.GetMetric)
 
 	// Test
@@ -211,15 +238,17 @@ func TestAnalyticsHandler_GetMetric(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response models.Metric
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Metric models.Metric `json:"metric"`
+	}
+	err = json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, metric.Name, response.Name)
-	assert.Equal(t, metric.Description, response.Description)
-	assert.Equal(t, metric.Type, response.Type)
-	assert.Equal(t, metric.Unit, response.Unit)
-	assert.Equal(t, metric.Category, response.Category)
+	assert.Equal(t, metric.Name, responseWrapper.Metric.Name)
+	assert.Equal(t, metric.Description, responseWrapper.Metric.Description)
+	assert.Equal(t, metric.Type, responseWrapper.Metric.Type)
+	assert.Equal(t, metric.Unit, responseWrapper.Metric.Unit)
+	assert.Equal(t, metric.Category, responseWrapper.Metric.Category)
 }
 
 func TestAnalyticsHandler_UpdateMetric(t *testing.T) {
@@ -244,6 +273,11 @@ func TestAnalyticsHandler_UpdateMetric(t *testing.T) {
 	require.NoError(t, err)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.PUT("/metrics/:id", handler.UpdateMetric)
 
 	// Update data
@@ -265,15 +299,17 @@ func TestAnalyticsHandler_UpdateMetric(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response models.Metric
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Metric models.Metric `json:"metric"`
+	}
+	err = json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, "Updated Metric", response.Name)
-	assert.Equal(t, "Updated description", response.Description)
-	assert.Equal(t, "gauge", response.Type)
-	assert.Equal(t, "seconds", response.Unit)
-	assert.Equal(t, "system", response.Category)
+	assert.Equal(t, "Updated Metric", responseWrapper.Metric.Name)
+	assert.Equal(t, "Updated description", responseWrapper.Metric.Description)
+	assert.Equal(t, "gauge", responseWrapper.Metric.Type)
+	assert.Equal(t, "seconds", responseWrapper.Metric.Unit)
+	assert.Equal(t, "system", responseWrapper.Metric.Category)
 }
 
 func TestAnalyticsHandler_DeleteMetric(t *testing.T) {
@@ -298,6 +334,11 @@ func TestAnalyticsHandler_DeleteMetric(t *testing.T) {
 	require.NoError(t, err)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.DELETE("/metrics/:id", handler.DeleteMetric)
 
 	// Test
@@ -335,6 +376,11 @@ func TestAnalyticsHandler_AddMetricData(t *testing.T) {
 	require.NoError(t, err)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.POST("/metrics/:id/data", handler.AddMetricData)
 
 	// Test data
@@ -356,14 +402,16 @@ func TestAnalyticsHandler_AddMetricData(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var response models.MetricDataPoint
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		DataPoint models.MetricDataPoint `json:"data_point"`
+	}
+	err = json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, dataPoint.Value, response.Value)
-	assert.Equal(t, dataPoint.Source, response.Source)
-	assert.Equal(t, dataPoint.Labels, response.Labels)
-	assert.Equal(t, dataPoint.Metadata, response.Metadata)
+	assert.Equal(t, dataPoint.Value, responseWrapper.DataPoint.Value)
+	assert.Equal(t, dataPoint.Source, responseWrapper.DataPoint.Source)
+	assert.Equal(t, dataPoint.Labels, responseWrapper.DataPoint.Labels)
+	assert.Equal(t, dataPoint.Metadata, responseWrapper.DataPoint.Metadata)
 }
 
 func TestAnalyticsHandler_GetMetricData(t *testing.T) {
@@ -401,6 +449,11 @@ func TestAnalyticsHandler_GetMetricData(t *testing.T) {
 	}
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.GET("/metrics/:id/data", handler.GetMetricData)
 
 	// Test

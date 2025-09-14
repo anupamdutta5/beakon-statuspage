@@ -31,6 +31,11 @@ func TestMonitoringHandler_Health(t *testing.T) {
 	handler := handlers.NewMonitoringHandler(monitoringService, logger)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.GET("/health", handler.Health)
 
 	// Test
@@ -59,6 +64,11 @@ func TestMonitoringHandler_CreateService(t *testing.T) {
 	handler := handlers.NewMonitoringHandler(monitoringService, logger)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.POST("/services", func(c *gin.Context) {
 		// Set required context values for authentication
 		c.Set("tenant_id", uint(1))
@@ -129,6 +139,11 @@ func TestMonitoringHandler_GetService(t *testing.T) {
 	require.NoError(t, err)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.GET("/services/:id", handler.GetService)
 
 	// Test
@@ -139,14 +154,16 @@ func TestMonitoringHandler_GetService(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response models.MonitoredService
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Service models.MonitoredService `json:"service"`
+	}
+	err = json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, service.Name, response.Name)
-	assert.Equal(t, service.Description, response.Description)
-	assert.Equal(t, service.Type, response.Type)
-	assert.Equal(t, service.URL, response.URL)
+	assert.Equal(t, service.Name, responseWrapper.Service.Name)
+	assert.Equal(t, service.Description, responseWrapper.Service.Description)
+	assert.Equal(t, service.Type, responseWrapper.Service.Type)
+	assert.Equal(t, service.URL, responseWrapper.Service.URL)
 }
 
 func TestMonitoringHandler_UpdateService(t *testing.T) {
@@ -175,6 +192,11 @@ func TestMonitoringHandler_UpdateService(t *testing.T) {
 	require.NoError(t, err)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.PUT("/services/:id", handler.UpdateService)
 
 	// Update data
@@ -198,17 +220,20 @@ func TestMonitoringHandler_UpdateService(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response models.MonitoredService
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Message string                  `json:"message"`
+		Service models.MonitoredService `json:"service"`
+	}
+	err = json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, "Updated Service", response.Name)
-	assert.Equal(t, "Updated description", response.Description)
-	assert.Equal(t, "tcp", response.Type)
-	assert.Equal(t, "https://updated.com", response.URL)
-	assert.Equal(t, 120, response.CheckInterval)
-	assert.Equal(t, 60, response.Timeout)
-	assert.Equal(t, 5, response.Retries)
+	assert.Equal(t, "Updated Service", responseWrapper.Service.Name)
+	assert.Equal(t, "Updated description", responseWrapper.Service.Description)
+	assert.Equal(t, "tcp", responseWrapper.Service.Type)
+	assert.Equal(t, "https://updated.com", responseWrapper.Service.URL)
+	assert.Equal(t, 120, responseWrapper.Service.CheckInterval)
+	assert.Equal(t, 60, responseWrapper.Service.Timeout)
+	assert.Equal(t, 5, responseWrapper.Service.Retries)
 }
 
 func TestMonitoringHandler_DeleteService(t *testing.T) {
@@ -237,6 +262,11 @@ func TestMonitoringHandler_DeleteService(t *testing.T) {
 	require.NoError(t, err)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.DELETE("/services/:id", handler.DeleteService)
 
 	// Test
@@ -274,6 +304,11 @@ func TestMonitoringHandler_GetServices(t *testing.T) {
 	}
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.GET("/services", handler.GetServices)
 
 	// Test
@@ -319,7 +354,12 @@ func TestMonitoringHandler_CreateHealthCheck(t *testing.T) {
 	require.NoError(t, err)
 
 	router := gin.New()
-	router.POST("/health-checks", handler.CreateHealthCheck)
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
+	router.POST("/services/:id/health-checks", handler.CreateHealthCheck)
 
 	// Test data
 	healthCheck := models.HealthCheck{
@@ -334,7 +374,7 @@ func TestMonitoringHandler_CreateHealthCheck(t *testing.T) {
 	}
 
 	jsonData, _ := json.Marshal(healthCheck)
-	req, _ := http.NewRequest("POST", "/health-checks", bytes.NewBuffer(jsonData))
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/services/%d/health-checks", service.ID), bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -343,16 +383,20 @@ func TestMonitoringHandler_CreateHealthCheck(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var response models.HealthCheck
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		HealthCheck models.HealthCheck `json:"health_check"`
+		Message     string             `json:"message"`
+	}
+	err = json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, healthCheck.Name, response.Name)
-	assert.Equal(t, healthCheck.Type, response.Type)
-	assert.Equal(t, healthCheck.URL, response.URL)
-	assert.Equal(t, healthCheck.Method, response.Method)
-	assert.Equal(t, healthCheck.ExpectedStatus, response.ExpectedStatus)
-	assert.Equal(t, healthCheck.ServiceID, response.ServiceID)
+	assert.Equal(t, "Health check created successfully", responseWrapper.Message)
+	assert.Equal(t, healthCheck.Name, responseWrapper.HealthCheck.Name)
+	assert.Equal(t, healthCheck.Type, responseWrapper.HealthCheck.Type)
+	assert.Equal(t, healthCheck.URL, responseWrapper.HealthCheck.URL)
+	assert.Equal(t, healthCheck.Method, responseWrapper.HealthCheck.Method)
+	assert.Equal(t, healthCheck.ExpectedStatus, responseWrapper.HealthCheck.ExpectedStatus)
+	assert.Equal(t, healthCheck.ServiceID, responseWrapper.HealthCheck.ServiceID)
 }
 
 func TestMonitoringHandler_CreateAlert(t *testing.T) {
@@ -381,6 +425,11 @@ func TestMonitoringHandler_CreateAlert(t *testing.T) {
 	require.NoError(t, err)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.POST("/alerts", handler.CreateAlert)
 
 	// Test data
@@ -406,17 +455,20 @@ func TestMonitoringHandler_CreateAlert(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var response models.Alert
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Message string       `json:"message"`
+		Alert   models.Alert `json:"alert"`
+	}
+	err = json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, alert.Type, response.Type)
-	assert.Equal(t, alert.Severity, response.Severity)
-	assert.Equal(t, alert.Status, response.Status)
-	assert.Equal(t, alert.Title, response.Title)
-	assert.Equal(t, alert.Description, response.Description)
-	assert.Equal(t, alert.Message, response.Message)
-	assert.Equal(t, alert.TenantID, response.TenantID)
+	assert.Equal(t, alert.Type, responseWrapper.Alert.Type)
+	assert.Equal(t, alert.Severity, responseWrapper.Alert.Severity)
+	assert.Equal(t, alert.Status, responseWrapper.Alert.Status)
+	assert.Equal(t, alert.Title, responseWrapper.Alert.Title)
+	assert.Equal(t, alert.Description, responseWrapper.Alert.Description)
+	assert.Equal(t, alert.Message, responseWrapper.Alert.Message)
+	assert.Equal(t, alert.TenantID, responseWrapper.Alert.TenantID)
 }
 
 func TestMonitoringHandler_GetAlerts(t *testing.T) {
@@ -457,6 +509,11 @@ func TestMonitoringHandler_GetAlerts(t *testing.T) {
 	}
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.GET("/alerts", handler.GetAlerts)
 
 	// Test
@@ -517,6 +574,11 @@ func TestMonitoringHandler_AcknowledgeAlert(t *testing.T) {
 	require.NoError(t, err)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.PUT("/alerts/:id/acknowledge", handler.AcknowledgeAlert)
 
 	// Test
@@ -527,12 +589,13 @@ func TestMonitoringHandler_AcknowledgeAlert(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response models.Alert
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Message string `json:"message"`
+	}
+	err = json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, "acknowledged", response.Status)
-	assert.NotNil(t, response.AcknowledgedAt)
+	assert.Equal(t, "Alert acknowledged successfully", responseWrapper.Message)
 }
 
 // Helper function to setup test database

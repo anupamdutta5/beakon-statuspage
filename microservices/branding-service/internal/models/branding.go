@@ -20,6 +20,7 @@ type Brand struct {
 	Status      string         `gorm:"default:active" json:"status"` // active, inactive, draft
 	IsDefault   bool           `gorm:"default:false" json:"is_default"`
 	Metadata    string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
+	Themes      []Theme        `gorm:"foreignKey:BrandID" json:"themes,omitempty"`
 }
 
 // Theme represents a theme configuration.
@@ -252,4 +253,3 @@ func (Component) TableName() string {
 func (BrandingStats) TableName() string {
 	return "branding_stats"
 }
-

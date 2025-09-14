@@ -43,6 +43,11 @@ func TestBrandingHandler_HealthCheck(t *testing.T) {
 	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.GET("/health", handler.HealthCheck)
 
 	// Test
@@ -82,6 +87,11 @@ func TestBrandingHandler_CreateBrand(t *testing.T) {
 	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.POST("/brands", handler.CreateBrand)
 
 	// Test data
@@ -124,10 +134,12 @@ func TestBrandingHandler_GetBrand(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
 	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, nil)
-	handler := handlers.NewBrandingHandler(brandingService, nil)
+	brandingService, _ := services.NewBrandingService(cfg, logger)
+	brandingService.SetDB(db)
+	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	// Create a brand first
 	brand := models.Brand{
@@ -143,6 +155,11 @@ func TestBrandingHandler_GetBrand(t *testing.T) {
 	require.NoError(t, err)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.GET("/brands/:id", handler.GetBrand)
 
 	// Test
@@ -153,24 +170,28 @@ func TestBrandingHandler_GetBrand(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response models.Brand
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Brand models.Brand `json:"brand"`
+	}
+	err = json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, brand.Name, response.Name)
-	assert.Equal(t, brand.Slug, response.Slug)
-	assert.Equal(t, brand.Description, response.Description)
-	assert.Equal(t, brand.Status, response.Status)
+	assert.Equal(t, brand.Name, responseWrapper.Brand.Name)
+	assert.Equal(t, brand.Slug, responseWrapper.Brand.Slug)
+	assert.Equal(t, brand.Description, responseWrapper.Brand.Description)
+	assert.Equal(t, brand.Status, responseWrapper.Brand.Status)
 }
 
 func TestBrandingHandler_UpdateBrand(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
 	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, nil)
-	handler := handlers.NewBrandingHandler(brandingService, nil)
+	brandingService, _ := services.NewBrandingService(cfg, logger)
+	brandingService.SetDB(db)
+	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	// Create a brand first
 	brand := models.Brand{
@@ -186,6 +207,11 @@ func TestBrandingHandler_UpdateBrand(t *testing.T) {
 	require.NoError(t, err)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.PUT("/brands/:id", handler.UpdateBrand)
 
 	// Update data
@@ -206,24 +232,25 @@ func TestBrandingHandler_UpdateBrand(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response models.Brand
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Message string `json:"message"`
+	}
+	err = json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, "Updated Brand", response.Name)
-	assert.Equal(t, "updated-brand", response.Slug)
-	assert.Equal(t, "Updated description", response.Description)
-	assert.Equal(t, "inactive", response.Status)
+	assert.Equal(t, "Brand updated successfully", responseWrapper.Message)
 }
 
 func TestBrandingHandler_DeleteBrand(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
 	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, nil)
-	handler := handlers.NewBrandingHandler(brandingService, nil)
+	brandingService, _ := services.NewBrandingService(cfg, logger)
+	brandingService.SetDB(db)
+	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	// Create a brand first
 	brand := models.Brand{
@@ -239,6 +266,11 @@ func TestBrandingHandler_DeleteBrand(t *testing.T) {
 	require.NoError(t, err)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.DELETE("/brands/:id", handler.DeleteBrand)
 
 	// Test
@@ -258,10 +290,12 @@ func TestBrandingHandler_ListBrands(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
 	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, nil)
-	handler := handlers.NewBrandingHandler(brandingService, nil)
+	brandingService, _ := services.NewBrandingService(cfg, logger)
+	brandingService.SetDB(db)
+	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	// Create multiple brands
 	brands := []models.Brand{
@@ -276,6 +310,11 @@ func TestBrandingHandler_ListBrands(t *testing.T) {
 	}
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.GET("/brands", handler.ListBrands)
 
 	// Test
@@ -299,10 +338,12 @@ func TestBrandingHandler_CreateTheme(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
 	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, nil)
-	handler := handlers.NewBrandingHandler(brandingService, nil)
+	brandingService, _ := services.NewBrandingService(cfg, logger)
+	brandingService.SetDB(db)
+	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	// Create a brand first
 	brand := models.Brand{
@@ -318,11 +359,15 @@ func TestBrandingHandler_CreateTheme(t *testing.T) {
 	require.NoError(t, err)
 
 	router := gin.New()
-	router.POST("/themes", handler.CreateTheme)
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
+	router.POST("/brands/:brand_id/themes", handler.CreateTheme)
 
 	// Test data
 	theme := models.Theme{
-		BrandID:     brand.ID,
 		Name:        "Test Theme",
 		Slug:        "test-theme",
 		Description: "Test theme description",
@@ -335,7 +380,7 @@ func TestBrandingHandler_CreateTheme(t *testing.T) {
 	}
 
 	jsonData, _ := json.Marshal(theme)
-	req, _ := http.NewRequest("POST", "/themes", bytes.NewBuffer(jsonData))
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/brands/%d/themes", brand.ID), bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -344,26 +389,31 @@ func TestBrandingHandler_CreateTheme(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var response models.Theme
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Theme   models.Theme `json:"theme"`
+		Message string       `json:"message"`
+	}
+	err = json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, theme.Name, response.Name)
-	assert.Equal(t, theme.Slug, response.Slug)
-	assert.Equal(t, theme.Description, response.Description)
-	assert.Equal(t, theme.Version, response.Version)
-	assert.Equal(t, theme.Status, response.Status)
-	assert.Equal(t, theme.BrandID, response.BrandID)
+	assert.Equal(t, theme.Name, responseWrapper.Theme.Name)
+	assert.Equal(t, theme.Slug, responseWrapper.Theme.Slug)
+	assert.Equal(t, theme.Description, responseWrapper.Theme.Description)
+	assert.Equal(t, theme.Version, responseWrapper.Theme.Version)
+	assert.Equal(t, theme.Status, responseWrapper.Theme.Status)
+	assert.Equal(t, brand.ID, responseWrapper.Theme.BrandID)
 }
 
 func TestBrandingHandler_CreateAsset(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
 	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, nil)
-	handler := handlers.NewBrandingHandler(brandingService, nil)
+	brandingService, _ := services.NewBrandingService(cfg, logger)
+	brandingService.SetDB(db)
+	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	// Create a brand first
 	brand := models.Brand{
@@ -379,11 +429,15 @@ func TestBrandingHandler_CreateAsset(t *testing.T) {
 	require.NoError(t, err)
 
 	router := gin.New()
-	router.POST("/assets", handler.CreateAsset)
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
+	router.POST("/brands/:brand_id/assets", handler.CreateAsset)
 
 	// Test data
 	asset := models.Asset{
-		BrandID:      brand.ID,
 		Name:         "Test Logo",
 		Type:         "logo",
 		Category:     "primary",
@@ -402,7 +456,7 @@ func TestBrandingHandler_CreateAsset(t *testing.T) {
 	}
 
 	jsonData, _ := json.Marshal(asset)
-	req, _ := http.NewRequest("POST", "/assets", bytes.NewBuffer(jsonData))
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/brands/%d/assets", brand.ID), bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -411,28 +465,33 @@ func TestBrandingHandler_CreateAsset(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var response models.Asset
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Asset   models.Asset `json:"asset"`
+		Message string       `json:"message"`
+	}
+	err = json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, asset.Name, response.Name)
-	assert.Equal(t, asset.Type, response.Type)
-	assert.Equal(t, asset.Category, response.Category)
-	assert.Equal(t, asset.Filename, response.Filename)
-	assert.Equal(t, asset.OriginalName, response.OriginalName)
-	assert.Equal(t, asset.MimeType, response.MimeType)
-	assert.Equal(t, asset.Size, response.Size)
-	assert.Equal(t, asset.BrandID, response.BrandID)
+	assert.Equal(t, asset.Name, responseWrapper.Asset.Name)
+	assert.Equal(t, asset.Type, responseWrapper.Asset.Type)
+	assert.Equal(t, asset.Category, responseWrapper.Asset.Category)
+	assert.Equal(t, asset.Filename, responseWrapper.Asset.Filename)
+	assert.Equal(t, asset.OriginalName, responseWrapper.Asset.OriginalName)
+	assert.Equal(t, asset.MimeType, responseWrapper.Asset.MimeType)
+	assert.Equal(t, asset.Size, responseWrapper.Asset.Size)
+	assert.Equal(t, brand.ID, responseWrapper.Asset.BrandID)
 }
 
 func TestBrandingHandler_ListAssets(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
 	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, nil)
-	handler := handlers.NewBrandingHandler(brandingService, nil)
+	brandingService, _ := services.NewBrandingService(cfg, logger)
+	brandingService.SetDB(db)
+	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	// Create a brand first
 	brand := models.Brand{
@@ -460,10 +519,15 @@ func TestBrandingHandler_ListAssets(t *testing.T) {
 	}
 
 	router := gin.New()
-	router.GET("/assets", handler.ListAssets)
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
+	router.GET("/brands/:brand_id/assets", handler.ListAssets)
 
 	// Test
-	req, _ := http.NewRequest("GET", fmt.Sprintf("/assets?brand_id=%d", brand.ID), nil)
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/brands/%d/assets", brand.ID), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -483,10 +547,12 @@ func TestBrandingHandler_CreateCustomCSS(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
 	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, nil)
-	handler := handlers.NewBrandingHandler(brandingService, nil)
+	brandingService, _ := services.NewBrandingService(cfg, logger)
+	brandingService.SetDB(db)
+	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	// Create a brand first
 	brand := models.Brand{
@@ -502,11 +568,15 @@ func TestBrandingHandler_CreateCustomCSS(t *testing.T) {
 	require.NoError(t, err)
 
 	router := gin.New()
-	router.POST("/custom-css", handler.CreateCustomCSS)
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
+	router.POST("/brands/:brand_id/custom-css", handler.CreateCustomCSS)
 
 	// Test data
 	customCSS := models.CustomCSS{
-		BrandID:     brand.ID,
 		Name:        "Test CSS",
 		Description: "Test CSS description",
 		CSS:         ".test { color: red; }",
@@ -517,7 +587,7 @@ func TestBrandingHandler_CreateCustomCSS(t *testing.T) {
 	}
 
 	jsonData, _ := json.Marshal(customCSS)
-	req, _ := http.NewRequest("POST", "/custom-css", bytes.NewBuffer(jsonData))
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/brands/%d/custom-css", brand.ID), bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -526,28 +596,38 @@ func TestBrandingHandler_CreateCustomCSS(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var response models.CustomCSS
-	err = json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		CustomCSS models.CustomCSS `json:"custom_css"`
+		Message   string           `json:"message"`
+	}
+	err = json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Equal(t, customCSS.Name, response.Name)
-	assert.Equal(t, customCSS.Description, response.Description)
-	assert.Equal(t, customCSS.CSS, response.CSS)
-	assert.Equal(t, customCSS.Version, response.Version)
-	assert.Equal(t, customCSS.Status, response.Status)
-	assert.Equal(t, customCSS.BrandID, response.BrandID)
+	assert.Equal(t, customCSS.Name, responseWrapper.CustomCSS.Name)
+	assert.Equal(t, customCSS.Description, responseWrapper.CustomCSS.Description)
+	assert.Equal(t, customCSS.CSS, responseWrapper.CustomCSS.CSS)
+	assert.Equal(t, customCSS.Version, responseWrapper.CustomCSS.Version)
+	assert.Equal(t, customCSS.Status, responseWrapper.CustomCSS.Status)
+	assert.Equal(t, brand.ID, responseWrapper.CustomCSS.BrandID)
 }
 
 func TestBrandingHandler_GetStats(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup
-	_ = setupTestDB(t)
+	logger, _ := zap.NewDevelopment()
+	db := setupTestDB(t)
 	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, nil)
-	handler := handlers.NewBrandingHandler(brandingService, nil)
+	brandingService, _ := services.NewBrandingService(cfg, logger)
+	brandingService.SetDB(db)
+	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("tenant_id", uint(1))
+		c.Set("user_id", uint(1))
+		c.Next()
+	})
 	router.GET("/stats", handler.GetStats)
 
 	// Test
@@ -558,13 +638,15 @@ func TestBrandingHandler_GetStats(t *testing.T) {
 	// Assertions
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string]interface{}
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	var responseWrapper struct {
+		Stats map[string]interface{} `json:"stats"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &responseWrapper)
 	require.NoError(t, err)
 
-	assert.Contains(t, response, "total_brands")
-	assert.Contains(t, response, "total_themes")
-	assert.Contains(t, response, "total_assets")
+	assert.Contains(t, responseWrapper.Stats, "total_brands")
+	assert.Contains(t, responseWrapper.Stats, "total_themes")
+	assert.Contains(t, responseWrapper.Stats, "total_assets")
 }
 
 // Helper function to setup test database

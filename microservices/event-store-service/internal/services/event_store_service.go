@@ -8,6 +8,7 @@ import (
 
 	"github.com/enterprise-status/statuspage-event-store-service/internal/config"
 	"github.com/enterprise-status/statuspage-event-store-service/internal/models"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -121,6 +122,10 @@ func (s *EventStoreService) AppendEvents(ctx context.Context, streamID string, e
 	// Append events
 	for _, event := range events {
 		event.StreamID = streamID
+		// Generate UUID for event if not provided
+		if event.ID == "" {
+			event.ID = uuid.New().String()
+		}
 		if err := tx.Create(event).Error; err != nil {
 			tx.Rollback()
 			s.logger.Error("Failed to append event", zap.Error(err))
@@ -199,6 +204,10 @@ func (s *EventStoreService) CreateSnapshot(ctx context.Context, streamID string,
 		zap.String("snapshot_id", snapshot.ID))
 
 	snapshot.StreamID = streamID
+	// Generate UUID for snapshot if not provided
+	if snapshot.ID == "" {
+		snapshot.ID = uuid.New().String()
+	}
 	if err := s.db.Create(snapshot).Error; err != nil {
 		s.logger.Error("Failed to create snapshot", zap.Error(err))
 		return fmt.Errorf("failed to create snapshot: %w", err)
