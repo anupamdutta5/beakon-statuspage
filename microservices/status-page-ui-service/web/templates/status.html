@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.SiteName}} - Status</title>
+    <meta name="description" content="Real-time status of {{.SiteName}} services and infrastructure">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="{{.SiteName}} - Status">
+    <meta property="og:description" content="Real-time status of {{.SiteName}} services and infrastructure">
+    <meta property="og:image" content="{{.OGImage}}">
+    <meta property="og:url" content="{{.SiteURL}}">
+    <meta property="og:type" content="website">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{.Favicon}}">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="/static/css/status.css">
+    
+    <!-- Real-time updates -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <img src="{{.LogoURL}}" alt="{{.SiteName}}" class="logo-img">
+                    <h1 class="site-name">{{.SiteName}}</h1>
+                </div>
+                <div class="header-actions">
+                    <a href="{{.SubscribeURL}}" class="btn btn-primary">Subscribe to Updates</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Status -->
+    <main class="main">
+        <div class="container">
+            <!-- Overall Status -->
+            <section class="overall-status">
+                <div class="status-indicator {{.OverallStatus}}">
+                    <div class="status-icon">
+                        {{if eq .OverallStatus "operational"}}
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 12l2 2 4-4"/>
+                                <circle cx="12" cy="12" r="10"/>
+                            </svg>
+                        {{else if eq .OverallStatus "degraded"}}
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 9v3m0 0v3m0-3h3m-3 0H9"/>
+                                <circle cx="12" cy="12" r="10"/>
+                            </svg>
+                        {{else if eq .OverallStatus "partial_outage"}}
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                        {{else}}
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        {{end}}
+                    </div>
+                    <div class="status-text">
+                        <h2 class="status-title">{{.StatusTitle}}</h2>
+                        <p class="status-description">{{.StatusDescription}}</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Components Status -->
+            <section class="components-section">
+                <h3 class="section-title">Services</h3>
+                <div class="components-grid">
+                    {{range .Components}}
+                    <div class="component-card {{.Status}}">
+                        <div class="component-header">
+                            <div class="component-status">
+                                <span class="status-dot {{.Status}}"></span>
+                                <span class="status-text">{{.StatusText}}</span>
+                            </div>
+                            <div class="component-name">{{.Name}}</div>
+                        </div>
+                        {{if .Description}}
+                        <div class="component-description">{{.Description}}</div>
+                        {{end}}
+                        {{if .Uptime}}
+                        <div class="component-uptime">
+                            <span class="uptime-label">Uptime:</span>
+                            <span class="uptime-value">{{.Uptime}}%</span>
+                        </div>
+                        {{end}}
+                    </div>
+                    {{end}}
+                </div>
+            </section>
+
+            <!-- Recent Incidents -->
+            {{if .RecentIncidents}}
+            <section class="incidents-section">
+                <h3 class="section-title">Recent Incidents</h3>
+                <div class="incidents-list">
+                    {{range .RecentIncidents}}
+                    <div class="incident-card {{.Status}}">
+                        <div class="incident-header">
+                            <div class="incident-status">
+                                <span class="status-dot {{.Status}}"></span>
+                                <span class="status-text">{{.StatusText}}</span>
+                            </div>
+                            <div class="incident-date">{{.CreatedAt}}</div>
+                        </div>
+                        <div class="incident-title">{{.Title}}</div>
+                        {{if .Description}}
+                        <div class="incident-description">{{.Description}}</div>
+                        {{end}}
+                        {{if .Updates}}
+                        <div class="incident-updates">
+                            {{range .Updates}}
+                            <div class="update-item">
+                                <div class="update-time">{{.CreatedAt}}</div>
+                                <div class="update-message">{{.Message}}</div>
+                            </div>
+                            {{end}}
+                        </div>
+                        {{end}}
+                    </div>
+                    {{end}}
+                </div>
+            </section>
+            {{end}}
+
+            <!-- Scheduled Maintenance -->
+            {{if .ScheduledMaintenance}}
+            <section class="maintenance-section">
+                <h3 class="section-title">Scheduled Maintenance</h3>
+                <div class="maintenance-list">
+                    {{range .ScheduledMaintenance}}
+                    <div class="maintenance-card">
+                        <div class="maintenance-header">
+                            <div class="maintenance-title">{{.Title}}</div>
+                            <div class="maintenance-date">{{.ScheduledTime}}</div>
+                        </div>
+                        {{if .Description}}
+                        <div class="maintenance-description">{{.Description}}</div>
+                        {{end}}
+                        <div class="maintenance-impact">
+                            <span class="impact-label">Impact:</span>
+                            <span class="impact-value {{.Impact}}">{{.ImpactText}}</span>
+                        </div>
+                    </div>
+                    {{end}}
+                </div>
+            </section>
+            {{end}}
+
+            <!-- Footer -->
+            <footer class="footer">
+                <div class="footer-content">
+                    <div class="footer-info">
+                        <p>Last updated: <span id="last-updated">{{.LastUpdated}}</span></p>
+                        <p>Powered by <a href="{{.PoweredByURL}}" target="_blank">{{.PoweredBy}}</a></p>
+                    </div>
+                    <div class="footer-links">
+                        <a href="{{.SubscribeURL}}">Subscribe</a>
+                        <a href="{{.HistoryURL}}">History</a>
+                        <a href="{{.APIURL}}">API</a>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </main>
+
+    <!-- Scripts -->
+    <script src="/static/js/status.js"></script>
+    <script>
+        // Real-time updates
+        const socket = io('{{.WebSocketURL}}');
+        
+        socket.on('status_update', function(data) {
+            updateStatus(data);
+        });
+        
+        socket.on('incident_update', function(data) {
+            updateIncidents(data);
+        });
+        
+        socket.on('maintenance_update', function(data) {
+            updateMaintenance(data);
+        });
+        
+        // Update last updated time
+        function updateLastUpdated() {
+            const now = new Date();
+            document.getElementById('last-updated').textContent = now.toLocaleString();
+        }
+        
+        setInterval(updateLastUpdated, 60000); // Update every minute
+    </script>
+</body>
+</html>
