@@ -143,13 +143,3 @@ func getEnvInt(key string, defaultValue int) int {
 	}
 	return defaultValue
 }
-
-// getEnvBool gets an environment variable as a boolean with a default value.
-func getEnvBool(key string, defaultValue bool) bool {
-	if value := os.Getenv(key); value != "" {
-		if boolValue, err := strconv.ParseBool(value); err == nil {
-			return boolValue
-		}
-	}
-	return defaultValue
-}

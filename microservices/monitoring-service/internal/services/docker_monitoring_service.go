@@ -197,10 +197,13 @@ func (s *DockerMonitoringService) GetDockerContainerHealth(containerID uint) (ma
 		}
 	} else {
 		// If no health checks, use container status
-		if container.Status == "running" {
+		switch container.Status {
+		case "running":
 			healthStatus = "healthy"
-		} else if container.Status == "stopped" {
+		case "stopped":
 			healthStatus = "unhealthy"
+		default:
+			healthStatus = "unknown"
 		}
 	}
 
@@ -245,9 +248,10 @@ func (s *DockerMonitoringService) GetDockerHostHealth(tenantID uint) (map[string
 	for _, container := range containers {
 		// Count by status
 		statusCounts[container.Status]++
-		if container.Status == "running" {
+		switch container.Status {
+		case "running":
 			runningContainers++
-		} else if container.Status == "stopped" {
+		case "stopped":
 			stoppedContainers++
 		}
 
@@ -258,9 +262,10 @@ func (s *DockerMonitoringService) GetDockerHostHealth(tenantID uint) (map[string
 		hasHealthyCheck := false
 		hasUnhealthyCheck := false
 		for _, healthCheck := range container.HealthChecks {
-			if healthCheck.Status == "healthy" {
+			switch healthCheck.Status {
+			case "healthy":
 				hasHealthyCheck = true
-			} else if healthCheck.Status == "unhealthy" {
+			case "unhealthy":
 				hasUnhealthyCheck = true
 			}
 		}

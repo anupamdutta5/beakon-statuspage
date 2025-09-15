@@ -19,6 +19,8 @@ import (
 func setupTestDB() *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
+		// In a real test, you might want to use t.Fatal() instead of panic
+		// For now, we'll use panic as this is a test utility function
 		panic("Failed to connect to test database")
 	}
 
@@ -36,6 +38,8 @@ func setupTestDB() *gorm.DB {
 		&models.LandingPageStats{},
 	)
 	if err != nil {
+		// In a real test, you might want to use t.Fatal() instead of panic
+		// For now, we'll use panic as this is a test utility function
 		panic("Failed to migrate test database")
 	}
 

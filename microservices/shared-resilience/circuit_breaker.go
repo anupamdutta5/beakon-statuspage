@@ -14,12 +14,12 @@ import (
 
 // CircuitBreakerConfig represents configuration for circuit breaker
 type CircuitBreakerConfig struct {
-	Name          string        `yaml:"name"`
-	MaxRequests   uint32        `yaml:"max_requests" default:"3"`
-	Interval      time.Duration `yaml:"interval" default:"10s"`
-	Timeout       time.Duration `yaml:"timeout" default:"60s"`
-	FailureRatio  float64       `yaml:"failure_ratio" default:"0.6"`
-	MinRequests   uint32        `yaml:"min_requests" default:"5"`
+	Name         string        `yaml:"name"`
+	MaxRequests  uint32        `yaml:"max_requests" default:"3"`
+	Interval     time.Duration `yaml:"interval" default:"10s"`
+	Timeout      time.Duration `yaml:"timeout" default:"60s"`
+	FailureRatio float64       `yaml:"failure_ratio" default:"0.6"`
+	MinRequests  uint32        `yaml:"min_requests" default:"5"`
 }
 
 // CircuitBreaker wraps gobreaker.CircuitBreaker with additional functionality
@@ -32,12 +32,12 @@ type CircuitBreaker struct {
 
 // CircuitBreakerMetrics tracks circuit breaker metrics
 type CircuitBreakerMetrics struct {
-	mu                sync.RWMutex
-	TotalRequests     int64
+	mu                 sync.RWMutex
+	TotalRequests      int64
 	SuccessfulRequests int64
-	FailedRequests    int64
-	CircuitOpenCount  int64
-	LastFailureTime   time.Time
+	FailedRequests     int64
+	CircuitOpenCount   int64
+	LastFailureTime    time.Time
 }
 
 // NewCircuitBreaker creates a new circuit breaker instance
@@ -97,7 +97,7 @@ func (cb *CircuitBreaker) Execute(ctx context.Context, fn func() (interface{}, e
 	if err != nil {
 		cb.metrics.FailedRequests++
 		cb.metrics.LastFailureTime = time.Now()
-		
+
 		// Check if circuit is open
 		if cb.breaker.State() == gobreaker.StateOpen {
 			cb.metrics.CircuitOpenCount++
@@ -148,18 +148,19 @@ func (cb *CircuitBreaker) GetMetrics() CircuitBreakerMetrics {
 
 	// Return a copy to avoid race conditions
 	return CircuitBreakerMetrics{
-		TotalRequests:     cb.metrics.TotalRequests,
+		TotalRequests:      cb.metrics.TotalRequests,
 		SuccessfulRequests: cb.metrics.SuccessfulRequests,
-		FailedRequests:    cb.metrics.FailedRequests,
-		CircuitOpenCount:  cb.metrics.CircuitOpenCount,
-		LastFailureTime:   cb.metrics.LastFailureTime,
+		FailedRequests:     cb.metrics.FailedRequests,
+		CircuitOpenCount:   cb.metrics.CircuitOpenCount,
+		LastFailureTime:    cb.metrics.LastFailureTime,
 	}
 }
 
 // Reset resets the circuit breaker state
 func (cb *CircuitBreaker) Reset() {
-	cb.breaker.Reset()
-	cb.logger.Info("Circuit breaker reset", zap.String("name", cb.config.Name))
+	// Note: gobreaker doesn't have a Reset method
+	// The circuit breaker will automatically reset based on its configuration
+	cb.logger.Info("Circuit breaker reset requested", zap.String("name", cb.config.Name))
 }
 
 // HTTPClientCircuitBreaker wraps HTTP client with circuit breaker

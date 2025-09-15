@@ -34,10 +34,11 @@ database: test_db
 cache:
   provider: redis
   host: localhost
-  port: 5432
-  password: test_password
+  port: 6379
+  password: ""
   db: 0
   ttl: 300
+  key_prefix: "statuspage:landing-page-service"
 
 logging:
   level: debug
@@ -54,13 +55,13 @@ static:
 
 services:
   database_service:
-    base_url: http://localhost: localhost
+    base_url: http://localhost:8092
     timeout: 5s
   event_store_service:
-    base_url: http://localhost: localhost
+    base_url: http://localhost:8093
     timeout: 5s
   saas_admin_service:
-    base_url: http://localhost: localhost
+    base_url: http://localhost:8094
     timeout: 5s
 
 features:

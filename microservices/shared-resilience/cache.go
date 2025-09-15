@@ -15,8 +15,8 @@ import (
 
 // CacheConfig represents configuration for caching
 type CacheConfig struct {
-	DefaultTTL    time.Duration `yaml:"default_ttl" default:"5m"`
-	MaxSize       int           `yaml:"max_size" default:"1000"`
+	DefaultTTL      time.Duration `yaml:"default_ttl" default:"5m"`
+	MaxSize         int           `yaml:"max_size" default:"1000"`
 	CleanupInterval time.Duration `yaml:"cleanup_interval" default:"10m"`
 }
 
@@ -34,12 +34,12 @@ func (item *CacheItem) IsExpired() bool {
 
 // InMemoryCache provides an in-memory cache implementation
 type InMemoryCache struct {
-	config     CacheConfig
-	logger     *zap.Logger
-	items      map[string]*CacheItem
-	mutex      sync.RWMutex
-	stop       chan struct{}
-	totalHits  int64
+	config      CacheConfig
+	logger      *zap.Logger
+	items       map[string]*CacheItem
+	mutex       sync.RWMutex
+	stop        chan struct{}
+	totalHits   int64
 	totalMisses int64
 }
 
@@ -180,12 +180,12 @@ func (c *InMemoryCache) Stop() {
 
 // CacheStats represents cache statistics
 type CacheStats struct {
-	Size       int           `json:"size"`
-	MaxSize    int           `json:"max_size"`
-	HitRate    float64       `json:"hit_rate"`
-	MissRate   float64       `json:"miss_rate"`
-	TotalHits  int64         `json:"total_hits"`
-	TotalMisses int64        `json:"total_misses"`
+	Size        int     `json:"size"`
+	MaxSize     int     `json:"max_size"`
+	HitRate     float64 `json:"hit_rate"`
+	MissRate    float64 `json:"miss_rate"`
+	TotalHits   int64   `json:"total_hits"`
+	TotalMisses int64   `json:"total_misses"`
 }
 
 // GetStats returns cache statistics
@@ -209,7 +209,6 @@ func (c *InMemoryCache) GetStats() CacheStats {
 		TotalMisses: c.totalMisses,
 	}
 }
-
 
 // Cache interface defines the contract for cache implementations
 type Cache interface {
@@ -249,7 +248,7 @@ func (m *CacheMiddleware) Handler() gin.HandlerFunc {
 		}
 
 		key := m.CacheKey(c)
-		
+
 		// Try to get from cache
 		if cached, exists := m.cache.Get(c.Request.Context(), key); exists {
 			if data, ok := cached.([]byte); ok {
@@ -262,7 +261,7 @@ func (m *CacheMiddleware) Handler() gin.HandlerFunc {
 		// Capture response
 		writer := &responseWriter{
 			ResponseWriter: c.Writer,
-			body:          make([]byte, 0),
+			body:           make([]byte, 0),
 		}
 		c.Writer = writer
 

@@ -145,3 +145,4 @@ func (h *StatusPageHandler) getTenantID(c *gin.Context) (uint, error) {
 	// Default to tenant ID 1 for development
 	return 1, nil
 }
+

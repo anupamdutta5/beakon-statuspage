@@ -280,3 +280,4 @@ func (s *CustomMetricsService) GetCustomMetricByName(tenantID uint, name string)
 
 	return &metric, nil
 }
+

@@ -1,0 +1,63 @@
+environment: development
+
+service:
+  name: status-page-ui-service
+  version: 1.0.0
+  description: Status Page UI Service for StatusPage
+  tags:
+    - status-page
+    - ui
+    - frontend
+  metadata:
+    owner: platform-team
+    maintainer: devops@company.com
+
+server:
+  host: localhost
+  port: 8095
+  read_timeout: 30
+  write_timeout: 30
+  idle_timeout: 120
+
+cache:
+  provider: redis
+  host: localhost
+  port: 6379
+  password: ""
+  db: 0
+  ttl: 300
+  key_prefix: "statuspage:status-page-ui-service"
+
+logging:
+  level: debug
+  format: json
+  output: stdout
+
+templates:
+  path: web/templates
+  cache: false
+
+static:
+  path: web/static
+  cache_control: "public, max-age=3600"
+
+services:
+  incident_service:
+    base_url: http://localhost:8082
+    timeout: 5s
+  component_service:
+    base_url: http://localhost:8090
+    timeout: 5s
+  monitoring_service:
+    base_url: http://localhost:8085
+    timeout: 5s
+  tenant_service:
+    base_url: http://localhost:8081
+    timeout: 5s
+
+features:
+  enable_real_time_updates: true
+  enable_subscriber_management: true
+  enable_maintenance_mode: true
+  enable_incident_history: true
+

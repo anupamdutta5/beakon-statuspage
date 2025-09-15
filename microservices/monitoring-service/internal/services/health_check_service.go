@@ -265,3 +265,4 @@ func (s *HealthCheckService) GetHealthCheckSummary(responses []*HealthCheckRespo
 		"timestamp":             time.Now(),
 	}
 }
+

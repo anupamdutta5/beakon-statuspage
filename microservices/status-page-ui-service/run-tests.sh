@@ -81,3 +81,4 @@ print_status "Cleaning up test dependencies..."
 docker-compose -f docker-compose.test.yml down
 
 print_status "Tests completed successfully! 🎉"
+

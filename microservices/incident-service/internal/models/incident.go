@@ -18,7 +18,7 @@ type Incident struct {
 	Description string         `gorm:"type:text" json:"description"`
 	Status      string         `gorm:"default:investigating;index:idx_status_impact" json:"status"` // investigating, identified, monitoring, resolved
 	Impact      string         `gorm:"default:minor;index:idx_status_impact" json:"impact"`         // minor, major, critical
-	Severity    string         `gorm:"default:low" json:"severity"`         // low, medium, high, critical
+	Severity    string         `gorm:"default:low" json:"severity"`                                 // low, medium, high, critical
 	IsVisible   bool           `gorm:"default:true;index:idx_tenant_visible" json:"is_visible"`
 	StartedAt   time.Time      `gorm:"not null;index:idx_started_at" json:"started_at"`
 	ResolvedAt  *time.Time     `gorm:"index:idx_resolved_at" json:"resolved_at"`

@@ -297,3 +297,4 @@ func (s *KubernetesMonitoringService) UpdateKubernetesResourceStatus(resourceID 
 
 	return nil
 }
+

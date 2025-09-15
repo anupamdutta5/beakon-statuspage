@@ -76,25 +76,25 @@ func (s *StatusPageManagementService) GetStatusPageData(tenantID uint, slug stri
 
 	// Build status page data
 	data := &models.StatusPageData{
-		SiteName:              config.SiteName,
-		SiteDescription:       config.SiteDescription,
-		LogoURL:               config.LogoURL,
-		Favicon:               config.Favicon,
-		OGImage:               config.OGImage,
-		SiteURL:               config.SiteURL,
-		SubscribeURL:          config.SubscribeURL,
-		HistoryURL:            config.HistoryURL,
-		APIURL:                config.APIURL,
-		WebSocketURL:          config.WebSocketURL,
-		PoweredBy:             config.PoweredBy,
-		PoweredByURL:          config.PoweredByURL,
-		LastUpdated:           time.Now().Format(time.RFC3339),
-		OverallStatus:         overallStatus.Status,
-		StatusTitle:           overallStatus.Title,
-		StatusDescription:     overallStatus.Description,
-		Components:            components,
-		RecentIncidents:       incidents,
-		ScheduledMaintenance:  maintenance,
+		SiteName:             config.SiteName,
+		SiteDescription:      config.SiteDescription,
+		LogoURL:              config.LogoURL,
+		Favicon:              config.Favicon,
+		OGImage:              config.OGImage,
+		SiteURL:              config.SiteURL,
+		SubscribeURL:         config.SubscribeURL,
+		HistoryURL:           config.HistoryURL,
+		APIURL:               config.APIURL,
+		WebSocketURL:         config.WebSocketURL,
+		PoweredBy:            config.PoweredBy,
+		PoweredByURL:         config.PoweredByURL,
+		LastUpdated:          time.Now().Format(time.RFC3339),
+		OverallStatus:        overallStatus.Status,
+		StatusTitle:          overallStatus.Title,
+		StatusDescription:    overallStatus.Description,
+		Components:           components,
+		RecentIncidents:      incidents,
+		ScheduledMaintenance: maintenance,
 	}
 
 	return data, nil
@@ -133,7 +133,7 @@ func (s *StatusPageManagementService) CreateStatusPage(tenantID uint, statusPage
 		return fmt.Errorf("failed to create status page config: %w", err)
 	}
 
-	s.logger.Info("Created status page", 
+	s.logger.Info("Created status page",
 		zap.Uint("tenant_id", tenantID),
 		zap.Uint("status_page_id", statusPage.ID),
 		zap.String("slug", statusPage.Slug))
@@ -161,7 +161,7 @@ func (s *StatusPageManagementService) UpdateStatusPage(tenantID uint, statusPage
 		return fmt.Errorf("failed to update status page: %w", err)
 	}
 
-	s.logger.Info("Updated status page", 
+	s.logger.Info("Updated status page",
 		zap.Uint("tenant_id", tenantID),
 		zap.Uint("status_page_id", statusPage.ID))
 
@@ -184,7 +184,7 @@ func (s *StatusPageManagementService) UpdateStatusPageConfig(tenantID uint, stat
 		return fmt.Errorf("failed to update status page config: %w", err)
 	}
 
-	s.logger.Info("Updated status page config", 
+	s.logger.Info("Updated status page config",
 		zap.Uint("tenant_id", tenantID),
 		zap.Uint("status_page_id", statusPageID))
 
@@ -225,7 +225,7 @@ func (s *StatusPageManagementService) DeleteStatusPage(tenantID uint, statusPage
 		return fmt.Errorf("failed to delete status page: %w", err)
 	}
 
-	s.logger.Info("Deleted status page", 
+	s.logger.Info("Deleted status page",
 		zap.Uint("tenant_id", tenantID),
 		zap.Uint("status_page_id", statusPageID))
 
@@ -293,10 +293,10 @@ func (s *StatusPageManagementService) getComponentsStatus(tenantID uint) ([]mode
 
 	var response struct {
 		Components []struct {
-			ID          uint    `json:"id"`
-			Name        string  `json:"name"`
-			Description string  `json:"description"`
-			Status      string  `json:"status"`
+			ID          uint   `json:"id"`
+			Name        string `json:"name"`
+			Description string `json:"description"`
+			Status      string `json:"status"`
 		} `json:"components"`
 	}
 
@@ -499,15 +499,15 @@ func (s *StatusPageManagementService) calculateOverallStatus(components []models
 // getStatusText converts status to human-readable text.
 func (s *StatusPageManagementService) getStatusText(status string) string {
 	statusMap := map[string]string{
-		"operational":     "Operational",
-		"degraded":        "Degraded Performance",
-		"partial_outage":  "Partial Outage",
-		"major_outage":    "Major Outage",
-		"maintenance":     "Under Maintenance",
-		"investigating":   "Investigating",
-		"identified":      "Identified",
-		"monitoring":      "Monitoring",
-		"resolved":        "Resolved",
+		"operational":    "Operational",
+		"degraded":       "Degraded Performance",
+		"partial_outage": "Partial Outage",
+		"major_outage":   "Major Outage",
+		"maintenance":    "Under Maintenance",
+		"investigating":  "Investigating",
+		"identified":     "Identified",
+		"monitoring":     "Monitoring",
+		"resolved":       "Resolved",
 	}
 
 	if text, exists := statusMap[status]; exists {
@@ -519,9 +519,9 @@ func (s *StatusPageManagementService) getStatusText(status string) string {
 // getImpactText converts impact to human-readable text.
 func (s *StatusPageManagementService) getImpactText(impact string) string {
 	impactMap := map[string]string{
-		"none":    "No Impact",
-		"minor":   "Minor Impact",
-		"major":   "Major Impact",
+		"none":     "No Impact",
+		"minor":    "Minor Impact",
+		"major":    "Major Impact",
 		"critical": "Critical Impact",
 	}
 
@@ -537,7 +537,7 @@ func (s *StatusPageManagementService) getComponentUptime(componentID uint) float
 	url := fmt.Sprintf("%s/api/v1/components/%d/uptime", s.config.MonitoringServiceURL, componentID)
 	resp, err := http.Get(url)
 	if err != nil {
-		s.logger.Warn("Failed to get component uptime", 
+		s.logger.Warn("Failed to get component uptime",
 			zap.Uint("component_id", componentID),
 			zap.Error(err))
 		return 99.9 // Default uptime if monitoring service is unavailable
@@ -545,7 +545,7 @@ func (s *StatusPageManagementService) getComponentUptime(componentID uint) float
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		s.logger.Warn("Monitoring service returned error for uptime", 
+		s.logger.Warn("Monitoring service returned error for uptime",
 			zap.Uint("component_id", componentID),
 			zap.Int("status_code", resp.StatusCode))
 		return 99.9 // Default uptime
@@ -554,9 +554,9 @@ func (s *StatusPageManagementService) getComponentUptime(componentID uint) float
 	var uptimeResponse struct {
 		Uptime float64 `json:"uptime"`
 	}
-	
+
 	if err := json.NewDecoder(resp.Body).Decode(&uptimeResponse); err != nil {
-		s.logger.Warn("Failed to decode uptime response", 
+		s.logger.Warn("Failed to decode uptime response",
 			zap.Uint("component_id", componentID),
 			zap.Error(err))
 		return 99.9 // Default uptime

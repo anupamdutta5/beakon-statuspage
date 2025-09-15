@@ -211,3 +211,4 @@ func GetUserRole(c *gin.Context) (string, bool) {
 	r, ok := role.(string)
 	return r, ok
 }
+

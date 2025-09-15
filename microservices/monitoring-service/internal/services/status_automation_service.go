@@ -231,3 +231,4 @@ func (s *StatusAutomationService) GetActiveStatusAutomations(tenantID uint) ([]*
 
 	return automations, nil
 }
+

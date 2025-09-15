@@ -422,3 +422,4 @@ func (s *MaintenanceManagementService) GetMaintenanceStatistics(tenantID uint, s
 
 	return stats, nil
 }
+

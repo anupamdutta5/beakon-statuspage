@@ -73,3 +73,4 @@ type MaintenanceStatus struct {
 	ImpactText    string `json:"impact_text"`
 	ScheduledTime string `json:"scheduled_time"`
 }
+

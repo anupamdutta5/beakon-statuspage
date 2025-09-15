@@ -2,6 +2,7 @@
 package models
 
 import (
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -57,7 +58,7 @@ type HealthCheck struct {
 	IsActive       bool             `gorm:"default:true;index:idx_service_active" json:"is_active"`
 	LastChecked    *time.Time       `gorm:"index:idx_last_checked" json:"last_checked"`
 	LastResult     string           `gorm:"default:unknown;index:idx_result_checked" json:"last_result"` // success, failure, timeout
-	Metadata       string           `gorm:"type:text" json:"metadata"`          // JSON string for additional data
+	Metadata       string           `gorm:"type:text" json:"metadata"`                                   // JSON string for additional data
 }
 
 // HealthCheckResult represents the result of a health check.
@@ -244,4 +245,94 @@ func (PerformanceDataPoint) TableName() string {
 // TableName returns the table name for LogEntry.
 func (LogEntry) TableName() string {
 	return "log_entries"
+}
+
+// CustomMetric represents a custom metric definition.
+type CustomMetric struct {
+	ID            uint           `gorm:"primarykey" json:"id"`
+	CreatedAt     time.Time      `json:"created_at"`
+	UpdatedAt     time.Time      `json:"updated_at"`
+	DeletedAt     gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
+	TenantID      uint           `gorm:"not null;index" json:"tenant_id"`
+	Name          string         `gorm:"not null;uniqueIndex:idx_tenant_name" json:"name"`
+	Description   string         `json:"description"`
+	Type          string         `gorm:"not null" json:"type"` // counter, gauge, histogram, summary
+	Unit          string         `json:"unit"`                 // seconds, bytes, requests, etc.
+	Category      string         `json:"category"`             // system, application, business
+	IsActive      bool           `gorm:"default:true" json:"is_active"`
+	RetentionDays int            `gorm:"default:30" json:"retention_days"`
+	Labels        string         `gorm:"type:text" json:"labels"`   // JSON string for default labels
+	Metadata      string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
+
+	// Related entities
+	DataPoints []CustomMetricDataPoint `gorm:"foreignKey:MetricID" json:"data_points,omitempty"`
+}
+
+// CustomMetricDataPoint represents a custom metric data point.
+type CustomMetricDataPoint struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
+	MetricID  uint           `gorm:"not null;index" json:"metric_id"`
+	Metric    CustomMetric   `gorm:"foreignKey:MetricID" json:"metric"`
+	Value     float64        `gorm:"not null" json:"value"`
+	Timestamp time.Time      `gorm:"not null;index" json:"timestamp"`
+	Labels    string         `gorm:"type:text" json:"labels"`   // JSON string for metric labels
+	Source    string         `json:"source"`                    // agent, api, webhook, etc.
+	Metadata  string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
+}
+
+// TableName returns the table name for CustomMetric.
+func (CustomMetric) TableName() string {
+	return "custom_metrics"
+}
+
+// TableName returns the table name for CustomMetricDataPoint.
+func (CustomMetricDataPoint) TableName() string {
+	return "custom_metric_data_points"
+}
+
+// Validate validates the CustomMetric model.
+func (c *CustomMetric) Validate() error {
+	if c.Name == "" {
+		return fmt.Errorf("metric name is required")
+	}
+	if c.Type == "" {
+		return fmt.Errorf("metric type is required")
+	}
+	if c.TenantID == 0 {
+		return fmt.Errorf("tenant ID is required")
+	}
+
+	// Validate metric type
+	validTypes := []string{"counter", "gauge", "histogram", "summary"}
+	isValidType := false
+	for _, validType := range validTypes {
+		if c.Type == validType {
+			isValidType = true
+			break
+		}
+	}
+	if !isValidType {
+		return fmt.Errorf("invalid metric type: %s, must be one of: %v", c.Type, validTypes)
+	}
+
+	// Validate retention days
+	if c.RetentionDays < 1 {
+		return fmt.Errorf("retention days must be at least 1")
+	}
+
+	return nil
+}
+
+// Validate validates the CustomMetricDataPoint model.
+func (c *CustomMetricDataPoint) Validate() error {
+	if c.MetricID == 0 {
+		return fmt.Errorf("metric ID is required")
+	}
+	if c.Timestamp.IsZero() {
+		return fmt.Errorf("timestamp is required")
+	}
+	return nil
 }

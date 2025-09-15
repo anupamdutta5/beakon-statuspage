@@ -40,8 +40,8 @@ func NewInputSanitizer(config SanitizationConfig, logger *zap.Logger) *InputSani
 		if compiled, err := regexp.Compile(pattern); err == nil {
 			compiledPatterns = append(compiledPatterns, compiled)
 		} else {
-			logger.Warn("Failed to compile blocked pattern", 
-				zap.String("pattern", pattern), 
+			logger.Warn("Failed to compile blocked pattern",
+				zap.String("pattern", pattern),
 				zap.Error(err))
 		}
 	}
@@ -119,7 +119,7 @@ func (s *InputSanitizer) SanitizeEmail(input string) (string, error) {
 
 	// Basic email validation regex
 	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
-	
+
 	sanitized := s.SanitizeString(input)
 	if !emailRegex.MatchString(sanitized) {
 		return "", fmt.Errorf("invalid email format")
@@ -144,7 +144,7 @@ func (s *InputSanitizer) GinMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Sanitize query parameters
 		query := c.Request.URL.Query()
-		for key, values := range query {
+		for _, values := range query {
 			for i, value := range values {
 				values[i] = s.SanitizeString(value)
 			}
@@ -155,7 +155,7 @@ func (s *InputSanitizer) GinMiddleware() gin.HandlerFunc {
 		if c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "PATCH" {
 			if err := c.Request.ParseForm(); err == nil {
 				form := c.Request.PostForm
-				for key, values := range form {
+				for _, values := range form {
 					for i, value := range values {
 						values[i] = s.SanitizeString(value)
 					}
@@ -185,8 +185,8 @@ type ValidationError struct {
 
 // ValidationResult represents the result of validation
 type ValidationResult struct {
-	Valid   bool              `json:"valid"`
-	Errors  []ValidationError `json:"errors,omitempty"`
+	Valid     bool              `json:"valid"`
+	Errors    []ValidationError `json:"errors,omitempty"`
 	Sanitized map[string]string `json:"sanitized,omitempty"`
 }
 
@@ -292,7 +292,7 @@ func RateLimitMiddleware(maxRequests int, window time.Duration) gin.HandlerFunc 
 		// Check rate limit
 		if len(clients[clientIP]) >= maxRequests {
 			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error": "Rate limit exceeded",
+				"error":       "Rate limit exceeded",
 				"retry_after": window.Seconds(),
 			})
 			c.Abort()

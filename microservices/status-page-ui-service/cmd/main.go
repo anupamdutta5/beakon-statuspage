@@ -11,11 +11,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/enterprise-status/statuspage-status-ui-service/internal/config"
 	"github.com/enterprise-status/statuspage-status-ui-service/internal/handlers"
 	"github.com/enterprise-status/statuspage-status-ui-service/internal/services"
 	"github.com/enterprise-status/statuspage-status-ui-service/pkg/logger"
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
@@ -80,9 +80,8 @@ func main() {
 	logger.Info("Server exited")
 }
 
-
 // setupRouter configures the HTTP router.
-func setupRouter(statusPageHandler *handlers.StatusPageHandler, logger *zap.Logger) *gin.Engine {
+func setupRouter(statusPageHandler *handlers.StatusPageHandler, _ *zap.Logger) *gin.Engine {
 	// Set Gin mode
 	if os.Getenv("GIN_MODE") == "" {
 		gin.SetMode(gin.ReleaseMode)

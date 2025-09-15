@@ -260,3 +260,4 @@ func (s *ExternalMonitoringService) UpdateExternalServiceStatus(serviceID uint, 
 
 	return nil
 }
+

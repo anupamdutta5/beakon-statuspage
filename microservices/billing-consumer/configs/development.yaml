@@ -14,7 +14,7 @@ consumer:
 
 kafka:
   brokers:
-    - localhost: localhost
+    - localhost:9092
   group_id: billing-consumer-dev
   auto_offset_reset: earliest
   enable_auto_commit: true
@@ -34,10 +34,11 @@ database: test_db
 cache:
   provider: redis
   host: localhost
-  port: 5432
-  password: test_password
+  port: 6379
+  password: ""
   db: 0
   ttl: 300
+  key_prefix: "statuspage:billing-consumer"
 
 logging:
   level: debug

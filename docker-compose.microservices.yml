@@ -36,6 +36,7 @@ services:
       - DB_NAME=statuspage_users
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_KEY_PREFIX=statuspage:user-service
       - JWT_SECRET=your_jwt_secret_here
       - CONSUL_ADDR=consul:8500
       - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
@@ -64,6 +65,7 @@ services:
       - DB_NAME=statuspage_tenants
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_KEY_PREFIX=statuspage:tenant-service
       - CONSUL_ADDR=consul:8500
       - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
     depends_on:
@@ -91,6 +93,7 @@ services:
       - DB_NAME=statuspage_components
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_KEY_PREFIX=statuspage:component-service
       - CONSUL_ADDR=consul:8500
       - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
     depends_on:
@@ -118,6 +121,7 @@ services:
       - DB_NAME=statuspage_incidents
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_KEY_PREFIX=statuspage:incident-service
       - CONSUL_ADDR=consul:8500
       - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
     depends_on:
@@ -145,6 +149,7 @@ services:
       - DB_NAME=statuspage_notifications
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_KEY_PREFIX=statuspage:notification-service
       - SMTP_HOST=smtp.gmail.com
       - SMTP_PORT=587
       - SMTP_USERNAME=your_email@gmail.com
@@ -176,6 +181,7 @@ services:
       - DB_NAME=statuspage_payments
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_KEY_PREFIX=statuspage:payment-service
       - STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key
       - STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
       - CONSUL_ADDR=consul:8500
@@ -205,6 +211,7 @@ services:
       - DB_NAME=statuspage_analytics
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_KEY_PREFIX=statuspage:analytics-service
       - INFLUX_URL=http://influxdb:8086
       - INFLUX_TOKEN=your_influx_token
       - CONSUL_ADDR=consul:8500
@@ -235,6 +242,7 @@ services:
       - DB_NAME=statuspage_monitoring
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_KEY_PREFIX=statuspage:monitoring-service
       - CONSUL_ADDR=consul:8500
       - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
     depends_on:
