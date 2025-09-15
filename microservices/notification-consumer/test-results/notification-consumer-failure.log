@@ -1,0 +1,173 @@
+🧪 Starting Notification Consumer Tests...
+[0;32m[INFO][0m Building test Docker image...
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile.test
+#1 transferring dockerfile: 900B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/golang:1.25.0-alpine
+#2 DONE 0.4s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [test 1/7] FROM docker.io/library/golang:1.25.0-alpine@sha256:f18a072054848d87a8077455f0ac8a25886f2397f88bfdd222d6fafbb5bba440
+#4 resolve docker.io/library/golang:1.25.0-alpine@sha256:f18a072054848d87a8077455f0ac8a25886f2397f88bfdd222d6fafbb5bba440 0.0s done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 5.11kB done
+#5 DONE 0.0s
+
+#6 [test 2/7] RUN apk add --no-cache git
+#6 CACHED
+
+#7 [test 3/7] WORKDIR /app
+#7 CACHED
+
+#8 [test 4/7] COPY go.mod go.sum ./
+#8 CACHED
+
+#9 [test 5/7] RUN go mod download
+#9 CACHED
+
+#10 [test 6/7] COPY . .
+#10 DONE 0.2s
+
+#11 [test 7/7] RUN go mod tidy && go mod download
+#11 0.247 go: downloading gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
+#11 0.356 go: downloading go.uber.org/goleak v1.3.0
+#11 0.530 go: downloading github.com/kr/pretty v0.3.0
+#11 0.566 go: downloading github.com/kr/text v0.2.0
+#11 DONE 0.6s
+
+#12 exporting to image
+#12 exporting layers
+#12 exporting layers 0.9s done
+#12 exporting manifest sha256:e429f7d30ef95d278290d4c4a86978e3b57e58ea5b2bce0a276e1dc38bee3056 done
+#12 exporting config sha256:9455c5d19f065bfb64cf46ca3f8b75c01f0d1b2f07129e67041bb9475c693339 done
+#12 exporting attestation manifest sha256:f249c42bcb6b37241fe108acd09341f59b4949cae5754500e48f85f8bf0e050c done
+#12 exporting manifest list sha256:377a44e8e63593de20f7a9be2cc1b7f8f438cdb5d22beb5b614b1853b4f7303c done
+#12 naming to docker.io/library/notification-consumer-test:latest done
+#12 unpacking to docker.io/library/notification-consumer-test:latest
+#12 unpacking to docker.io/library/notification-consumer-test:latest 0.2s done
+#12 DONE 1.2s
+[0;32m[INFO][0m Starting test dependencies (PostgreSQL)...
+ Container notification-consumer-postgres-1  Running
+[0;32m[INFO][0m Waiting for services to be ready...
+[0;32m[INFO][0m Checking PostgreSQL connection...
+/var/run/postgresql:5432 - accepting connections
+[0;32m[INFO][0m Checking external Kafka connection...
+[0;32m[INFO][0m External Kafka is ready
+[0;32m[INFO][0m Running unit tests...
+ Container notification-consumer-postgres-1  Running
+#1 [internal] load local bake definitions
+#1 reading from stdin 726B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile.test
+#2 transferring dockerfile: 900B done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/golang:1.25.0-alpine
+#3 DONE 0.4s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [test 1/7] FROM docker.io/library/golang:1.25.0-alpine@sha256:f18a072054848d87a8077455f0ac8a25886f2397f88bfdd222d6fafbb5bba440
+#5 resolve docker.io/library/golang:1.25.0-alpine@sha256:f18a072054848d87a8077455f0ac8a25886f2397f88bfdd222d6fafbb5bba440 0.0s done
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 transferring context: 1.81kB done
+#6 DONE 0.0s
+
+#7 [test 4/7] COPY go.mod go.sum ./
+#7 CACHED
+
+#8 [test 3/7] WORKDIR /app
+#8 CACHED
+
+#9 [test 2/7] RUN apk add --no-cache git
+#9 CACHED
+
+#10 [test 5/7] RUN go mod download
+#10 CACHED
+
+#11 [test 6/7] COPY . .
+#11 CACHED
+
+#12 [test 7/7] RUN go mod tidy && go mod download
+#12 CACHED
+
+#13 exporting to image
+#13 exporting layers done
+#13 exporting manifest sha256:7e693458270874486c05f062ebd40fdc7f1faff19fcd84662532d7f65d172f27 done
+#13 exporting config sha256:b3a04da6dbe3e90314c126f7cb07645d2c1983bcbcee1573d67668442b0b416d done
+#13 exporting attestation manifest sha256:dc2c5721a2fa122ff5d1d70e8863ad53885d32393acf0006caba9be0570244e8 done
+#13 exporting manifest list sha256:6507030b8758580d9031e82efb498e1d098e751c41195f4debfcd99777d0adab done
+#13 naming to docker.io/library/notification-consumer-notification-consumer-test:latest done
+#13 unpacking to docker.io/library/notification-consumer-notification-consumer-test:latest done
+#13 DONE 0.1s
+
+#14 resolving provenance for metadata file
+#14 DONE 0.0s
+=== RUN   TestNotificationConsumer_ProcessEvent
+--- PASS: TestNotificationConsumer_ProcessEvent (0.00s)
+=== RUN   TestNotificationConsumer_HandleEmailNotification
+--- PASS: TestNotificationConsumer_HandleEmailNotification (0.00s)
+=== RUN   TestNotificationConsumer_HandleSMSNotification
+--- PASS: TestNotificationConsumer_HandleSMSNotification (0.00s)
+=== RUN   TestNotificationConsumer_HandleWebhookNotification
+--- PASS: TestNotificationConsumer_HandleWebhookNotification (0.00s)
+=== RUN   TestNotificationConsumer_HandlePushNotification
+--- PASS: TestNotificationConsumer_HandlePushNotification (0.00s)
+=== RUN   TestNotificationConsumer_HandleSlackNotification
+--- PASS: TestNotificationConsumer_HandleSlackNotification (0.00s)
+=== RUN   TestNotificationConsumer_HandleIncidentNotification
+--- PASS: TestNotificationConsumer_HandleIncidentNotification (0.00s)
+=== RUN   TestNotificationConsumer_HandleMaintenanceNotification
+--- PASS: TestNotificationConsumer_HandleMaintenanceNotification (0.00s)
+=== RUN   TestNotificationConsumer_ProcessEventWithInvalidData
+--- PASS: TestNotificationConsumer_ProcessEventWithInvalidData (0.00s)
+=== RUN   TestSample
+--- PASS: TestSample (0.00s)
+PASS
+coverage: [no statements]
+ok  	github.com/enterprise-status/statuspage-notification-consumer/tests/unit	0.004s	coverage: [no statements]
+[0;32m[INFO][0m Running integration tests...
+ Container notification-consumer-postgres-1  Running
+=== RUN   TestNotificationConsumerIntegration
+--- PASS: TestNotificationConsumerIntegration (0.00s)
+=== RUN   TestNotificationConsumerEmailNotification
+--- PASS: TestNotificationConsumerEmailNotification (0.00s)
+=== RUN   TestNotificationConsumerSMSNotification
+--- PASS: TestNotificationConsumerSMSNotification (0.00s)
+=== RUN   TestNotificationConsumerWebhookNotification
+--- PASS: TestNotificationConsumerWebhookNotification (0.00s)
+=== RUN   TestNotificationConsumerPushNotification
+--- PASS: TestNotificationConsumerPushNotification (0.00s)
+=== RUN   TestNotificationConsumerSlackNotification
+--- PASS: TestNotificationConsumerSlackNotification (0.00s)
+=== RUN   TestNotificationConsumerIncidentNotification
+--- PASS: TestNotificationConsumerIncidentNotification (0.00s)
+=== RUN   TestNotificationConsumerMaintenanceNotification
+--- PASS: TestNotificationConsumerMaintenanceNotification (0.00s)
+=== RUN   TestNotificationConsumerBulkEvents
+--- PASS: TestNotificationConsumerBulkEvents (0.00s)
+=== RUN   TestNotificationConsumerConcurrency
+--- PASS: TestNotificationConsumerConcurrency (0.00s)
+=== RUN   TestNotificationConsumerErrorHandling
+--- PASS: TestNotificationConsumerErrorHandling (0.00s)
+=== RUN   TestSampleIntegration
+--- PASS: TestSampleIntegration (0.00s)
+PASS
+coverage: [no statements]
+ok  	github.com/enterprise-status/statuspage-notification-consumer/tests/integration	0.003s	coverage: [no statements]
+[0;32m[INFO][0m Generating coverage report...
+ Container notification-consumer-postgres-1  Running
+cover: open unit-coverage.out: no such file or directory

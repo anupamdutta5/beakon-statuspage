@@ -14,16 +14,16 @@ consumer:
 
 kafka:
   brokers:
-    - localhost: localhost
+    - localhost:9092
   group_id: notification-consumer-dev
   auto_offset_reset: earliest
   enable_auto_commit: true
 
-database: test_db
+database:
   host: localhost
   port: 5432
-  user: test_user
-  password: test_password
+  user: postgres
+  password: password
   name: statuspage_notification_consumer
   ssl_mode: disable
   max_conns: 25
@@ -34,8 +34,8 @@ database: test_db
 cache:
   provider: redis
   host: localhost
-  port: 5432
-  password: test_password
+  port: 6379
+  password: ""
   db: 0
   ttl: 300
 
@@ -54,7 +54,7 @@ notifications:
   email:
     provider: smtp
     smtp_host: localhost
-    smtp_port: 5432
+    smtp_port: 1025
     from_email: noreply@statuspage.dev
   sms:
     provider: twilio
