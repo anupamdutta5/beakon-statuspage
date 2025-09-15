@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/enterprise-status/statuspage-landing-service/internal/config"
@@ -16,9 +17,11 @@ import (
 
 // LandingService handles landing page-related business logic.
 type LandingService struct {
-	config *config.Config
-	logger *zap.Logger
-	db     *gorm.DB
+	config       *config.Config
+	logger       *zap.Logger
+	db           *gorm.DB
+	httpClient   *http.Client
+	saasAdminURL string
 }
 
 // NewLandingService creates a new landing service.
@@ -30,16 +33,34 @@ func NewLandingService(cfg *config.Config, logger *zap.Logger) (*LandingService,
 		db = nil // Set to nil to indicate no database
 	}
 
+	// Initialize HTTP client for SaaS admin service communication
+	httpClient := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	// Set SaaS admin service URL (you can make this configurable)
+	saasAdminURL := "http://localhost:8080" // Default, should be configurable
+
 	return &LandingService{
-		config: cfg,
-		logger: logger,
-		db:     db,
+		config:       cfg,
+		logger:       logger,
+		db:           db,
+		httpClient:   httpClient,
+		saasAdminURL: saasAdminURL,
 	}, nil
 }
 
 // SetDB sets the database connection (for testing)
 func (s *LandingService) SetDB(db *gorm.DB) {
 	s.db = db
+}
+
+// checkDatabase checks if database is available
+func (s *LandingService) checkDatabase() error {
+	if s.db == nil {
+		return fmt.Errorf("database not available")
+	}
+	return nil
 }
 
 // LandingPageData represents the data structure for the landing page template.
@@ -92,7 +113,7 @@ func (s *LandingService) GetLandingPageData(ctx context.Context) (*LandingPageDa
 	pricingPlans, err := s.GetPricingPlans(ctx)
 	if err != nil {
 		s.logger.Warn("Failed to get pricing plans, using default", zap.Error(err))
-		pricingPlans = s.getDefaultPricingPlans()
+		pricingPlans = s.getPricingPlans(ctx)
 	}
 
 	// Get testimonials
@@ -155,9 +176,10 @@ func (s *LandingService) GetHeroSection(ctx context.Context) (*models.HeroSectio
 	}
 
 	var hero models.HeroSection
-	if err := s.db.Where("status = ?", "active").Order("order ASC").First(&hero).Error; err != nil {
+	if err := s.db.Where("status = ?", "active").Order("`order` ASC").First(&hero).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("no active hero section found")
+			s.logger.Debug("No active hero section found, returning default")
+			return s.getDefaultHero(), nil
 		}
 		s.logger.Error("Failed to get hero section", zap.Error(err))
 		return nil, fmt.Errorf("failed to get hero section: %w", err)
@@ -169,6 +191,11 @@ func (s *LandingService) GetHeroSection(ctx context.Context) (*models.HeroSectio
 // CreateHeroSection creates a new hero section.
 func (s *LandingService) CreateHeroSection(ctx context.Context, hero *models.HeroSection) error {
 	s.logger.Info("Creating hero section", zap.String("title", hero.Title))
+
+	if err := s.checkDatabase(); err != nil {
+		s.logger.Warn("Database not available, cannot create hero section")
+		return err
+	}
 
 	if err := s.db.Create(hero).Error; err != nil {
 		s.logger.Error("Failed to create hero section", zap.Error(err))
@@ -182,6 +209,11 @@ func (s *LandingService) CreateHeroSection(ctx context.Context, hero *models.Her
 // UpdateHeroSection updates a hero section.
 func (s *LandingService) UpdateHeroSection(ctx context.Context, heroID uint, updates *models.HeroSection) error {
 	s.logger.Info("Updating hero section", zap.Uint("hero_id", heroID))
+
+	if err := s.checkDatabase(); err != nil {
+		s.logger.Warn("Database not available, cannot update hero section")
+		return err
+	}
 
 	if err := s.db.Model(&models.HeroSection{}).Where("id = ?", heroID).Updates(updates).Error; err != nil {
 		s.logger.Error("Failed to update hero section", zap.Error(err))
@@ -205,7 +237,7 @@ func (s *LandingService) GetFeatures(ctx context.Context) ([]*models.FeatureSect
 	}
 
 	var features []*models.FeatureSection
-	if err := s.db.Where("status = ?", "active").Order("order ASC").Find(&features).Error; err != nil {
+	if err := s.db.Where("status = ?", "active").Order("`order` ASC").Find(&features).Error; err != nil {
 		s.logger.Error("Failed to get features", zap.Error(err))
 		return nil, fmt.Errorf("failed to get features: %w", err)
 	}
@@ -216,6 +248,11 @@ func (s *LandingService) GetFeatures(ctx context.Context) ([]*models.FeatureSect
 // CreateFeature creates a new feature.
 func (s *LandingService) CreateFeature(ctx context.Context, feature *models.FeatureSection) error {
 	s.logger.Info("Creating feature", zap.String("title", feature.Title))
+
+	if err := s.checkDatabase(); err != nil {
+		s.logger.Warn("Database not available, cannot create feature")
+		return err
+	}
 
 	if err := s.db.Create(feature).Error; err != nil {
 		s.logger.Error("Failed to create feature", zap.Error(err))
@@ -229,6 +266,11 @@ func (s *LandingService) CreateFeature(ctx context.Context, feature *models.Feat
 // UpdateFeature updates a feature.
 func (s *LandingService) UpdateFeature(ctx context.Context, featureID uint, updates *models.FeatureSection) error {
 	s.logger.Info("Updating feature", zap.Uint("feature_id", featureID))
+
+	if err := s.checkDatabase(); err != nil {
+		s.logger.Warn("Database not available, cannot update feature")
+		return err
+	}
 
 	if err := s.db.Model(&models.FeatureSection{}).Where("id = ?", featureID).Updates(updates).Error; err != nil {
 		s.logger.Error("Failed to update feature", zap.Error(err))
@@ -252,9 +294,15 @@ func (s *LandingService) GetPricingPlans(ctx context.Context) ([]*PricingPlanDat
 	}
 
 	var plans []*models.PricingPlan
-	if err := s.db.Where("status = ? AND is_active = ?", "active", true).Order("order ASC").Find(&plans).Error; err != nil {
+	if err := s.db.Where("status = ? AND is_active = ?", "active", true).Order("`order` ASC").Find(&plans).Error; err != nil {
 		s.logger.Error("Failed to get pricing plans", zap.Error(err))
 		return nil, fmt.Errorf("failed to get pricing plans: %w", err)
+	}
+
+	// If no plans found, return default plans
+	if len(plans) == 0 {
+		s.logger.Debug("No pricing plans found in database, returning default plans")
+		return s.getDefaultPricingPlans(), nil
 	}
 
 	// Convert to PricingPlanData with parsed features
@@ -280,6 +328,11 @@ func (s *LandingService) GetPricingPlans(ctx context.Context) ([]*PricingPlanDat
 // SyncPricingPlans syncs pricing plans from the SaaS Admin Service.
 func (s *LandingService) SyncPricingPlans(ctx context.Context, plans []*models.PricingPlan) error {
 	s.logger.Info("Syncing pricing plans", zap.Int("count", len(plans)))
+
+	if err := s.checkDatabase(); err != nil {
+		s.logger.Warn("Database not available, cannot sync pricing plans")
+		return err
+	}
 
 	// Clear existing plans
 	if err := s.db.Where("1 = 1").Delete(&models.PricingPlan{}).Error; err != nil {
@@ -610,6 +663,86 @@ func (s *LandingService) getDefaultFeatures() []*models.FeatureSection {
 	}
 }
 
+// getPricingPlans fetches pricing plans from the SaaS admin service or returns default plans as fallback.
+func (s *LandingService) getPricingPlans(ctx context.Context) []*PricingPlanData {
+	// Try to fetch from SaaS admin service first
+	plans, err := s.fetchPricingFromSaaSAdmin(ctx)
+	if err != nil {
+		s.logger.Warn("Failed to fetch pricing from SaaS admin service, using default plans", zap.Error(err))
+		return s.getDefaultPricingPlans()
+	}
+
+	// Convert SaaS admin plans to PricingPlanData
+	var pricingPlans []*PricingPlanData
+	for _, plan := range plans {
+		// Parse features from JSON
+		var features []string
+		if plan.Features != "" {
+			if err := json.Unmarshal([]byte(plan.Features), &features); err != nil {
+				s.logger.Warn("Failed to parse features JSON", zap.Error(err))
+				features = []string{}
+			}
+		}
+
+		pricingPlan := &PricingPlanData{
+			PricingPlan: models.PricingPlan{
+				ID:              plan.ID,
+				PlanID:          plan.ID,
+				Name:            plan.Name,
+				Slug:            plan.Slug,
+				Description:     plan.Description,
+				Price:           plan.Price,
+				Currency:        plan.Currency,
+				BillingInterval: plan.BillingInterval,
+				ButtonText:      plan.ButtonText,
+				ButtonURL:       plan.ButtonURL,
+				IsPopular:       plan.IsPopular,
+				IsActive:        plan.IsActive,
+				Status:          "active",
+				Order:           plan.Order,
+				Features:        plan.Features,
+				Metadata:        plan.Metadata,
+			},
+			FeaturesList: features,
+		}
+		pricingPlans = append(pricingPlans, pricingPlan)
+	}
+
+	return pricingPlans
+}
+
+// fetchPricingFromSaaSAdmin fetches pricing plans from the SaaS admin service.
+func (s *LandingService) fetchPricingFromSaaSAdmin(ctx context.Context) ([]*models.SaaSPlan, error) {
+	url := fmt.Sprintf("%s/api/v1/pricing/plans/public", s.saasAdminURL)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("SaaS admin service returned status %d", resp.StatusCode)
+	}
+
+	var response struct {
+		Plans []*models.SaaSPlan `json:"plans"`
+		Count int                `json:"count"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return response.Plans, nil
+}
+
+// getDefaultPricingPlans returns default pricing plans as fallback.
 func (s *LandingService) getDefaultPricingPlans() []*PricingPlanData {
 	return []*PricingPlanData{
 		{

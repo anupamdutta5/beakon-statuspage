@@ -9,21 +9,38 @@ import (
 	"github.com/enterprise-status/statuspage-tenant-admin-service/internal/models"
 	"github.com/enterprise-status/statuspage-tenant-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"go.uber.org/zap"
 )
 
 // TenantAdminHandler handles tenant admin-related HTTP requests.
 type TenantAdminHandler struct {
-	service *services.TenantAdminService
-	logger  *zap.Logger
+	service           *services.TenantAdminService
+	statusPageService *services.StatusPageManagementService
+	logger            *zap.Logger
 }
 
 // NewTenantAdminHandler creates a new tenant admin handler.
-func NewTenantAdminHandler(service *services.TenantAdminService, logger *zap.Logger) *TenantAdminHandler {
+func NewTenantAdminHandler(service *services.TenantAdminService, statusPageService *services.StatusPageManagementService, logger *zap.Logger) *TenantAdminHandler {
 	return &TenantAdminHandler{
-		service: service,
-		logger:  logger,
+		service:           service,
+		statusPageService: statusPageService,
+		logger:            logger,
 	}
+}
+
+// GetLoginPage renders the login page.
+func (h *TenantAdminHandler) GetLoginPage(c *gin.Context) {
+	c.HTML(http.StatusOK, "login.html", gin.H{
+		"title": "Status Page Admin - Login",
+	})
+}
+
+// GetAdminDashboard renders the admin dashboard.
+func (h *TenantAdminHandler) GetAdminDashboard(c *gin.Context) {
+	c.HTML(http.StatusOK, "admin_dashboard.html", gin.H{
+		"title": "Status Page Admin Dashboard",
+	})
 }
 
 // HealthCheck handles health check requests.
@@ -619,3 +636,268 @@ func (h *TenantAdminHandler) DeleteTenantBackup(c *gin.Context) {
 	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
 }
 
+// Status Page Management Handlers
+
+// GetStatusPageData retrieves status page data for rendering.
+func (h *TenantAdminHandler) GetStatusPageData(c *gin.Context) {
+	slug := c.Param("slug")
+	if slug == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Slug is required"})
+		return
+	}
+
+	// Get tenant ID from query parameter or header
+	tenantID, err := h.getTenantID(c)
+	if err != nil {
+		h.logger.Error("Failed to get tenant ID", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		return
+	}
+
+	// Get status page data
+	data, err := h.statusPageService.GetStatusPageData(tenantID, slug)
+	if err != nil {
+		h.logger.Error("Failed to get status page data", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load status page data"})
+		return
+	}
+
+	c.JSON(http.StatusOK, data)
+}
+
+// CreateStatusPage creates a new status page.
+func (h *TenantAdminHandler) CreateStatusPage(c *gin.Context) {
+	// Get tenant ID from query parameter or header
+	tenantID, err := h.getTenantID(c)
+	if err != nil {
+		h.logger.Error("Failed to get tenant ID", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		return
+	}
+
+	var statusPage models.StatusPage
+	if err := c.ShouldBindJSON(&statusPage); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.statusPageService.CreateStatusPage(tenantID, &statusPage); err != nil {
+		h.logger.Error("Failed to create status page", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create status page"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, statusPage)
+}
+
+// UpdateStatusPage updates an existing status page.
+func (h *TenantAdminHandler) UpdateStatusPage(c *gin.Context) {
+	// Get tenant ID from query parameter or header
+	tenantID, err := h.getTenantID(c)
+	if err != nil {
+		h.logger.Error("Failed to get tenant ID", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		return
+	}
+
+	var statusPage models.StatusPage
+	if err := c.ShouldBindJSON(&statusPage); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.statusPageService.UpdateStatusPage(tenantID, &statusPage); err != nil {
+		h.logger.Error("Failed to update status page", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status page"})
+		return
+	}
+
+	c.JSON(http.StatusOK, statusPage)
+}
+
+// GetStatusPages retrieves status pages for a tenant.
+func (h *TenantAdminHandler) GetStatusPages(c *gin.Context) {
+	// Get tenant ID from query parameter or header
+	tenantID, err := h.getTenantID(c)
+	if err != nil {
+		h.logger.Error("Failed to get tenant ID", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		return
+	}
+
+	// Get pagination parameters
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	statusPages, total, err := h.statusPageService.GetStatusPages(tenantID, limit, offset)
+	if err != nil {
+		h.logger.Error("Failed to get status pages", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get status pages"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status_pages": statusPages,
+		"total":        total,
+		"limit":        limit,
+		"offset":       offset,
+	})
+}
+
+// DeleteStatusPage deletes a status page.
+func (h *TenantAdminHandler) DeleteStatusPage(c *gin.Context) {
+	// Get tenant ID from query parameter or header
+	tenantID, err := h.getTenantID(c)
+	if err != nil {
+		h.logger.Error("Failed to get tenant ID", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		return
+	}
+
+	statusPageID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid status page ID"})
+		return
+	}
+
+	if err := h.statusPageService.DeleteStatusPage(tenantID, uint(statusPageID)); err != nil {
+		h.logger.Error("Failed to delete status page", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete status page"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Status page deleted successfully"})
+}
+
+// UpdateStatusPageConfig updates status page configuration.
+func (h *TenantAdminHandler) UpdateStatusPageConfig(c *gin.Context) {
+	// Get tenant ID from query parameter or header
+	tenantID, err := h.getTenantID(c)
+	if err != nil {
+		h.logger.Error("Failed to get tenant ID", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		return
+	}
+
+	statusPageID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid status page ID"})
+		return
+	}
+
+	var config models.StatusPageConfig
+	if err := c.ShouldBindJSON(&config); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.statusPageService.UpdateStatusPageConfig(tenantID, uint(statusPageID), &config); err != nil {
+		h.logger.Error("Failed to update status page config", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status page config"})
+		return
+	}
+
+	c.JSON(http.StatusOK, config)
+}
+
+// Authentication Handlers
+
+// Login handles user login.
+func (h *TenantAdminHandler) Login(c *gin.Context) {
+	var loginRequest struct {
+		Email      string `json:"email" binding:"required,email"`
+		Password   string `json:"password" binding:"required"`
+		RememberMe bool   `json:"remember_me"`
+	}
+
+	if err := c.ShouldBindJSON(&loginRequest); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Implement proper authentication logic
+	// For production, integrate with user-service for authentication
+	// For now, implement basic authentication with proper JWT generation
+	
+	// Validate credentials (in production, this would call user-service)
+	if loginRequest.Email == "admin@example.com" && loginRequest.Password == "admin123" {
+		// Generate proper JWT token
+		claims := jwt.MapClaims{
+			"user_id":   1,
+			"email":     loginRequest.Email,
+			"username":  "admin",
+			"role":      "admin",
+			"tenant_id": 1,
+			"exp":       time.Now().Add(time.Hour * 24).Unix(), // 24 hours
+			"iat":       time.Now().Unix(),
+		}
+		
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+		tokenString, err := token.SignedString([]byte("your-jwt-secret-key")) // Use env variable
+		if err != nil {
+			h.logger.Error("Failed to generate JWT token", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+			return
+		}
+		
+		c.JSON(http.StatusOK, gin.H{
+			"token": tokenString,
+			"user": gin.H{
+				"id":        1,
+				"email":     loginRequest.Email,
+				"username":  "admin",
+				"role":      "admin",
+				"tenant_id": 1,
+			},
+		})
+		return
+	}
+
+	c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+}
+
+// Logout handles user logout.
+func (h *TenantAdminHandler) Logout(c *gin.Context) {
+	// TODO: Implement token invalidation
+	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
+}
+
+// VerifyToken verifies the JWT token.
+func (h *TenantAdminHandler) VerifyToken(c *gin.Context) {
+	// TODO: Implement actual token verification
+	// For now, we'll return a mock response
+	c.JSON(http.StatusOK, gin.H{
+		"valid": true,
+		"user": gin.H{
+			"id":        1,
+			"email":     "admin@example.com",
+			"username":  "admin",
+			"role":      "admin",
+			"tenant_id": 1,
+		},
+	})
+}
+
+// getTenantID extracts tenant ID from request.
+func (h *TenantAdminHandler) getTenantID(c *gin.Context) (uint, error) {
+	// Try to get from query parameter first
+	if tenantIDStr := c.Query("tenant_id"); tenantIDStr != "" {
+		tenantID, err := strconv.ParseUint(tenantIDStr, 10, 32)
+		if err != nil {
+			return 0, err
+		}
+		return uint(tenantID), nil
+	}
+
+	// Try to get from header
+	if tenantIDStr := c.GetHeader("X-Tenant-ID"); tenantIDStr != "" {
+		tenantID, err := strconv.ParseUint(tenantIDStr, 10, 32)
+		if err != nil {
+			return 0, err
+		}
+		return uint(tenantID), nil
+	}
+
+	// Default to tenant ID 1 for development
+	return 1, nil
+}

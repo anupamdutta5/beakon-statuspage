@@ -41,6 +41,11 @@ func (s *TenantAdminService) SetDB(db *gorm.DB) {
 	s.db = db
 }
 
+// GetDB returns the database connection for use by other services
+func (s *TenantAdminService) GetDB() *gorm.DB {
+	return s.db
+}
+
 // Tenant Admin Management
 
 // CreateTenantAdmin creates a new tenant admin.
@@ -398,6 +403,9 @@ func initDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
 		&models.TenantActivity{},
 		&models.TenantBackup{},
 		&models.TenantStats{},
+		// Status page management models
+		&models.StatusPage{},
+		&models.StatusPageConfig{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}

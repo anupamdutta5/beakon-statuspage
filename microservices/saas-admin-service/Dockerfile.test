@@ -1,5 +1,5 @@
 # Multi-stage Dockerfile for SaaS Admin Service Testing
-FROM golang:1.21-alpine AS builder
+FROM golang:1.25.0-alpine AS builder
 
 # Install dependencies
 RUN apk add --no-cache git make
@@ -16,11 +16,13 @@ RUN go mod download
 # Copy source code
 COPY . .
 
+# Install test dependencies
+RUN go mod tidy && go mod download
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main cmd/main.go
 
 # Test stage
-FROM golang:1.21-alpine AS test
+FROM golang:1.25.0-alpine AS test
 
 # Install dependencies
 RUN apk add --no-cache git make postgresql-client
@@ -38,8 +40,8 @@ RUN go mod download
 COPY . .
 
 # Install test dependencies
-RUN go install github.com/stretchr/testify/assert@latest
-RUN go install github.com/stretchr/testify/require@latest
+RUN go mod tidy && go mod download
+# Install test dependencies
 
 # Set environment variables for testing
 ENV ENVIRONMENT=testing

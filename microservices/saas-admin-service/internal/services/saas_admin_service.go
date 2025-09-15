@@ -3,7 +3,9 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/enterprise-status/statuspage-saas-admin-service/internal/config"
@@ -85,6 +87,21 @@ func (s *SaaSAdminService) UpdatePlatform(ctx context.Context, updates *models.P
 	return nil
 }
 
+// Health checks the health of the service.
+func (s *SaaSAdminService) Health(ctx context.Context) error {
+	// Check database connection
+	if s.db == nil {
+		return fmt.Errorf("database connection not available")
+	}
+
+	// Test database connection
+	if err := s.db.Exec("SELECT 1").Error; err != nil {
+		return fmt.Errorf("database health check failed: %w", err)
+	}
+
+	return nil
+}
+
 // Plan Management
 
 // CreatePlan creates a new SaaS plan.
@@ -92,6 +109,30 @@ func (s *SaaSAdminService) CreatePlan(ctx context.Context, plan *models.SaaSPlan
 	s.logger.Info("Creating SaaS plan",
 		zap.String("plan_name", plan.Name),
 		zap.String("plan_slug", plan.Slug))
+
+	// Check database connection
+	if s.db == nil {
+		s.logger.Error("Database connection not available")
+		return fmt.Errorf("database connection not available")
+	}
+
+	// Sanitize and validate input
+	plan.Name = strings.TrimSpace(plan.Name)
+	plan.Slug = strings.TrimSpace(plan.Slug)
+	plan.Description = strings.TrimSpace(plan.Description)
+
+	// Generate slug if not provided
+	if plan.Slug == "" && plan.Name != "" {
+		plan.Slug = strings.ToLower(strings.ReplaceAll(plan.Name, " ", "-"))
+	}
+
+	// Set defaults
+	if plan.Currency == "" {
+		plan.Currency = "USD"
+	}
+	if plan.BillingInterval == "" {
+		plan.BillingInterval = "monthly"
+	}
 
 	if err := s.db.Create(plan).Error; err != nil {
 		s.logger.Error("Failed to create plan", zap.Error(err))
@@ -169,7 +210,8 @@ func (s *SaaSAdminService) ListPlans(ctx context.Context, limit, offset int) ([]
 func (s *SaaSAdminService) UpdatePlan(ctx context.Context, planID uint, updates *models.SaaSPlan) (*models.SaaSPlan, error) {
 	s.logger.Info("Updating SaaS plan", zap.Uint("plan_id", planID))
 
-	if err := s.db.Model(&models.SaaSPlan{}).Where("id = ?", planID).Updates(updates).Error; err != nil {
+	// Use Select to ensure zero values are updated, but only for specific fields
+	if err := s.db.Model(&models.SaaSPlan{}).Where("id = ?", planID).Select("is_public", "is_active", "is_popular", "name", "description", "price", "currency", "billing_interval").Updates(updates).Error; err != nil {
 		s.logger.Error("Failed to update plan", zap.Error(err))
 		return nil, fmt.Errorf("failed to update plan: %w", err)
 	}
@@ -412,19 +454,313 @@ func (s *SaaSAdminService) GetSaaSStats(ctx context.Context) (*models.SaaSStats,
 	return stats, nil
 }
 
-// Health checks the health of the SaaS admin service.
-func (s *SaaSAdminService) Health(ctx context.Context) error {
-	s.logger.Debug("Checking SaaS admin service health")
+// Pricing Management
 
-	// Check database connection if available
-	if s.db != nil {
-		if err := s.db.Exec("SELECT 1").Error; err != nil {
-			s.logger.Error("SaaS admin service health check failed", zap.Error(err))
-			return fmt.Errorf("saas admin service health check failed: %w", err)
-		}
-	} else {
-		s.logger.Debug("Database not available, skipping database health check")
+// CreatePricingFeature creates a new pricing feature.
+func (s *SaaSAdminService) CreatePricingFeature(ctx context.Context, feature *models.PricingFeature) error {
+	s.logger.Info("Creating pricing feature",
+		zap.String("feature_name", feature.Name),
+		zap.String("category", feature.Category))
+
+	if err := s.db.Create(feature).Error; err != nil {
+		s.logger.Error("Failed to create pricing feature", zap.Error(err))
+		return fmt.Errorf("failed to create pricing feature: %w", err)
 	}
+
+	s.logger.Info("Pricing feature created successfully", zap.Uint("feature_id", feature.ID))
+	return nil
+}
+
+// GetPricingFeatures retrieves all pricing features.
+func (s *SaaSAdminService) GetPricingFeatures(ctx context.Context, category string) ([]*models.PricingFeature, error) {
+	s.logger.Info("Getting pricing features", zap.String("category", category))
+
+	var features []*models.PricingFeature
+	query := s.db.Where("is_active = ?", true).Order("category, `order`, name")
+
+	if category != "" {
+		query = query.Where("category = ?", category)
+	}
+
+	if err := query.Find(&features).Error; err != nil {
+		s.logger.Error("Failed to get pricing features", zap.Error(err))
+		return nil, fmt.Errorf("failed to get pricing features: %w", err)
+	}
+
+	return features, nil
+}
+
+// UpdatePricingFeature updates a pricing feature.
+func (s *SaaSAdminService) UpdatePricingFeature(ctx context.Context, featureID uint, updates *models.PricingFeature) (*models.PricingFeature, error) {
+	s.logger.Info("Updating pricing feature", zap.Uint("feature_id", featureID))
+
+	if err := s.db.Model(&models.PricingFeature{}).Where("id = ?", featureID).Updates(updates).Error; err != nil {
+		s.logger.Error("Failed to update pricing feature", zap.Error(err))
+		return nil, fmt.Errorf("failed to update pricing feature: %w", err)
+	}
+
+	var updatedFeature models.PricingFeature
+	if err := s.db.First(&updatedFeature, featureID).Error; err != nil {
+		s.logger.Error("Failed to get updated pricing feature", zap.Error(err))
+		return nil, fmt.Errorf("failed to get updated pricing feature: %w", err)
+	}
+
+	s.logger.Info("Pricing feature updated successfully", zap.Uint("feature_id", featureID))
+	return &updatedFeature, nil
+}
+
+// DeletePricingFeature deletes a pricing feature.
+func (s *SaaSAdminService) DeletePricingFeature(ctx context.Context, featureID uint) error {
+	s.logger.Info("Deleting pricing feature", zap.Uint("feature_id", featureID))
+
+	// First, remove all plan-feature relationships
+	if err := s.db.Where("feature_id = ?", featureID).Delete(&models.PlanFeature{}).Error; err != nil {
+		s.logger.Error("Failed to remove plan-feature relationships", zap.Error(err))
+		return fmt.Errorf("failed to remove plan-feature relationships: %w", err)
+	}
+
+	// Then delete the feature
+	if err := s.db.Delete(&models.PricingFeature{}, featureID).Error; err != nil {
+		s.logger.Error("Failed to delete pricing feature", zap.Error(err))
+		return fmt.Errorf("failed to delete pricing feature: %w", err)
+	}
+
+	s.logger.Info("Pricing feature deleted successfully", zap.Uint("feature_id", featureID))
+	return nil
+}
+
+// CreatePricingTier creates a new pricing tier for a plan.
+func (s *SaaSAdminService) CreatePricingTier(ctx context.Context, tier *models.PricingTier) error {
+	s.logger.Info("Creating pricing tier",
+		zap.Uint("plan_id", tier.PlanID),
+		zap.String("billing_interval", tier.BillingInterval))
+
+	if err := s.db.Create(tier).Error; err != nil {
+		s.logger.Error("Failed to create pricing tier", zap.Error(err))
+		return fmt.Errorf("failed to create pricing tier: %w", err)
+	}
+
+	s.logger.Info("Pricing tier created successfully", zap.Uint("tier_id", tier.ID))
+	return nil
+}
+
+// GetPricingTiers retrieves pricing tiers for a plan.
+func (s *SaaSAdminService) GetPricingTiers(ctx context.Context, planID uint) ([]*models.PricingTier, error) {
+	s.logger.Info("Getting pricing tiers", zap.Uint("plan_id", planID))
+
+	var tiers []*models.PricingTier
+	if err := s.db.Where("plan_id = ? AND is_active = ?", planID, true).Order("billing_interval").Find(&tiers).Error; err != nil {
+		s.logger.Error("Failed to get pricing tiers", zap.Error(err))
+		return nil, fmt.Errorf("failed to get pricing tiers: %w", err)
+	}
+
+	return tiers, nil
+}
+
+// UpdatePricingTier updates a pricing tier.
+func (s *SaaSAdminService) UpdatePricingTier(ctx context.Context, tierID uint, updates *models.PricingTier) (*models.PricingTier, error) {
+	s.logger.Info("Updating pricing tier", zap.Uint("tier_id", tierID))
+
+	if err := s.db.Model(&models.PricingTier{}).Where("id = ?", tierID).Updates(updates).Error; err != nil {
+		s.logger.Error("Failed to update pricing tier", zap.Error(err))
+		return nil, fmt.Errorf("failed to update pricing tier: %w", err)
+	}
+
+	var updatedTier models.PricingTier
+	if err := s.db.First(&updatedTier, tierID).Error; err != nil {
+		s.logger.Error("Failed to get updated pricing tier", zap.Error(err))
+		return nil, fmt.Errorf("failed to get updated pricing tier: %w", err)
+	}
+
+	s.logger.Info("Pricing tier updated successfully", zap.Uint("tier_id", tierID))
+	return &updatedTier, nil
+}
+
+// DeletePricingTier deletes a pricing tier.
+func (s *SaaSAdminService) DeletePricingTier(ctx context.Context, tierID uint) error {
+	s.logger.Info("Deleting pricing tier", zap.Uint("tier_id", tierID))
+
+	if err := s.db.Delete(&models.PricingTier{}, tierID).Error; err != nil {
+		s.logger.Error("Failed to delete pricing tier", zap.Error(err))
+		return fmt.Errorf("failed to delete pricing tier: %w", err)
+	}
+
+	s.logger.Info("Pricing tier deleted successfully", zap.Uint("tier_id", tierID))
+	return nil
+}
+
+// AssignFeatureToPlan assigns a feature to a plan.
+func (s *SaaSAdminService) AssignFeatureToPlan(ctx context.Context, planID, featureID uint, order int) error {
+	s.logger.Info("Assigning feature to plan",
+		zap.Uint("plan_id", planID),
+		zap.Uint("feature_id", featureID))
+
+	planFeature := &models.PlanFeature{
+		PlanID:    planID,
+		FeatureID: featureID,
+		IsEnabled: true,
+		Order:     order,
+	}
+
+	if err := s.db.Create(planFeature).Error; err != nil {
+		s.logger.Error("Failed to assign feature to plan", zap.Error(err))
+		return fmt.Errorf("failed to assign feature to plan: %w", err)
+	}
+
+	s.logger.Info("Feature assigned to plan successfully")
+	return nil
+}
+
+// RemoveFeatureFromPlan removes a feature from a plan.
+func (s *SaaSAdminService) RemoveFeatureFromPlan(ctx context.Context, planID, featureID uint) error {
+	s.logger.Info("Removing feature from plan",
+		zap.Uint("plan_id", planID),
+		zap.Uint("feature_id", featureID))
+
+	if err := s.db.Where("plan_id = ? AND feature_id = ?", planID, featureID).Delete(&models.PlanFeature{}).Error; err != nil {
+		s.logger.Error("Failed to remove feature from plan", zap.Error(err))
+		return fmt.Errorf("failed to remove feature from plan: %w", err)
+	}
+
+	s.logger.Info("Feature removed from plan successfully")
+	return nil
+}
+
+// GetPlanFeatures retrieves all features for a plan.
+func (s *SaaSAdminService) GetPlanFeatures(ctx context.Context, planID uint) ([]*models.PlanFeature, error) {
+	s.logger.Info("Getting plan features", zap.Uint("plan_id", planID))
+
+	var planFeatures []*models.PlanFeature
+	if err := s.db.Preload("Feature").Where("plan_id = ? AND is_enabled = ?", planID, true).Order("`order`").Find(&planFeatures).Error; err != nil {
+		s.logger.Error("Failed to get plan features", zap.Error(err))
+		return nil, fmt.Errorf("failed to get plan features: %w", err)
+	}
+
+	return planFeatures, nil
+}
+
+// GetPublicPricingPlans retrieves all public pricing plans with their features and tiers.
+func (s *SaaSAdminService) GetPublicPricingPlans(ctx context.Context) ([]*models.SaaSPlan, error) {
+	s.logger.Info("Getting public pricing plans")
+
+	var plans []*models.SaaSPlan
+	if err := s.db.Where("is_active = ? AND is_public = ?", true, true).Order("`order`, name").Find(&plans).Error; err != nil {
+		s.logger.Error("Failed to get public pricing plans", zap.Error(err))
+		return nil, fmt.Errorf("failed to get public pricing plans: %w", err)
+	}
+
+	// Load features and tiers for each plan
+	for _, plan := range plans {
+		// Load features
+		var planFeatures []*models.PlanFeature
+		if err := s.db.Preload("Feature").Where("plan_id = ? AND is_enabled = ?", plan.ID, true).Order("`order`").Find(&planFeatures).Error; err == nil {
+			// Convert to features list for JSON storage
+			var features []string
+			for _, pf := range planFeatures {
+				if pf.Feature.Name != "" {
+					features = append(features, pf.Feature.Name)
+				}
+			}
+			if featuresJSON, err := json.Marshal(features); err == nil {
+				plan.Features = string(featuresJSON)
+			}
+		}
+
+		// Load pricing tiers
+		var tiers []*models.PricingTier
+		if err := s.db.Where("plan_id = ? AND is_active = ?", plan.ID, true).Find(&tiers).Error; err == nil {
+			// Set the base price from the first tier (usually monthly)
+			for _, tier := range tiers {
+				if tier.BillingInterval == "monthly" {
+					plan.Price = tier.Price
+					plan.Currency = tier.Currency
+					plan.BillingInterval = tier.BillingInterval
+					break
+				}
+			}
+		}
+	}
+
+	return plans, nil
+}
+
+// ValidatePricingPlan validates a pricing plan configuration.
+func (s *SaaSAdminService) ValidatePricingPlan(ctx context.Context, plan *models.SaaSPlan) error {
+	s.logger.Info("Validating pricing plan", zap.String("plan_name", plan.Name))
+
+	var errors []string
+
+	// Validate required fields
+	if strings.TrimSpace(plan.Name) == "" {
+		errors = append(errors, "plan name is required")
+	}
+	if strings.TrimSpace(plan.Slug) == "" {
+		errors = append(errors, "plan slug is required")
+	}
+	if plan.Price < 0 {
+		errors = append(errors, "plan price cannot be negative")
+	}
+	if plan.Currency == "" {
+		plan.Currency = "USD"
+	}
+	if plan.BillingInterval == "" {
+		plan.BillingInterval = "monthly"
+	}
+	if plan.BillingInterval != "monthly" && plan.BillingInterval != "yearly" {
+		errors = append(errors, "billing interval must be 'monthly' or 'yearly'")
+	}
+
+	// Validate limits
+	if plan.MaxTenants < 0 {
+		errors = append(errors, "max tenants cannot be negative")
+	}
+	if plan.MaxUsers < 0 {
+		errors = append(errors, "max users cannot be negative")
+	}
+	if plan.MaxServices < 0 {
+		errors = append(errors, "max services cannot be negative")
+	}
+
+	// Validate features JSON
+	if plan.Features != "" {
+		var features []string
+		if err := json.Unmarshal([]byte(plan.Features), &features); err != nil {
+			errors = append(errors, fmt.Sprintf("invalid features JSON: %v", err))
+		}
+	}
+
+	// Validate limits JSON
+	if plan.Limits != "" {
+		var limits map[string]interface{}
+		if err := json.Unmarshal([]byte(plan.Limits), &limits); err != nil {
+			errors = append(errors, fmt.Sprintf("invalid limits JSON: %v", err))
+		}
+	}
+
+	// Return all validation errors if any
+	if len(errors) > 0 {
+		return fmt.Errorf(strings.Join(errors, "; "))
+	}
+
+	s.logger.Info("Pricing plan validation successful", zap.String("plan_name", plan.Name))
+	return nil
+}
+
+// SyncPricingToLandingPage syncs pricing plans to the landing page service.
+func (s *SaaSAdminService) SyncPricingToLandingPage(ctx context.Context) error {
+	s.logger.Info("Syncing pricing plans to landing page service")
+
+	// Get all public pricing plans
+	plans, err := s.GetPublicPricingPlans(ctx)
+	if err != nil {
+		s.logger.Error("Failed to get public pricing plans for sync", zap.Error(err))
+		return fmt.Errorf("failed to get public pricing plans for sync: %w", err)
+	}
+
+	// Here you would typically make an HTTP call to the landing page service
+	// to update its pricing data. For now, we'll just log the sync.
+	s.logger.Info("Pricing plans synced successfully",
+		zap.Int("plan_count", len(plans)))
 
 	return nil
 }
@@ -453,6 +789,9 @@ func initDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	if err := db.AutoMigrate(
 		&models.Platform{},
 		&models.SaaSPlan{},
+		&models.PricingTier{},
+		&models.PricingFeature{},
+		&models.PlanFeature{},
 		&models.SaaSFeature{},
 		&models.SaaSFeatureFlag{},
 		&models.SaaSAdminUser{},

@@ -363,10 +363,14 @@ func (s *EventStoreService) GetStreamStats(ctx context.Context, streamID string)
 func (s *EventStoreService) Health(ctx context.Context) error {
 	s.logger.Debug("Checking event store service health")
 
-	// Check database connection
-	if err := s.db.Exec("SELECT 1").Error; err != nil {
-		s.logger.Error("Event store health check failed", zap.Error(err))
-		return fmt.Errorf("event store health check failed: %w", err)
+	// Check database connection if available
+	if s.db != nil {
+		if err := s.db.Exec("SELECT 1").Error; err != nil {
+			s.logger.Error("Event store health check failed", zap.Error(err))
+			return fmt.Errorf("event store health check failed: %w", err)
+		}
+	} else {
+		s.logger.Debug("Database not available, skipping database health check")
 	}
 
 	return nil

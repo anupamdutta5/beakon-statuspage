@@ -303,6 +303,17 @@ func (m *MockBillingService) ProcessSubscriptionEvent(event Event) error {
 	data["user_id"] = event.UserID
 	data["timestamp"] = event.Timestamp
 
+	// For subscription updates, update existing subscription instead of creating new one
+	if event.Type == "subscription.updated" {
+		for i, sub := range m.subscriptions {
+			if sub["tenant_id"] == event.TenantID && sub["user_id"] == event.UserID {
+				// Update existing subscription
+				m.subscriptions[i] = data
+				return nil
+			}
+		}
+	}
+
 	m.subscriptions = append(m.subscriptions, data)
 	return nil
 }

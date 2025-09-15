@@ -41,9 +41,9 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Start test dependencies
-print_status "Starting test dependencies (PostgreSQL, Kafka)..."
-docker-compose -f docker-compose.test.yml up -d postgres kafka zookeeper
+# Start test dependencies (only PostgreSQL, use external Kafka)
+print_status "Starting test dependencies (PostgreSQL)..."
+docker-compose -f docker-compose.test.yml up -d postgres
 
 # Wait for services to be ready
 print_status "Waiting for services to be ready..."
@@ -56,12 +56,15 @@ until docker-compose -f docker-compose.test.yml exec postgres pg_isready -U test
     sleep 2
 done
 
-# Check if Kafka is ready
-print_status "Checking Kafka connection..."
-until docker-compose -f docker-compose.test.yml exec kafka kafka-topics --bootstrap-server localhost:9092 --list; do
-    print_warning "Waiting for Kafka..."
-    sleep 2
-done
+# Check if external Kafka is ready
+print_status "Checking external Kafka connection..."
+if docker exec kafka-test kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1; then
+    print_status "External Kafka is ready"
+else
+    print_error "External Kafka is not available. Please run: ./quick-kafka-fix.sh"
+    docker-compose -f docker-compose.test.yml down
+    exit 1
+fi
 
 # Run unit tests
 print_status "Running unit tests..."

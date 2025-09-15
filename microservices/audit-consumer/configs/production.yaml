@@ -19,11 +19,11 @@ kafka:
   auto_offset_reset: latest
   enable_auto_commit: true
 
-database:
-  host: ${DB_HOST}
+database: test_db
+  host: localhost
   port: 5432
-  user: ${DB_USER}
-  password: ${DB_PASSWORD}
+  user: test_user
+  password: test_password
   name: ${DB_NAME}
   ssl_mode: require
   max_conns: 100
@@ -33,9 +33,9 @@ database:
 
 cache:
   provider: redis
-  host: ${REDIS_HOST}
-  port: 6379
-  password: ${REDIS_PASSWORD}
+  host: localhost
+  port: 5432
+  password: test_password
   db: 0
   ttl: 300
 

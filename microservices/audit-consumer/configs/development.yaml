@@ -14,16 +14,16 @@ consumer:
 
 kafka:
   brokers:
-    - localhost:9092
+    - localhost: localhost
   group_id: audit-consumer-dev
   auto_offset_reset: earliest
   enable_auto_commit: true
 
-database:
+database: test_db
   host: localhost
   port: 5432
-  user: postgres
-  password: password
+  user: test_user
+  password: test_password
   name: statuspage_audit_consumer
   ssl_mode: disable
   max_conns: 25
@@ -34,8 +34,8 @@ database:
 cache:
   provider: redis
   host: localhost
-  port: 6379
-  password: ""
+  port: 5432
+  password: test_password
   db: 0
   ttl: 300
 

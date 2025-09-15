@@ -1,4 +1,4 @@
-# 📋 API Contracts Documentation
+image.png# 📋 API Contracts Documentation
 
 ## 🎯 Overview
 
@@ -7,7 +7,6 @@ Each microservice now includes its own API contract definition using OpenAPI 3.0
 - **✅ True Independence**: Each service owns its own API contract
 - **✅ No Shared Dependencies**: No centralized contract service
 - **✅ Co-located Documentation**: Contracts live with the implementation
-- **✅ Easy Maintenance**: Contracts stay in sync with code changes
 
 ## 🏗️ Architecture
 

@@ -106,6 +106,13 @@ func setupRoutes(router *gin.Engine, handler *handlers.SaaSAdminHandler) {
 	// Health check
 	router.GET("/health", handler.HealthCheck)
 
+	// Admin interface
+	router.Static("/static", "./web/static")
+	router.LoadHTMLGlob("web/templates/*")
+	router.GET("/admin", func(c *gin.Context) {
+		c.HTML(200, "admin.html", gin.H{})
+	})
+
 	// API v1 routes
 	v1 := router.Group("/api/v1")
 	{
@@ -160,6 +167,23 @@ func setupRoutes(router *gin.Engine, handler *handlers.SaaSAdminHandler) {
 		v1.POST("/backups", handler.CreateBackup)
 		v1.GET("/backups/:id", handler.GetBackup)
 		v1.DELETE("/backups/:id", handler.DeleteBackup)
+
+		// Pricing management
+		v1.GET("/pricing/features", handler.GetPricingFeatures)
+		v1.POST("/pricing/features", handler.CreatePricingFeature)
+		v1.PUT("/pricing/features/:id", handler.UpdatePricingFeature)
+		v1.DELETE("/pricing/features/:id", handler.DeletePricingFeature)
+
+		v1.GET("/pricing/plans/:planId/tiers", handler.GetPricingTiers)
+		v1.POST("/pricing/tiers", handler.CreatePricingTier)
+		v1.PUT("/pricing/tiers/:id", handler.UpdatePricingTier)
+		v1.DELETE("/pricing/tiers/:id", handler.DeletePricingTier)
+
+		v1.GET("/pricing/plans/:planId/features", handler.GetPlanFeatures)
+		v1.POST("/pricing/plans/features/assign", handler.AssignFeatureToPlan)
+		v1.POST("/pricing/plans/features/remove", handler.RemoveFeatureFromPlan)
+
+		v1.GET("/pricing/plans/public", handler.GetPublicPricingPlans)
+		v1.POST("/pricing/sync", handler.SyncPricingToLandingPage)
 	}
 }
-

@@ -81,6 +81,42 @@ type PricingPlan struct {
 	Metadata        string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
 }
 
+// SaaSPlan represents a SaaS plan from the SaaS Admin Service (for API communication).
+type SaaSPlan struct {
+	ID              uint           `gorm:"primarykey" json:"id"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
+	DeletedAt       gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
+	Name            string         `gorm:"not null;uniqueIndex" json:"name"`
+	Slug            string         `gorm:"not null;uniqueIndex" json:"slug"`
+	Description     string         `gorm:"type:text" json:"description"`
+	Price           float64        `gorm:"not null" json:"price"`
+	Currency        string         `gorm:"default:USD" json:"currency"`
+	BillingInterval string         `gorm:"default:monthly" json:"billing_interval"` // monthly, yearly
+	MaxTenants      int            `gorm:"default:1" json:"max_tenants"`
+	MaxUsers        int            `gorm:"default:5" json:"max_users"`
+	MaxServices     int            `gorm:"default:10" json:"max_services"`
+	MaxMonitors     int            `gorm:"default:50" json:"max_monitors"`
+	MaxSubscribers  int            `gorm:"default:1000" json:"max_subscribers"`
+	MaxIncidents    int            `gorm:"default:100" json:"max_incidents"`
+	MaxMaintenance  int            `gorm:"default:50" json:"max_maintenance"`
+	CustomDomain    bool           `gorm:"default:false" json:"custom_domain"`
+	WhiteLabel      bool           `gorm:"default:false" json:"white_label"`
+	API             bool           `gorm:"default:false" json:"api"`
+	Integrations    bool           `gorm:"default:false" json:"integrations"`
+	Analytics       bool           `gorm:"default:false" json:"analytics"`
+	Support         string         `gorm:"default:email" json:"support"` // email, chat, phone
+	IsActive        bool           `gorm:"default:true" json:"is_active"`
+	IsPublic        bool           `gorm:"default:true" json:"is_public"`
+	IsPopular       bool           `gorm:"default:false" json:"is_popular"` // For frontend display
+	ButtonText      string         `gorm:"default:Get Started" json:"button_text"`
+	ButtonURL       string         `gorm:"default:/signup" json:"button_url"`
+	Order           int            `gorm:"default:0" json:"order"`    // Display order
+	Features        string         `gorm:"type:text" json:"features"` // JSON array of features
+	Limits          string         `gorm:"type:text" json:"limits"`   // JSON object of limits
+	Metadata        string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
+}
+
 // Testimonial represents a customer testimonial.
 type Testimonial struct {
 	ID        uint           `gorm:"primarykey" json:"id"`
@@ -233,4 +269,3 @@ func (Newsletter) TableName() string {
 func (LandingPageStats) TableName() string {
 	return "landing_page_stats"
 }
-

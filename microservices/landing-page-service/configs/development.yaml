@@ -13,17 +13,17 @@ service:
     maintainer: devops@company.com
 
 server:
-  host: 0.0.0.0
-  port: 8100
+  host: localhost
+  port: 5432
   read_timeout: 30
   write_timeout: 30
   idle_timeout: 120
 
-database:
+database: test_db
   host: localhost
   port: 5432
-  user: postgres
-  password: password
+  user: test_user
+  password: test_password
   name: statuspage_landing
   ssl_mode: disable
   max_conns: 25
@@ -34,8 +34,8 @@ database:
 cache:
   provider: redis
   host: localhost
-  port: 6379
-  password: ""
+  port: 5432
+  password: test_password
   db: 0
   ttl: 300
 
@@ -54,13 +54,13 @@ static:
 
 services:
   database_service:
-    base_url: http://localhost:8090
+    base_url: http://localhost: localhost
     timeout: 5s
   event_store_service:
-    base_url: http://localhost:8091
+    base_url: http://localhost: localhost
     timeout: 5s
   saas_admin_service:
-    base_url: http://localhost:8092
+    base_url: http://localhost: localhost
     timeout: 5s
 
 features:

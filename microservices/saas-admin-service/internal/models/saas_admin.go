@@ -48,11 +48,61 @@ type SaaSPlan struct {
 	Integrations    bool           `gorm:"default:false" json:"integrations"`
 	Analytics       bool           `gorm:"default:false" json:"analytics"`
 	Support         string         `gorm:"default:email" json:"support"` // email, chat, phone
-	IsActive        bool           `gorm:"default:true" json:"is_active"`
-	IsPublic        bool           `gorm:"default:true" json:"is_public"`
+	IsActive        bool           `gorm:"default:true;index" json:"is_active"`
+	IsPublic        bool           `gorm:"default:true;index" json:"is_public"`
+	IsPopular       bool           `gorm:"default:false;index" json:"is_popular"` // For frontend display
+	ButtonText      string         `gorm:"default:Get Started" json:"button_text"`
+	ButtonURL       string         `gorm:"default:/signup" json:"button_url"`
+	Order           int            `gorm:"default:0" json:"order"`    // Display order
 	Features        string         `gorm:"type:text" json:"features"` // JSON array of features
 	Limits          string         `gorm:"type:text" json:"limits"`   // JSON object of limits
 	Metadata        string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
+}
+
+// PricingTier represents a pricing tier with different billing intervals.
+type PricingTier struct {
+	ID              uint           `gorm:"primarykey" json:"id"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
+	DeletedAt       gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
+	PlanID          uint           `gorm:"not null;index" json:"plan_id"`
+	Plan            SaaSPlan       `gorm:"foreignKey:PlanID" json:"plan"`
+	BillingInterval string         `gorm:"not null" json:"billing_interval"` // monthly, yearly
+	Price           float64        `gorm:"not null" json:"price"`
+	Currency        string         `gorm:"default:USD" json:"currency"`
+	DiscountPercent float64        `gorm:"default:0" json:"discount_percent"` // For yearly discounts
+	IsActive        bool           `gorm:"default:true;index" json:"is_active"`
+	Metadata        string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
+}
+
+// PricingFeature represents individual features that can be assigned to plans.
+type PricingFeature struct {
+	ID          uint           `gorm:"primarykey" json:"id"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	DeletedAt   gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
+	Name        string         `gorm:"not null" json:"name"`
+	Description string         `gorm:"type:text" json:"description"`
+	Category    string         `gorm:"not null;index" json:"category"` // core, advanced, enterprise
+	Icon        string         `json:"icon"`                           // Icon class or URL
+	IsActive    bool           `gorm:"default:true;index" json:"is_active"`
+	Order       int            `gorm:"default:0" json:"order"`
+	Metadata    string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
+}
+
+// PlanFeature represents the relationship between plans and features.
+type PlanFeature struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
+	PlanID    uint           `gorm:"not null;index" json:"plan_id"`
+	Plan      SaaSPlan       `gorm:"foreignKey:PlanID" json:"plan"`
+	FeatureID uint           `gorm:"not null;index" json:"feature_id"`
+	Feature   PricingFeature `gorm:"foreignKey:FeatureID" json:"feature"`
+	IsEnabled bool           `gorm:"default:true;index" json:"is_enabled"`
+	Order     int            `gorm:"default:0" json:"order"`
+	Metadata  string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
 }
 
 // SaaSFeature represents a platform feature.
@@ -178,6 +228,21 @@ func (SaaSPlan) TableName() string {
 	return "saas_plans"
 }
 
+// TableName returns the table name for PricingTier.
+func (PricingTier) TableName() string {
+	return "pricing_tiers"
+}
+
+// TableName returns the table name for PricingFeature.
+func (PricingFeature) TableName() string {
+	return "pricing_features"
+}
+
+// TableName returns the table name for PlanFeature.
+func (PlanFeature) TableName() string {
+	return "plan_features"
+}
+
 // TableName returns the table name for SaaSFeature.
 func (SaaSFeature) TableName() string {
 	return "saas_features"
@@ -212,4 +277,3 @@ func (SaaSBackup) TableName() string {
 func (SaaSStats) TableName() string {
 	return "saas_stats"
 }
-

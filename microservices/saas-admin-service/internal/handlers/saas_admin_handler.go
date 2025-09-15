@@ -4,6 +4,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/enterprise-status/statuspage-saas-admin-service/internal/models"
 	"github.com/enterprise-status/statuspage-saas-admin-service/internal/services"
@@ -136,6 +137,26 @@ func (h *SaaSAdminHandler) CreatePlan(c *gin.Context) {
 		h.logger.Error("Invalid request body", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid request body",
+		})
+		return
+	}
+
+	// Validate input
+	if strings.TrimSpace(plan.Name) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Plan name is required",
+		})
+		return
+	}
+	if strings.TrimSpace(plan.Slug) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Plan slug is required",
+		})
+		return
+	}
+	if plan.Price < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Plan price cannot be negative",
 		})
 		return
 	}
@@ -651,4 +672,328 @@ func (h *SaaSAdminHandler) GetBackup(c *gin.Context) {
 
 func (h *SaaSAdminHandler) DeleteBackup(c *gin.Context) {
 	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
+}
+
+// Pricing Management Handlers
+
+// CreatePricingFeature creates a new pricing feature.
+func (h *SaaSAdminHandler) CreatePricingFeature(c *gin.Context) {
+	h.logger.Info("Creating pricing feature")
+
+	var feature models.PricingFeature
+	if err := c.ShouldBindJSON(&feature); err != nil {
+		h.logger.Error("Invalid request body", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		return
+	}
+
+	if err := h.service.CreatePricingFeature(c.Request.Context(), &feature); err != nil {
+		h.logger.Error("Failed to create pricing feature", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create pricing feature", "details": err.Error()})
+		return
+	}
+
+	h.logger.Info("Pricing feature created successfully", zap.Uint("feature_id", feature.ID))
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Pricing feature created successfully",
+		"feature": feature,
+	})
+}
+
+// GetPricingFeatures retrieves all pricing features.
+func (h *SaaSAdminHandler) GetPricingFeatures(c *gin.Context) {
+	h.logger.Info("Getting pricing features")
+
+	category := c.Query("category")
+	features, err := h.service.GetPricingFeatures(c.Request.Context(), category)
+	if err != nil {
+		h.logger.Error("Failed to get pricing features", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get pricing features", "details": err.Error()})
+		return
+	}
+
+	h.logger.Info("Pricing features retrieved successfully", zap.Int("count", len(features)))
+	c.JSON(http.StatusOK, gin.H{
+		"features": features,
+		"count":    len(features),
+	})
+}
+
+// UpdatePricingFeature updates a pricing feature.
+func (h *SaaSAdminHandler) UpdatePricingFeature(c *gin.Context) {
+	h.logger.Info("Updating pricing feature")
+
+	featureIDStr := c.Param("id")
+	featureID, err := strconv.ParseUint(featureIDStr, 10, 32)
+	if err != nil {
+		h.logger.Error("Invalid feature ID", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid feature ID"})
+		return
+	}
+
+	var updates models.PricingFeature
+	if err := c.ShouldBindJSON(&updates); err != nil {
+		h.logger.Error("Invalid request body", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		return
+	}
+
+	updatedFeature, err := h.service.UpdatePricingFeature(c.Request.Context(), uint(featureID), &updates)
+	if err != nil {
+		h.logger.Error("Failed to update pricing feature", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update pricing feature", "details": err.Error()})
+		return
+	}
+
+	h.logger.Info("Pricing feature updated successfully", zap.Uint("feature_id", uint(featureID)))
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Pricing feature updated successfully",
+		"feature": updatedFeature,
+	})
+}
+
+// DeletePricingFeature deletes a pricing feature.
+func (h *SaaSAdminHandler) DeletePricingFeature(c *gin.Context) {
+	h.logger.Info("Deleting pricing feature")
+
+	featureIDStr := c.Param("id")
+	featureID, err := strconv.ParseUint(featureIDStr, 10, 32)
+	if err != nil {
+		h.logger.Error("Invalid feature ID", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid feature ID"})
+		return
+	}
+
+	if err := h.service.DeletePricingFeature(c.Request.Context(), uint(featureID)); err != nil {
+		h.logger.Error("Failed to delete pricing feature", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete pricing feature", "details": err.Error()})
+		return
+	}
+
+	h.logger.Info("Pricing feature deleted successfully", zap.Uint("feature_id", uint(featureID)))
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Pricing feature deleted successfully",
+	})
+}
+
+// CreatePricingTier creates a new pricing tier.
+func (h *SaaSAdminHandler) CreatePricingTier(c *gin.Context) {
+	h.logger.Info("Creating pricing tier")
+
+	var tier models.PricingTier
+	if err := c.ShouldBindJSON(&tier); err != nil {
+		h.logger.Error("Invalid request body", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		return
+	}
+
+	if err := h.service.CreatePricingTier(c.Request.Context(), &tier); err != nil {
+		h.logger.Error("Failed to create pricing tier", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create pricing tier", "details": err.Error()})
+		return
+	}
+
+	h.logger.Info("Pricing tier created successfully", zap.Uint("tier_id", tier.ID))
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Pricing tier created successfully",
+		"tier":    tier,
+	})
+}
+
+// GetPricingTiers retrieves pricing tiers for a plan.
+func (h *SaaSAdminHandler) GetPricingTiers(c *gin.Context) {
+	h.logger.Info("Getting pricing tiers")
+
+	planIDStr := c.Param("planId")
+	planID, err := strconv.ParseUint(planIDStr, 10, 32)
+	if err != nil {
+		h.logger.Error("Invalid plan ID", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid plan ID"})
+		return
+	}
+
+	tiers, err := h.service.GetPricingTiers(c.Request.Context(), uint(planID))
+	if err != nil {
+		h.logger.Error("Failed to get pricing tiers", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get pricing tiers", "details": err.Error()})
+		return
+	}
+
+	h.logger.Info("Pricing tiers retrieved successfully", zap.Int("count", len(tiers)))
+	c.JSON(http.StatusOK, gin.H{
+		"tiers": tiers,
+		"count": len(tiers),
+	})
+}
+
+// UpdatePricingTier updates a pricing tier.
+func (h *SaaSAdminHandler) UpdatePricingTier(c *gin.Context) {
+	h.logger.Info("Updating pricing tier")
+
+	tierIDStr := c.Param("id")
+	tierID, err := strconv.ParseUint(tierIDStr, 10, 32)
+	if err != nil {
+		h.logger.Error("Invalid tier ID", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tier ID"})
+		return
+	}
+
+	var updates models.PricingTier
+	if err := c.ShouldBindJSON(&updates); err != nil {
+		h.logger.Error("Invalid request body", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		return
+	}
+
+	updatedTier, err := h.service.UpdatePricingTier(c.Request.Context(), uint(tierID), &updates)
+	if err != nil {
+		h.logger.Error("Failed to update pricing tier", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update pricing tier", "details": err.Error()})
+		return
+	}
+
+	h.logger.Info("Pricing tier updated successfully", zap.Uint("tier_id", uint(tierID)))
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Pricing tier updated successfully",
+		"tier":    updatedTier,
+	})
+}
+
+// DeletePricingTier deletes a pricing tier.
+func (h *SaaSAdminHandler) DeletePricingTier(c *gin.Context) {
+	h.logger.Info("Deleting pricing tier")
+
+	tierIDStr := c.Param("id")
+	tierID, err := strconv.ParseUint(tierIDStr, 10, 32)
+	if err != nil {
+		h.logger.Error("Invalid tier ID", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tier ID"})
+		return
+	}
+
+	if err := h.service.DeletePricingTier(c.Request.Context(), uint(tierID)); err != nil {
+		h.logger.Error("Failed to delete pricing tier", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete pricing tier", "details": err.Error()})
+		return
+	}
+
+	h.logger.Info("Pricing tier deleted successfully", zap.Uint("tier_id", uint(tierID)))
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Pricing tier deleted successfully",
+	})
+}
+
+// AssignFeatureToPlan assigns a feature to a plan.
+func (h *SaaSAdminHandler) AssignFeatureToPlan(c *gin.Context) {
+	h.logger.Info("Assigning feature to plan")
+
+	var request struct {
+		PlanID    uint `json:"plan_id" binding:"required"`
+		FeatureID uint `json:"feature_id" binding:"required"`
+		Order     int  `json:"order"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		h.logger.Error("Invalid request body", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		return
+	}
+
+	if err := h.service.AssignFeatureToPlan(c.Request.Context(), request.PlanID, request.FeatureID, request.Order); err != nil {
+		h.logger.Error("Failed to assign feature to plan", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign feature to plan", "details": err.Error()})
+		return
+	}
+
+	h.logger.Info("Feature assigned to plan successfully")
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Feature assigned to plan successfully",
+	})
+}
+
+// RemoveFeatureFromPlan removes a feature from a plan.
+func (h *SaaSAdminHandler) RemoveFeatureFromPlan(c *gin.Context) {
+	h.logger.Info("Removing feature from plan")
+
+	var request struct {
+		PlanID    uint `json:"plan_id" binding:"required"`
+		FeatureID uint `json:"feature_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		h.logger.Error("Invalid request body", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		return
+	}
+
+	if err := h.service.RemoveFeatureFromPlan(c.Request.Context(), request.PlanID, request.FeatureID); err != nil {
+		h.logger.Error("Failed to remove feature from plan", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove feature from plan", "details": err.Error()})
+		return
+	}
+
+	h.logger.Info("Feature removed from plan successfully")
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Feature removed from plan successfully",
+	})
+}
+
+// GetPlanFeatures retrieves all features for a plan.
+func (h *SaaSAdminHandler) GetPlanFeatures(c *gin.Context) {
+	h.logger.Info("Getting plan features")
+
+	planIDStr := c.Param("planId")
+	planID, err := strconv.ParseUint(planIDStr, 10, 32)
+	if err != nil {
+		h.logger.Error("Invalid plan ID", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid plan ID"})
+		return
+	}
+
+	features, err := h.service.GetPlanFeatures(c.Request.Context(), uint(planID))
+	if err != nil {
+		h.logger.Error("Failed to get plan features", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get plan features", "details": err.Error()})
+		return
+	}
+
+	h.logger.Info("Plan features retrieved successfully", zap.Int("count", len(features)))
+	c.JSON(http.StatusOK, gin.H{
+		"features": features,
+		"count":    len(features),
+	})
+}
+
+// GetPublicPricingPlans retrieves all public pricing plans.
+func (h *SaaSAdminHandler) GetPublicPricingPlans(c *gin.Context) {
+	h.logger.Info("Getting public pricing plans")
+
+	plans, err := h.service.GetPublicPricingPlans(c.Request.Context())
+	if err != nil {
+		h.logger.Error("Failed to get public pricing plans", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get public pricing plans", "details": err.Error()})
+		return
+	}
+
+	h.logger.Info("Public pricing plans retrieved successfully", zap.Int("count", len(plans)))
+	c.JSON(http.StatusOK, gin.H{
+		"plans": plans,
+		"count": len(plans),
+	})
+}
+
+// SyncPricingToLandingPage syncs pricing plans to the landing page service.
+func (h *SaaSAdminHandler) SyncPricingToLandingPage(c *gin.Context) {
+	h.logger.Info("Syncing pricing plans to landing page service")
+
+	if err := h.service.SyncPricingToLandingPage(c.Request.Context()); err != nil {
+		h.logger.Error("Failed to sync pricing plans", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to sync pricing plans", "details": err.Error()})
+		return
+	}
+
+	h.logger.Info("Pricing plans synced successfully")
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Pricing plans synced to landing page service successfully",
+	})
 }

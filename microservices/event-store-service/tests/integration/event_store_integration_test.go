@@ -78,6 +78,7 @@ func setupIntegrationTest() error {
 			User:     "test",
 			Password: "test",
 			Name:     "test_db",
+			SSLMode:  "disable",
 		},
 		EventStore: config.EventStoreConfig{
 			MaxEventsPerStream: 10000,
@@ -94,6 +95,22 @@ func setupIntegrationTest() error {
 	if err != nil {
 		return err
 	}
+
+	// Use in-memory SQLite database for integration tests
+	testDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		return fmt.Errorf("failed to open test database: %w", err)
+	}
+
+	// Auto-migrate the schema
+	err = testDB.AutoMigrate(&models.Stream{}, &models.Event{}, &models.Snapshot{}, &models.Projection{})
+	if err != nil {
+		return fmt.Errorf("failed to migrate test database: %w", err)
+	}
+
+	// Set the test database
+	eventStoreService.SetDB(testDB)
+	db = testDB
 
 	return nil
 }

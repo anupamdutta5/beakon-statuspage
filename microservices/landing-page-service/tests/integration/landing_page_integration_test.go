@@ -105,6 +105,9 @@ func setupIntegrationTest() error {
 		return err
 	}
 
+	// Set the test database
+	landingService.SetDB(db)
+
 	// Initialize handler
 	landingHandler = handlers.NewLandingHandler(landingService, logger)
 

@@ -16,13 +16,31 @@ import (
 type MonitoringService struct {
 	db     *gorm.DB
 	logger *zap.Logger
+
+	// Specialized monitoring services
+	ComponentMonitoring   *ComponentMonitoringService
+	ExternalMonitoring    *ExternalMonitoringService
+	CustomMetrics         *CustomMetricsService
+	StatusAutomation      *StatusAutomationService
+	KubernetesMonitoring  *KubernetesMonitoringService
+	DockerMonitoring      *DockerMonitoringService
+	HealthCheck           *HealthCheckService
+	MaintenanceManagement *MaintenanceManagementService
 }
 
 // NewMonitoringService creates a new monitoring service.
 func NewMonitoringService(db *gorm.DB, logger *zap.Logger) *MonitoringService {
 	return &MonitoringService{
-		db:     db,
-		logger: logger,
+		db:                    db,
+		logger:                logger,
+		ComponentMonitoring:   NewComponentMonitoringService(db, logger),
+		ExternalMonitoring:    NewExternalMonitoringService(db, logger),
+		CustomMetrics:         NewCustomMetricsService(db, logger),
+		StatusAutomation:      NewStatusAutomationService(db, logger),
+		KubernetesMonitoring:  NewKubernetesMonitoringService(db, logger),
+		DockerMonitoring:      NewDockerMonitoringService(db, logger),
+		HealthCheck:           NewHealthCheckService(logger),
+		MaintenanceManagement: NewMaintenanceManagementService(db, logger),
 	}
 }
 
@@ -528,6 +546,7 @@ func InitDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
 
 	// Auto-migrate models
 	if err := db.AutoMigrate(
+		// Core monitoring models
 		&models.MonitoredService{},
 		&models.HealthCheck{},
 		&models.HealthCheckResult{},
@@ -537,6 +556,38 @@ func InitDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
 		&models.PerformanceMetric{},
 		&models.PerformanceDataPoint{},
 		&models.LogEntry{},
+
+		// Component monitoring models
+		&models.MonitoredComponent{},
+		&models.MonitoredContainer{},
+		&models.ContainerHealthCheck{},
+		&models.ComponentMetric{},
+
+		// External monitoring models
+		&models.ExternalService{},
+		&models.ExternalServiceHealthCheck{},
+
+		// Custom metrics models
+		&models.CustomMetric{},
+		&models.CustomMetricDataPoint{},
+
+		// Status automation models
+		&models.StatusAutomation{},
+		&models.StatusAutomationIntegration{},
+
+		// Kubernetes monitoring models
+		&models.KubernetesResource{},
+		&models.KubernetesEvent{},
+
+		// Docker monitoring models
+		&models.DockerContainer{},
+		&models.DockerContainerHealthCheck{},
+
+		// Maintenance management models
+		&models.MaintenanceWindow{},
+		&models.MaintenanceComponent{},
+		&models.MaintenanceUpdate{},
+		&models.MaintenanceTemplate{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}

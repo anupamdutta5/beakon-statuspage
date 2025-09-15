@@ -13,15 +13,15 @@ type Incident struct {
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
-	TenantID    uint           `gorm:"not null;index" json:"tenant_id"`
+	TenantID    uint           `gorm:"not null;index:idx_tenant_visible" json:"tenant_id"`
 	Title       string         `gorm:"not null" json:"title"`
 	Description string         `gorm:"type:text" json:"description"`
-	Status      string         `gorm:"default:investigating" json:"status"` // investigating, identified, monitoring, resolved
-	Impact      string         `gorm:"default:minor" json:"impact"`         // minor, major, critical
+	Status      string         `gorm:"default:investigating;index:idx_status_impact" json:"status"` // investigating, identified, monitoring, resolved
+	Impact      string         `gorm:"default:minor;index:idx_status_impact" json:"impact"`         // minor, major, critical
 	Severity    string         `gorm:"default:low" json:"severity"`         // low, medium, high, critical
-	IsVisible   bool           `gorm:"default:true" json:"is_visible"`
-	StartedAt   time.Time      `gorm:"not null" json:"started_at"`
-	ResolvedAt  *time.Time     `json:"resolved_at"`
+	IsVisible   bool           `gorm:"default:true;index:idx_tenant_visible" json:"is_visible"`
+	StartedAt   time.Time      `gorm:"not null;index:idx_started_at" json:"started_at"`
+	ResolvedAt  *time.Time     `gorm:"index:idx_resolved_at" json:"resolved_at"`
 	CreatedBy   uint           `json:"created_by"`                // User ID who created the incident
 	UpdatedBy   uint           `json:"updated_by"`                // User ID who last updated the incident
 	Metadata    string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
@@ -116,19 +116,8 @@ type IncidentMetric struct {
 	Metadata   string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
 }
 
-// IncidentSubscriber represents subscribers to incident notifications.
-type IncidentSubscriber struct {
-	ID          uint           `gorm:"primarykey" json:"id"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
-	DeletedAt   gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
-	TenantID    uint           `gorm:"not null;index" json:"tenant_id"`
-	Email       string         `gorm:"not null" json:"email"`
-	Phone       string         `json:"phone"`
-	IsActive    bool           `gorm:"default:true" json:"is_active"`
-	Preferences string         `gorm:"type:text" json:"preferences"` // JSON string for notification preferences
-	Metadata    string         `gorm:"type:text" json:"metadata"`    // JSON string for additional data
-}
+// Note: IncidentSubscriber removed - use notification-service Subscription model instead
+// with EventTypes including "incident_created", "incident_updated", "incident_resolved"
 
 // TableName returns the table name for Incident.
 func (Incident) TableName() string {
@@ -160,7 +149,4 @@ func (IncidentMetric) TableName() string {
 	return "incident_metrics"
 }
 
-// TableName returns the table name for IncidentSubscriber.
-func (IncidentSubscriber) TableName() string {
-	return "incident_subscribers"
-}
+// IncidentSubscriber table name removed - use notification-service subscriptions table

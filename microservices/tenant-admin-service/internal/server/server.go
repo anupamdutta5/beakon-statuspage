@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/enterprise-status/statuspage-tenant-admin-service/internal/config"
@@ -17,11 +18,12 @@ import (
 
 // Server represents the Tenant Admin Service server.
 type Server struct {
-	config  *config.Config
-	logger  *zap.Logger
-	router  *gin.Engine
-	server  *http.Server
-	service *services.TenantAdminService
+	config            *config.Config
+	logger            *zap.Logger
+	router            *gin.Engine
+	server            *http.Server
+	service           *services.TenantAdminService
+	statusPageService *services.StatusPageManagementService
 }
 
 // New creates a new Tenant Admin Service server.
@@ -32,6 +34,15 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 		return nil, fmt.Errorf("failed to initialize tenant admin service: %w", err)
 	}
 
+	// Initialize status page management service
+	statusPageService := services.NewStatusPageManagementService(service.GetDB(), logger, &services.StatusPageConfig{
+		ComponentServiceURL:    "http://localhost:8082",
+		IncidentServiceURL:     "http://localhost:8083",
+		MonitoringServiceURL:   "http://localhost:8088",
+		NotificationServiceURL: "http://localhost:8085",
+		BrandingServiceURL:     "http://localhost:8089",
+	})
+
 	// Set Gin mode
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -40,6 +51,9 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 	// Create router
 	router := gin.New()
 
+	// Load HTML templates
+	router.LoadHTMLGlob("web/templates/*")
+
 	// Add middleware
 	router.Use(middleware.Logger(logger))
 	router.Use(middleware.Recovery(logger))
@@ -47,10 +61,17 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 	router.Use(middleware.RequestID())
 
 	// Initialize handlers
-	handler := handlers.NewTenantAdminHandler(service, logger)
+	handler := handlers.NewTenantAdminHandler(service, statusPageService, logger)
+
+	// Initialize auth middleware
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = "default-jwt-secret-change-in-production"
+	}
+	authMiddleware := middleware.NewAuthMiddleware(jwtSecret, logger)
 
 	// Setup routes
-	setupRoutes(router, handler)
+	setupRoutes(router, handler, authMiddleware)
 
 	// Create HTTP server
 	server := &http.Server{
@@ -62,11 +83,12 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 	}
 
 	return &Server{
-		config:  cfg,
-		logger:  logger,
-		router:  router,
-		server:  server,
-		service: service,
+		config:            cfg,
+		logger:            logger,
+		router:            router,
+		server:            server,
+		service:           service,
+		statusPageService: statusPageService,
 	}, nil
 }
 
@@ -102,12 +124,23 @@ func (s *Server) Start(ctx context.Context) error {
 }
 
 // setupRoutes sets up the API routes.
-func setupRoutes(router *gin.Engine, handler *handlers.TenantAdminHandler) {
+func setupRoutes(router *gin.Engine, handler *handlers.TenantAdminHandler, authMiddleware *middleware.AuthMiddleware) {
 	// Health check
 	router.GET("/health", handler.HealthCheck)
 
-	// API v1 routes
+	// Authentication routes (public)
+	router.GET("/login", handler.GetLoginPage)
+	router.POST("/api/v1/auth/login", handler.Login)
+	router.POST("/api/v1/auth/logout", handler.Logout)
+	router.GET("/api/v1/auth/verify", handler.VerifyToken)
+
+	// Admin dashboard (protected)
+	router.GET("/admin", authMiddleware.RequireAuth(), handler.GetAdminDashboard)
+	router.GET("/", handler.GetLoginPage) // Redirect to login instead of dashboard
+
+	// API v1 routes (protected)
 	v1 := router.Group("/api/v1")
+	v1.Use(authMiddleware.RequireAuth())
 	{
 		// Tenant admin management
 		v1.GET("/tenants/:tenant_id/admins", handler.ListTenantAdmins)
@@ -153,6 +186,13 @@ func setupRoutes(router *gin.Engine, handler *handlers.TenantAdminHandler) {
 		v1.POST("/tenants/:tenant_id/backups", handler.CreateTenantBackup)
 		v1.GET("/tenant-backups/:id", handler.GetTenantBackup)
 		v1.DELETE("/tenant-backups/:id", handler.DeleteTenantBackup)
+
+		// Status page management
+		v1.GET("/status-pages/:slug/data", handler.GetStatusPageData)
+		v1.GET("/status-pages", handler.GetStatusPages)
+		v1.POST("/status-pages", handler.CreateStatusPage)
+		v1.PUT("/status-pages/:id", handler.UpdateStatusPage)
+		v1.DELETE("/status-pages/:id", handler.DeleteStatusPage)
+		v1.PUT("/status-pages/:id/config", handler.UpdateStatusPageConfig)
 	}
 }
-

@@ -29,7 +29,7 @@ func TestTenantAdminHandler_HealthCheck(t *testing.T) {
 	cfg := &config.Config{}
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
@@ -64,7 +64,7 @@ func TestTenantAdminHandler_GetTenantSettings(t *testing.T) {
 	cfg := &config.Config{}
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
 
 	// Create tenant settings first
 	settings := models.TenantSettings{
@@ -129,7 +129,7 @@ func TestTenantAdminHandler_UpdateTenantSettings(t *testing.T) {
 	cfg := &config.Config{}
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
 
 	// Create tenant settings first
 	settings := models.TenantSettings{
@@ -194,7 +194,7 @@ func TestTenantAdminHandler_GetTenantUsers(t *testing.T) {
 	cfg := &config.Config{}
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
 
 	// Create some tenant users
 	users := []models.TenantAdmin{
@@ -259,7 +259,7 @@ func TestTenantAdminHandler_AddTenantUser(t *testing.T) {
 	cfg := &config.Config{}
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
@@ -310,7 +310,7 @@ func TestTenantAdminHandler_UpdateTenantUser(t *testing.T) {
 	cfg := &config.Config{}
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
 
 	// Create a tenant user first
 	user := models.TenantAdmin{
@@ -362,7 +362,7 @@ func TestTenantAdminHandler_RemoveTenantUser(t *testing.T) {
 	cfg := &config.Config{}
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
 
 	// Create a tenant user first
 	user := models.TenantAdmin{
@@ -410,7 +410,7 @@ func TestTenantAdminHandler_GetTenantUsage(t *testing.T) {
 	cfg := &config.Config{}
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
@@ -448,7 +448,7 @@ func TestTenantAdminHandler_GetTenantBilling(t *testing.T) {
 	cfg := &config.Config{}
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
@@ -482,7 +482,7 @@ func TestTenantAdminHandler_GetTenantFeatureFlags(t *testing.T) {
 	cfg := &config.Config{}
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
 
 	// Create some tenant feature flags
 	flags := []models.TenantFeatureFlag{
@@ -539,7 +539,7 @@ func TestTenantAdminHandler_UpdateTenantFeatureFlag(t *testing.T) {
 	cfg := &config.Config{}
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
 
 	// Create a tenant feature flag first
 	flag := models.TenantFeatureFlag{

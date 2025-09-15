@@ -13,15 +13,15 @@ type MonitoredService struct {
 	CreatedAt     time.Time      `json:"created_at"`
 	UpdatedAt     time.Time      `json:"updated_at"`
 	DeletedAt     gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
-	TenantID      uint           `gorm:"not null;index" json:"tenant_id"`
+	TenantID      uint           `gorm:"not null;index:idx_tenant_status" json:"tenant_id"`
 	Name          string         `gorm:"not null" json:"name"`
 	Description   string         `json:"description"`
-	Type          string         `gorm:"not null" json:"type"` // http, tcp, ping, custom
+	Type          string         `gorm:"not null;index:idx_type_status" json:"type"` // http, tcp, ping, custom
 	URL           string         `json:"url"`
 	Host          string         `json:"host"`
 	Port          int            `json:"port"`
-	Status        string         `gorm:"default:unknown" json:"status"` // healthy, unhealthy, unknown, maintenance
-	IsActive      bool           `gorm:"default:true" json:"is_active"`
+	Status        string         `gorm:"default:unknown;index:idx_tenant_status;index:idx_type_status" json:"status"` // healthy, unhealthy, unknown, maintenance
+	IsActive      bool           `gorm:"default:true;index:idx_active_status" json:"is_active"`
 	CheckInterval int            `gorm:"default:60" json:"check_interval"` // in seconds
 	Timeout       int            `gorm:"default:30" json:"timeout"`        // in seconds
 	Retries       int            `gorm:"default:3" json:"retries"`
@@ -43,7 +43,7 @@ type HealthCheck struct {
 	CreatedAt      time.Time        `json:"created_at"`
 	UpdatedAt      time.Time        `json:"updated_at"`
 	DeletedAt      gorm.DeletedAt   `gorm:"index" json:"deleted_at,omitempty"`
-	ServiceID      uint             `gorm:"not null;index" json:"service_id"`
+	ServiceID      uint             `gorm:"not null;index:idx_service_active" json:"service_id"`
 	Service        MonitoredService `gorm:"foreignKey:ServiceID" json:"service"`
 	Name           string           `gorm:"not null" json:"name"`
 	Type           string           `gorm:"not null" json:"type"` // http, tcp, ping, custom
@@ -54,9 +54,9 @@ type HealthCheck struct {
 	ExpectedStatus int              `gorm:"default:200" json:"expected_status"`
 	ExpectedBody   string           `json:"expected_body"`
 	Timeout        int              `gorm:"default:30" json:"timeout"`
-	IsActive       bool             `gorm:"default:true" json:"is_active"`
-	LastChecked    *time.Time       `json:"last_checked"`
-	LastResult     string           `gorm:"default:unknown" json:"last_result"` // success, failure, timeout
+	IsActive       bool             `gorm:"default:true;index:idx_service_active" json:"is_active"`
+	LastChecked    *time.Time       `gorm:"index:idx_last_checked" json:"last_checked"`
+	LastResult     string           `gorm:"default:unknown;index:idx_result_checked" json:"last_result"` // success, failure, timeout
 	Metadata       string           `gorm:"type:text" json:"metadata"`          // JSON string for additional data
 }
 

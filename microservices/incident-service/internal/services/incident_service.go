@@ -411,7 +411,7 @@ func InitDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
 		&models.IncidentTemplate{},
 		&models.IncidentNotification{},
 		&models.IncidentMetric{},
-		&models.IncidentSubscriber{},
+		// IncidentSubscriber removed - use notification-service Subscription model
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
