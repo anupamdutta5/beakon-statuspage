@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: status_page_ui_test
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+    ports:
+      - "5446:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user -d status_page_ui_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  status-page-ui-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=test_user
+      - DB_PASSWORD=test_password
+      - DB_NAME=status_page_ui_test
+      - TENANT_ADMIN_SERVICE_URL=http://host.docker.internal:8094
+    depends_on:
+      postgres:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./tests:/app/tests
+      - ./coverage:/app/coverage
+    command: ["go", "test", "-v", "./tests/...", "-coverprofile=coverage.out"]
+
+volumes:
+  postgres_data:
