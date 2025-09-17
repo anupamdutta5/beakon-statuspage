@@ -9,10 +9,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/enterprise-status/statuspage-saas-admin-service/internal/config"
-	"github.com/enterprise-status/statuspage-saas-admin-service/internal/handlers"
-	"github.com/enterprise-status/statuspage-saas-admin-service/internal/models"
-	"github.com/enterprise-status/statuspage-saas-admin-service/internal/services"
+	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/config"
+	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/handlers"
+	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/models"
+	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,8 +28,7 @@ func TestSaaSAdminHandler_HealthCheck(t *testing.T) {
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
-	saasAdminService.SetDB(db)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
 	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	router := gin.New()
@@ -58,8 +57,7 @@ func TestSaaSAdminHandler_CreatePlan(t *testing.T) {
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
-	saasAdminService.SetDB(db)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
 	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	router := gin.New()
@@ -110,8 +108,7 @@ func TestSaaSAdminHandler_GetPlan(t *testing.T) {
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
-	saasAdminService.SetDB(db)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
 	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	// Create a plan first
@@ -156,8 +153,7 @@ func TestSaaSAdminHandler_UpdatePlan(t *testing.T) {
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
-	saasAdminService.SetDB(db)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
 	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	// Create a plan first
@@ -216,8 +212,7 @@ func TestSaaSAdminHandler_DeletePlan(t *testing.T) {
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
-	saasAdminService.SetDB(db)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
 	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	// Create a plan first
@@ -263,8 +258,7 @@ func TestSaaSAdminHandler_ListPlans(t *testing.T) {
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
-	saasAdminService.SetDB(db)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
 	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	// Create multiple plans
@@ -310,8 +304,7 @@ func TestSaaSAdminHandler_CreateFeatureFlag(t *testing.T) {
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
-	saasAdminService.SetDB(db)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
 	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	router := gin.New()
@@ -355,8 +348,7 @@ func TestSaaSAdminHandler_GetFeatureFlags(t *testing.T) {
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
-	saasAdminService.SetDB(db)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
 	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	// Create some feature flags
@@ -400,8 +392,7 @@ func TestSaaSAdminHandler_GetPlatformStats(t *testing.T) {
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
-	saasAdminService.SetDB(db)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
 	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	router := gin.New()
@@ -436,8 +427,7 @@ func TestSaaSAdminHandler_UpdateFeatureFlag(t *testing.T) {
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
-	saasAdminService.SetDB(db)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
 	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	// Create a feature flag first
@@ -487,8 +477,7 @@ func TestSaaSAdminHandler_DeleteFeatureFlag(t *testing.T) {
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger)
-	saasAdminService.SetDB(db)
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
 	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
 
 	// Create a feature flag first

@@ -23,7 +23,7 @@ database: test_db
   host: localhost
   port: 5432
   user: test_user
-  password: test_password
+  password: ${DB_PASSWORD}
   name: ${DB_NAME}
   ssl_mode: require
   max_conns: 100

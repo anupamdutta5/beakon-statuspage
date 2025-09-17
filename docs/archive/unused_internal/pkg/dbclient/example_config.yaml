@@ -1,0 +1,85 @@
+# Database Service Configuration Example
+# This file shows how to configure a service to use the database-service
+
+# Service configuration
+service:
+  name: "example-service"
+  version: "1.0.0"
+  environment: "development"  # development, staging, production
+
+# Database service configuration
+database_service:
+  # The base URL of the database-service
+  base_url: "http://database-service:8089"
+  
+  # Authentication token for the database-service (if required)
+  auth_token: "your-auth-token-here"
+  
+  # Database configuration for this service
+  database:
+    # The type of database to use (postgresql, mysql)
+    type: "postgresql"
+    
+    # The name of the database (will be created if it doesn't exist)
+    # If not provided, a name will be generated using the service name
+    # name: "my_service_db"
+    
+    # Database user (will be created if it doesn't exist)
+    # If not provided, a username will be generated
+    # username: "my_service_user"
+    
+    # Database password (will be generated if not provided)
+    # password: "secure-password-here"
+    
+    # SSL mode (optional, default is "disable")
+    ssl_mode: "disable"
+  
+  # Migrations configuration (optional)
+  migrations:
+    # Path to the migrations directory
+    # Can be a local path or a GitHub URL (e.g., "github://user/repo/path/to/migrations")
+    path: "./migrations"
+    
+    # Table name to track migrations (default: "schema_migrations")
+    # table: "schema_migrations"
+    
+    # Allow missing migration files (default: false)
+    # allow_missing: false
+
+# Logging configuration
+logging:
+  # Log level (debug, info, warn, error)
+  level: "info"
+  
+  # Log format (text, json)
+  format: "text"
+  
+  # Enable/disable logging to file
+  # file: "/var/log/example-service.log"
+
+# Server configuration
+server:
+  # The host to bind to
+  host: "0.0.0.0"
+  
+  # The port to listen on
+  port: 8080
+  
+  # Read timeout in seconds
+  read_timeout: 30
+  
+  # Write timeout in seconds
+  write_timeout: 30
+  
+  # Idle timeout in seconds
+  idle_timeout: 120
+
+# Custom service-specific configuration
+# Add any additional configuration your service needs here
+custom:
+  # Example configuration
+  max_retries: 3
+  cache_ttl: "5m"
+  feature_flags:
+    enable_experimental: false
+    enable_analytics: true

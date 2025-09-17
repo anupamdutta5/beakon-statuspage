@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/enterprise-status/statuspage-saas-admin-service/internal/config"
-	"github.com/enterprise-status/statuspage-saas-admin-service/internal/handlers"
-	"github.com/enterprise-status/statuspage-saas-admin-service/internal/models"
-	"github.com/enterprise-status/statuspage-saas-admin-service/internal/services"
+	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/config"
+	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/handlers"
+	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/models"
+	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -59,11 +59,10 @@ func setupPricingTestService(t *testing.T) (*services.SaaSAdminService, *gorm.DB
 		},
 	}
 
-	service, err := services.NewSaaSAdminService(cfg, logger)
-	require.NoError(t, err)
-
 	db := setupPricingTestDB(t)
-	service.SetDB(db)
+
+	service, err := services.NewSaaSAdminService(cfg, logger, db)
+	require.NoError(t, err)
 
 	return service, db
 }
@@ -125,7 +124,7 @@ func TestPricingPlanCRUD(t *testing.T) {
 		IsPopular:       true,
 		IsActive:        true,
 		IsPublic:        true,
-		Order:           1,
+		DisplayOrder:    1,
 		Features:        `["Up to 25 services", "Custom domains", "Advanced analytics"]`,
 	}
 
@@ -306,7 +305,7 @@ func TestPublicPricingPlans(t *testing.T) {
 			BillingInterval: "monthly",
 			IsActive:        true,
 			IsPublic:        true,
-			Order:           0,
+			DisplayOrder:    0,
 		},
 		{
 			Name:            "Pro Plan",
@@ -318,7 +317,7 @@ func TestPublicPricingPlans(t *testing.T) {
 			IsPopular:       true,
 			IsActive:        true,
 			IsPublic:        true,
-			Order:           1,
+			DisplayOrder:    1,
 		},
 		{
 			Name:            "Enterprise Plan",
@@ -329,7 +328,7 @@ func TestPublicPricingPlans(t *testing.T) {
 			BillingInterval: "monthly",
 			IsActive:        true,
 			IsPublic:        false, // Not public
-			Order:           2,
+			DisplayOrder:    2,
 		},
 	}
 
@@ -484,7 +483,7 @@ func TestPricingSystemIntegration(t *testing.T) {
 			ButtonURL:       "/signup?plan=free",
 			IsActive:        true,
 			IsPublic:        true,
-			Order:           0,
+			DisplayOrder:    0,
 		},
 		{
 			Name:            "Pro",
@@ -498,7 +497,7 @@ func TestPricingSystemIntegration(t *testing.T) {
 			IsPopular:       true,
 			IsActive:        true,
 			IsPublic:        true,
-			Order:           1,
+			DisplayOrder:    1,
 		},
 		{
 			Name:            "Enterprise",
@@ -511,7 +510,7 @@ func TestPricingSystemIntegration(t *testing.T) {
 			ButtonURL:       "/contact?plan=enterprise",
 			IsActive:        true,
 			IsPublic:        true,
-			Order:           2,
+			DisplayOrder:    2,
 		},
 	}
 
@@ -635,7 +634,7 @@ func TestPricingSystemPerformance(t *testing.T) {
 			BillingInterval: "monthly",
 			IsActive:        true,
 			IsPublic:        true,
-			Order:           i,
+			DisplayOrder:    i,
 		}
 		err := service.CreatePlan(ctx, plan)
 		require.NoError(t, err)

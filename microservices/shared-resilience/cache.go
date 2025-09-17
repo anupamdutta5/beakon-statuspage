@@ -15,9 +15,11 @@ import (
 
 // CacheConfig represents configuration for caching
 type CacheConfig struct {
-	DefaultTTL      time.Duration `yaml:"default_ttl" default:"5m"`
-	MaxSize         int           `yaml:"max_size" default:"1000"`
-	CleanupInterval time.Duration `yaml:"cleanup_interval" default:"10m"`
+	Enabled         bool          `yaml:"enabled" json:"enabled"`
+	DefaultTTL      time.Duration `yaml:"default_ttl" json:"default_ttl" default:"5m"`
+	MaxSize         int           `yaml:"max_size" json:"max_size" default:"1000"`
+	CleanupInterval time.Duration `yaml:"cleanup_interval" json:"cleanup_interval" default:"10m"`
+	Type            string        `yaml:"type" json:"type"` // "memory", "redis"
 }
 
 // CacheItem represents a cached item
@@ -178,6 +180,12 @@ func (c *InMemoryCache) Stop() {
 	close(c.stop)
 }
 
+// Close implements Cache interface
+func (c *InMemoryCache) Close() error {
+	c.Stop()
+	return nil
+}
+
 // CacheStats represents cache statistics
 type CacheStats struct {
 	Size        int     `json:"size"`
@@ -217,6 +225,7 @@ type Cache interface {
 	Delete(ctx context.Context, key string) error
 	Clear(ctx context.Context) error
 	GetOrSet(ctx context.Context, key string, fn func() (interface{}, error), ttl time.Duration) (interface{}, error)
+	Close() error
 }
 
 // CacheMiddleware provides caching middleware for HTTP handlers

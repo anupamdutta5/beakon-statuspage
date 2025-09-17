@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/enterprise-status/statuspage-monitoring-service/internal/models"
+	"github.com/anupamdutta5/statuspage-monitoring-service/internal/models"
 	"go.uber.org/zap"
 )
 

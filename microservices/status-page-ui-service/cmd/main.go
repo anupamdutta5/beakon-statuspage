@@ -1,4 +1,5 @@
-// Package main provides the main entry point for the Status Page UI Service.
+// Package main is the entry point for the Status Page UI Service.
+// This is the modernized version using the shared-resilience module.
 package main
 
 import (
@@ -11,129 +12,139 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/enterprise-status/statuspage-status-ui-service/internal/config"
-	"github.com/enterprise-status/statuspage-status-ui-service/internal/handlers"
-	"github.com/enterprise-status/statuspage-status-ui-service/internal/services"
-	"github.com/enterprise-status/statuspage-status-ui-service/pkg/logger"
+	"github.com/anupamdutta5/statuspage-shared-resilience"
+	"github.com/anupamdutta5/statuspage-status-ui-service/internal/handlers"
+	"github.com/anupamdutta5/statuspage-status-ui-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
 func main() {
-	// Initialize logger
-	logger, err := logger.NewLogger()
+	// Load configuration from environment variables
+	resilienceConfig := resilience.LoadConfigFromEnv()
+	if err := resilienceConfig.Validate(); err != nil {
+		log.Fatalf("Configuration validation failed: %v", err)
+	}
+
+	// Initialize logger based on environment
+	var logger *zap.Logger
+	var err error
+
+	if resilienceConfig.Environment == "production" {
+		logger, err = zap.NewProduction()
+		gin.SetMode(gin.ReleaseMode)
+	} else {
+		logger, err = zap.NewDevelopment()
+		gin.SetMode(gin.DebugMode)
+	}
+
 	if err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 	defer logger.Sync()
 
-	logger.Info("Starting Status Page UI Service")
+	logger.Info("Starting Status Page UI Service",
+		zap.String("service", "status-page-ui-service"),
+		zap.String("version", "1.0.0"),
+		zap.String("environment", resilienceConfig.Environment),
+		zap.Int("port", resilienceConfig.Server.Port),
+	)
 
-	// Load configuration
-	cfg, err := config.Load()
+	// Initialize database manager with connection pooling and health checks
+	dbManager, err := resilience.NewDatabaseManager(resilienceConfig.Database, logger)
 	if err != nil {
-		logger.Fatal("Failed to load configuration", zap.Error(err))
+		logger.Fatal("Failed to initialize database manager", zap.Error(err))
+	}
+	defer dbManager.Close()
+
+	// Create Gin router
+	router := gin.New()
+
+	// Add comprehensive middleware stack
+	middleware := resilience.DefaultMiddlewareStack(resilienceConfig, logger)
+	for _, mw := range middleware {
+		router.Use(mw)
 	}
 
-	// Initialize services (no database needed - pure frontend service)
-	statusPageService := services.NewStatusPageService(logger, &services.Config{
-		TenantAdminServiceURL: cfg.Services.TenantAdminService.URL,
-	})
-
-	// Initialize handlers
+	// Initialize status page service and handlers
+	config := &services.Config{
+		TenantAdminServiceURL: "http://localhost:8080", // Default value
+	}
+	statusPageService := services.NewStatusPageService(logger, config)
 	statusPageHandler := handlers.NewStatusPageHandler(statusPageService, logger)
 
-	// Setup router
-	router := setupRouter(statusPageHandler, logger)
+	// Setup basic routes
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "ok"})
+	})
+	router.GET("/", statusPageHandler.GetStatusPage)
 
-	// Start server
+	// Create HTTP server with proper timeouts and configuration
 	server := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
+		Addr:         fmt.Sprintf("%s:%d", resilienceConfig.Server.Host, resilienceConfig.Server.Port),
 		Handler:      router,
-		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
-		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
-		IdleTimeout:  time.Duration(cfg.Server.IdleTimeout) * time.Second,
+		ReadTimeout:  resilienceConfig.Server.ReadTimeout,
+		WriteTimeout: resilienceConfig.Server.WriteTimeout,
+		IdleTimeout:  resilienceConfig.Server.IdleTimeout,
 	}
 
 	// Start server in a goroutine
 	go func() {
-		logger.Info("Starting HTTP server", zap.String("addr", server.Addr))
+		logger.Info("Status Page UI Service server starting",
+			zap.String("addr", server.Addr),
+			zap.Duration("read_timeout", resilienceConfig.Server.ReadTimeout),
+			zap.Duration("write_timeout", resilienceConfig.Server.WriteTimeout),
+		)
+
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("Failed to start server", zap.Error(err))
 		}
 	}()
 
+	// Setup health check monitoring
+	if resilienceConfig.Monitoring.Enabled {
+		dbHealthChecker := resilience.NewDatabaseHealthChecker(dbManager)
+
+		// Periodically log health status
+		go func() {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ticker.C:
+					healthCtx, healthCancel := context.WithTimeout(context.Background(), 5*time.Second)
+					health := dbHealthChecker.Check(healthCtx)
+					healthCancel()
+
+					if status, ok := health["status"].(string); ok && status != "healthy" {
+						logger.Warn("Database health check failed", zap.Any("health", health))
+					}
+				}
+			}
+		}()
+	}
+
 	// Wait for interrupt signal to gracefully shutdown the server
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	logger.Info("Shutting down server...")
 
-	// Give outstanding requests 30 seconds to complete
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	logger.Info("Shutting down Status Page UI Service server...")
 
-	if err := server.Shutdown(ctx); err != nil {
-		logger.Fatal("Server forced to shutdown", zap.Error(err))
+	// Graceful shutdown with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), resilienceConfig.Server.GracefulStop)
+	defer shutdownCancel()
+
+	// Shutdown HTTP server
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		logger.Error("Server forced to shutdown", zap.Error(err))
 	}
 
-	logger.Info("Server exited")
-}
-
-// setupRouter configures the HTTP router.
-func setupRouter(statusPageHandler *handlers.StatusPageHandler, _ *zap.Logger) *gin.Engine {
-	// Set Gin mode
-	if os.Getenv("GIN_MODE") == "" {
-		gin.SetMode(gin.ReleaseMode)
+	// Close database connections
+	if err := dbManager.Close(); err != nil {
+		logger.Error("Failed to close database connections", zap.Error(err))
 	}
 
-	// Create router
-	router := gin.New()
-
-	// Add middleware
-	router.Use(gin.Logger())
-	router.Use(gin.Recovery())
-	router.Use(corsMiddleware())
-
-	// Health check endpoint
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":    "healthy",
-			"service":   "status-page-ui-service",
-			"timestamp": time.Now().UTC(),
-		})
-	})
-
-	// Static files
-	router.Static("/static", "./web/static")
-
-	// Status page routes
-	router.GET("/", statusPageHandler.GetStatusPage)
-	router.GET("/status", statusPageHandler.GetStatusPage)
-	router.GET("/:slug", statusPageHandler.GetStatusPageBySlug)
-
-	// API routes
-	api := router.Group("/api/v1")
-	{
-		api.GET("/status", statusPageHandler.GetStatusData)
-		api.GET("/status/:slug", statusPageHandler.GetStatusDataBySlug)
-	}
-
-	return router
-}
-
-// corsMiddleware adds CORS headers.
-func corsMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-
-		c.Next()
-	}
+	logger.Info("Status Page UI Service server exited gracefully")
 }

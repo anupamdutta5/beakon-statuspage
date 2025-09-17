@@ -4,10 +4,11 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
-	"github.com/enterprise-status/statuspage-tenant-admin-service/internal/config"
-	"github.com/enterprise-status/statuspage-tenant-admin-service/internal/models"
+	"github.com/anupamdutta5/statuspage-tenant-admin-service/internal/config"
+	"github.com/anupamdutta5/statuspage-tenant-admin-service/internal/models"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -394,6 +395,8 @@ func initDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
 
 	// Auto-migrate models
 	if err := db.AutoMigrate(
+		&models.Tenant{},
+		&models.TenantBranding{},
 		&models.TenantAdmin{},
 		&models.TenantSettings{},
 		&models.TenantFeatureFlag{},
@@ -411,4 +414,318 @@ func initDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	}
 
 	return db, nil
+}
+
+// ============================================================================
+// CORE TENANT MANAGEMENT METHODS (migrated from tenant-service)
+// ============================================================================
+
+// CreateTenant creates a new tenant with default settings, billing, and branding.
+func (s *TenantAdminService) CreateTenant(tenant *models.Tenant) error {
+	// Generate slug if not provided
+	if tenant.Slug == "" {
+		tenant.Slug = s.generateSlug(tenant.Name)
+	}
+
+	// Ensure slug is unique
+	originalSlug := tenant.Slug
+	counter := 1
+	for {
+		var existing models.Tenant
+		if err := s.db.Where("slug = ?", tenant.Slug).First(&existing).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				break // Slug is unique
+			}
+			s.logger.Error("Failed to check slug uniqueness", zap.Error(err))
+			return fmt.Errorf("failed to check slug uniqueness: %w", err)
+		}
+		tenant.Slug = fmt.Sprintf("%s-%d", originalSlug, counter)
+		counter++
+	}
+
+	// Set default values
+	if tenant.Plan == "" {
+		tenant.Plan = "free"
+	}
+	if tenant.Status == "" {
+		tenant.Status = "active"
+	}
+
+	// Create tenant
+	if err := s.db.Create(tenant).Error; err != nil {
+		s.logger.Error("Failed to create tenant", zap.Error(err))
+		return fmt.Errorf("failed to create tenant: %w", err)
+	}
+
+	// Create default settings
+	settings := &models.TenantSettings{
+		TenantID: tenant.ID,
+		Settings: `{
+			"timezone": "UTC",
+			"language": "en",
+			"date_format": "YYYY-MM-DD",
+			"time_format": "24h",
+			"email_notifications": true,
+			"sms_notifications": false,
+			"show_incident_history": true,
+			"show_maintenance_mode": true,
+			"require_auth": false,
+			"allow_public_access": true,
+			"session_timeout": 30,
+			"api_rate_limit": 1000,
+			"api_key_required": false
+		}`,
+		Version: "1.0.0",
+		Status:  "active",
+	}
+
+	if err := s.db.Create(settings).Error; err != nil {
+		s.logger.Error("Failed to create tenant settings", zap.Error(err))
+		// Don't fail tenant creation if settings creation fails
+	}
+
+	// Create default billing
+	billing := &models.TenantBilling{
+		TenantID:           tenant.ID,
+		PlanName:           tenant.Plan,
+		BillingCycle:       "monthly",
+		Amount:             0.0,
+		Currency:           "USD",
+		NextBillingDate:    &[]time.Time{time.Now().AddDate(0, 1, 0)}[0],
+		Status:             "active",
+		IsTrialActive:      true,
+		TrialStart:         &[]time.Time{time.Now()}[0],
+		TrialEnd:           &[]time.Time{time.Now().AddDate(0, 0, 14)}[0], // 14-day trial
+		CurrentPeriodStart: &[]time.Time{time.Now()}[0],
+		CurrentPeriodEnd:   &[]time.Time{time.Now().AddDate(0, 1, 0)}[0],
+	}
+
+	if err := s.db.Create(billing).Error; err != nil {
+		s.logger.Error("Failed to create tenant billing", zap.Error(err))
+		// Don't fail tenant creation if billing creation fails
+	}
+
+	// Create default branding
+	branding := &models.TenantBranding{
+		TenantID:        tenant.ID,
+		PrimaryColor:    "#007bff",
+		SecondaryColor:  "#6c757d",
+		AccentColor:     "#28a745",
+		BackgroundColor: "#ffffff",
+		TextColor:       "#333333",
+		FontFamily:      "system-ui, -apple-system, sans-serif",
+		FontSize:        "14px",
+		FontWeight:      "400",
+		Layout:          "default",
+		ShowLogo:        true,
+		ShowFooter:      true,
+		FooterText:      "Powered by Status Page",
+	}
+
+	if err := s.db.Create(branding).Error; err != nil {
+		s.logger.Error("Failed to create tenant branding", zap.Error(err))
+		// Don't fail tenant creation if branding creation fails
+	}
+
+	s.logger.Info("Tenant created successfully", zap.Uint("tenant_id", tenant.ID))
+	return nil
+}
+
+// GetTenant retrieves a tenant by ID.
+func (s *TenantAdminService) GetTenant(id uint) (*models.Tenant, error) {
+	var tenant models.Tenant
+	if err := s.db.First(&tenant, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("tenant not found")
+		}
+		s.logger.Error("Failed to get tenant", zap.Error(err))
+		return nil, fmt.Errorf("failed to get tenant: %w", err)
+	}
+
+	return &tenant, nil
+}
+
+// GetTenantBySlug retrieves a tenant by slug.
+func (s *TenantAdminService) GetTenantBySlug(slug string) (*models.Tenant, error) {
+	var tenant models.Tenant
+	if err := s.db.Where("slug = ?", slug).First(&tenant).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("tenant not found")
+		}
+		s.logger.Error("Failed to get tenant by slug", zap.Error(err))
+		return nil, fmt.Errorf("failed to get tenant by slug: %w", err)
+	}
+
+	return &tenant, nil
+}
+
+// GetTenantByDomain retrieves a tenant by domain.
+func (s *TenantAdminService) GetTenantByDomain(domain string) (*models.Tenant, error) {
+	var tenant models.Tenant
+	if err := s.db.Where("domain = ? OR subdomain = ?", domain, domain).First(&tenant).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("tenant not found")
+		}
+		s.logger.Error("Failed to get tenant by domain", zap.Error(err))
+		return nil, fmt.Errorf("failed to get tenant by domain: %w", err)
+	}
+
+	return &tenant, nil
+}
+
+// GetTenants retrieves a list of tenants with pagination.
+func (s *TenantAdminService) GetTenants(limit, offset int) ([]*models.Tenant, int64, error) {
+	var tenants []*models.Tenant
+	var total int64
+
+	// Get total count
+	if err := s.db.Model(&models.Tenant{}).Count(&total).Error; err != nil {
+		s.logger.Error("Failed to count tenants", zap.Error(err))
+		return nil, 0, fmt.Errorf("failed to count tenants: %w", err)
+	}
+
+	// Get tenants with pagination
+	if err := s.db.Limit(limit).Offset(offset).Find(&tenants).Error; err != nil {
+		s.logger.Error("Failed to get tenants", zap.Error(err))
+		return nil, 0, fmt.Errorf("failed to get tenants: %w", err)
+	}
+
+	return tenants, total, nil
+}
+
+// UpdateTenant updates a tenant.
+func (s *TenantAdminService) UpdateTenant(tenant *models.Tenant) error {
+	if err := s.db.Save(tenant).Error; err != nil {
+		s.logger.Error("Failed to update tenant", zap.Error(err))
+		return fmt.Errorf("failed to update tenant: %w", err)
+	}
+
+	s.logger.Info("Tenant updated successfully", zap.Uint("tenant_id", tenant.ID))
+	return nil
+}
+
+// DeleteTenant soft deletes a tenant.
+func (s *TenantAdminService) DeleteTenant(id uint) error {
+	if err := s.db.Delete(&models.Tenant{}, id).Error; err != nil {
+		s.logger.Error("Failed to delete tenant", zap.Error(err))
+		return fmt.Errorf("failed to delete tenant: %w", err)
+	}
+
+	s.logger.Info("Tenant deleted successfully", zap.Uint("tenant_id", id))
+	return nil
+}
+
+// GetTenantBilling retrieves tenant billing information.
+func (s *TenantAdminService) GetTenantBilling(tenantID uint) (*models.TenantBilling, error) {
+	var billing models.TenantBilling
+	if err := s.db.Where("tenant_id = ?", tenantID).First(&billing).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("tenant billing not found")
+		}
+		s.logger.Error("Failed to get tenant billing", zap.Error(err))
+		return nil, fmt.Errorf("failed to get tenant billing: %w", err)
+	}
+
+	return &billing, nil
+}
+
+// UpdateTenantBilling updates tenant billing information.
+func (s *TenantAdminService) UpdateTenantBilling(billing *models.TenantBilling) error {
+	if err := s.db.Save(billing).Error; err != nil {
+		s.logger.Error("Failed to update tenant billing", zap.Error(err))
+		return fmt.Errorf("failed to update tenant billing: %w", err)
+	}
+
+	s.logger.Info("Tenant billing updated successfully", zap.Uint("tenant_id", billing.TenantID))
+	return nil
+}
+
+// GetTenantBranding retrieves tenant branding information.
+func (s *TenantAdminService) GetTenantBranding(tenantID uint) (*models.TenantBranding, error) {
+	var branding models.TenantBranding
+	if err := s.db.Where("tenant_id = ?", tenantID).First(&branding).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("tenant branding not found")
+		}
+		s.logger.Error("Failed to get tenant branding", zap.Error(err))
+		return nil, fmt.Errorf("failed to get tenant branding: %w", err)
+	}
+
+	return &branding, nil
+}
+
+// UpdateTenantBranding updates tenant branding information.
+func (s *TenantAdminService) UpdateTenantBranding(branding *models.TenantBranding) error {
+	if err := s.db.Save(branding).Error; err != nil {
+		s.logger.Error("Failed to update tenant branding", zap.Error(err))
+		return fmt.Errorf("failed to update tenant branding: %w", err)
+	}
+
+	s.logger.Info("Tenant branding updated successfully", zap.Uint("tenant_id", branding.TenantID))
+	return nil
+}
+
+// LogTenantActivity logs tenant activity.
+func (s *TenantAdminService) LogTenantActivity(activity *models.TenantActivity) error {
+	if err := s.db.Create(activity).Error; err != nil {
+		s.logger.Error("Failed to log tenant activity", zap.Error(err))
+		return fmt.Errorf("failed to log tenant activity: %w", err)
+	}
+
+	return nil
+}
+
+// generateSlug generates a URL-friendly slug from a string.
+func (s *TenantAdminService) generateSlug(input string) string {
+	// Convert to lowercase
+	slug := strings.ToLower(input)
+
+	// Replace spaces and special characters with hyphens
+	slug = strings.ReplaceAll(slug, " ", "-")
+	slug = strings.ReplaceAll(slug, "_", "-")
+	slug = strings.ReplaceAll(slug, ".", "-")
+	slug = strings.ReplaceAll(slug, ",", "-")
+	slug = strings.ReplaceAll(slug, ":", "-")
+	slug = strings.ReplaceAll(slug, ";", "-")
+	slug = strings.ReplaceAll(slug, "!", "-")
+	slug = strings.ReplaceAll(slug, "?", "-")
+	slug = strings.ReplaceAll(slug, "(", "-")
+	slug = strings.ReplaceAll(slug, ")", "-")
+	slug = strings.ReplaceAll(slug, "[", "-")
+	slug = strings.ReplaceAll(slug, "]", "-")
+	slug = strings.ReplaceAll(slug, "{", "-")
+	slug = strings.ReplaceAll(slug, "}", "-")
+	slug = strings.ReplaceAll(slug, "@", "-")
+	slug = strings.ReplaceAll(slug, "#", "-")
+	slug = strings.ReplaceAll(slug, "$", "-")
+	slug = strings.ReplaceAll(slug, "%", "-")
+	slug = strings.ReplaceAll(slug, "^", "-")
+	slug = strings.ReplaceAll(slug, "&", "-")
+	slug = strings.ReplaceAll(slug, "*", "-")
+	slug = strings.ReplaceAll(slug, "+", "-")
+	slug = strings.ReplaceAll(slug, "=", "-")
+	slug = strings.ReplaceAll(slug, "|", "-")
+	slug = strings.ReplaceAll(slug, "\\", "-")
+	slug = strings.ReplaceAll(slug, "/", "-")
+	slug = strings.ReplaceAll(slug, "<", "-")
+	slug = strings.ReplaceAll(slug, ">", "-")
+	slug = strings.ReplaceAll(slug, "\"", "-")
+	slug = strings.ReplaceAll(slug, "'", "-")
+	slug = strings.ReplaceAll(slug, "`", "-")
+	slug = strings.ReplaceAll(slug, "~", "-")
+
+	// Remove multiple consecutive hyphens
+	for strings.Contains(slug, "--") {
+		slug = strings.ReplaceAll(slug, "--", "-")
+	}
+
+	// Trim hyphens from start and end
+	slug = strings.Trim(slug, "-")
+
+	// Ensure minimum length
+	if len(slug) == 0 {
+		slug = "tenant"
+	}
+
+	return slug
 }

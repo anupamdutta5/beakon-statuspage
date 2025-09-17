@@ -7,11 +7,14 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/enterprise-status/statuspage-saas-admin-service/internal/config"
-	"github.com/enterprise-status/statuspage-saas-admin-service/internal/handlers"
-	"github.com/enterprise-status/statuspage-saas-admin-service/internal/middleware"
-	"github.com/enterprise-status/statuspage-saas-admin-service/internal/services"
+	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/config"
+	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/database"
+	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/handlers"
+	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/middleware"
+	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 	"go.uber.org/zap"
 )
 
@@ -26,11 +29,8 @@ type Server struct {
 
 // New creates a new SaaS Admin Service server.
 func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
-	// Initialize SaaS admin service
-	service, err := services.NewSaaSAdminService(cfg, logger)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize SaaS admin service: %w", err)
-	}
+	// Service will be initialized after database connection is established
+	var service *services.SaaSAdminService
 
 	// Set Gin mode
 	if cfg.Environment == "production" {
@@ -43,31 +43,58 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 	// Add middleware
 	router.Use(middleware.Logger(logger))
 	router.Use(middleware.Recovery(logger))
-	router.Use(middleware.CORS())
-	router.Use(middleware.RequestID())
+	router.Use(cors.Default())
+	router.Use(gin.Logger())
 
-	// Initialize handlers
-	handler := handlers.NewSaaSAdminHandler(service, logger)
-
-	// Setup routes
-	setupRoutes(router, handler)
-
-	// Create HTTP server
-	server := &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
-		Handler:      router,
-		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
-		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
-		IdleTimeout:  time.Duration(cfg.Server.IdleTimeout) * time.Second,
+	// Initialize database connection
+	sqlDB, err := database.InitDatabase(cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
-	return &Server{
-		config:  cfg,
-		logger:  logger,
-		router:  router,
-		server:  server,
+	// Defer closing the database connection
+	// Database connection will be managed by the Manager lifecycle
+		}
+
+	// Create GORM database connection
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		Conn: sqlDB,
+	}), &gorm.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GORM DB: %w", err)
+	}
+
+	// Create service with database connection
+	service, err = services.NewSaaSAdminService(cfg, logger, db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize service: %w", err)
+	}
+
+	// Initialize handlers
+	adminHandler := handlers.NewSaaSAdminHandler(service, logger)
+
+	// Create server address from host and port
+	serverAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+
+	// Create server instance
+	s := &Server{
+		config: cfg,
+		logger: logger,
+		router: router,
+		server: &http.Server{
+			Addr:         serverAddr,
+			Handler:      router,
+			ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
+			WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
+			IdleTimeout:  time.Duration(cfg.Server.IdleTimeout) * time.Second,
+		},
 		service: service,
-	}, nil
+	}
+
+	// Register routes
+	s.setupRoutes(router, adminHandler)
+
+	return s, nil
 }
 
 // Start starts the SaaS Admin Service server.
@@ -101,89 +128,127 @@ func (s *Server) Start(ctx context.Context) error {
 	return nil
 }
 
-// setupRoutes sets up the API routes.
-func setupRoutes(router *gin.Engine, handler *handlers.SaaSAdminHandler) {
-	// Health check
-	router.GET("/health", handler.HealthCheck)
-
-	// Admin interface
-	router.Static("/static", "./web/static")
-	router.LoadHTMLGlob("web/templates/*")
-	router.GET("/admin", func(c *gin.Context) {
-		c.HTML(200, "admin.html", gin.H{})
-	})
-
-	// API v1 routes
+// setupRoutes configures all the routes for the server
+func (s *Server) setupRoutes(router *gin.Engine, adminHandler *handlers.SaaSAdminHandler) {
+	// API v1 group
 	v1 := router.Group("/api/v1")
 	{
-		// Platform management
-		v1.GET("/platform", handler.GetPlatform)
-		v1.PUT("/platform", handler.UpdatePlatform)
+		// Health check
+		v1.GET("/health", adminHandler.HealthCheck)
+
+		// Platform configuration
+		v1.GET("/platform", adminHandler.GetPlatform)
+		v1.PUT("/platform", adminHandler.UpdatePlatform)
 
 		// Plan management
-		v1.GET("/plans", handler.ListPlans)
-		v1.POST("/plans", handler.CreatePlan)
-		v1.GET("/plans/:id", handler.GetPlan)
-		v1.PUT("/plans/:id", handler.UpdatePlan)
-		v1.DELETE("/plans/:id", handler.DeletePlan)
-		v1.GET("/plans/slug/:slug", handler.GetPlanBySlug)
+		plans := v1.Group("/plans")
+		{
+			plans.GET("", adminHandler.ListPlans)
+			plans.POST("", adminHandler.CreatePlan)
+			plans.GET("/:id", adminHandler.GetPlan)
+			plans.PUT("/:id", adminHandler.UpdatePlan)
+			plans.DELETE("/:id", adminHandler.DeletePlan)
+			plans.GET("/slug/:slug", adminHandler.GetPlanBySlug)
+		}
 
 		// Feature management
-		v1.GET("/features", handler.ListFeatures)
-		v1.POST("/features", handler.CreateFeature)
-		v1.GET("/features/:id", handler.GetFeature)
-		v1.PUT("/features/:id", handler.UpdateFeature)
-		v1.DELETE("/features/:id", handler.DeleteFeature)
+		features := v1.Group("/features")
+		{
+			features.GET("", adminHandler.ListFeatures)
+			features.POST("", adminHandler.CreateFeature)
+			features.GET("/:id", adminHandler.GetFeature)
+			features.PUT("/:id", adminHandler.UpdateFeature)
+			features.DELETE("/:id", adminHandler.DeleteFeature)
+		}
 
 		// Feature flag management
-		v1.GET("/feature-flags", handler.ListFeatureFlags)
-		v1.POST("/feature-flags", handler.CreateFeatureFlag)
-		v1.GET("/feature-flags/:id", handler.GetFeatureFlag)
-		v1.PUT("/feature-flags/:id", handler.UpdateFeatureFlag)
-		v1.DELETE("/feature-flags/:id", handler.DeleteFeatureFlag)
+		featureFlags := v1.Group("/feature-flags")
+		{
+			featureFlags.GET("", adminHandler.ListFeatureFlags)
+			featureFlags.POST("", adminHandler.CreateFeatureFlag)
+			featureFlags.GET("/:id", adminHandler.GetFeatureFlag)
+			featureFlags.PUT("/:id", adminHandler.UpdateFeatureFlag)
+			featureFlags.DELETE("/:id", adminHandler.DeleteFeatureFlag)
+		}
 
 		// Statistics
-		v1.GET("/stats", handler.GetStats)
+		v1.GET("/stats", adminHandler.GetStats)
 
 		// Admin user management
-		v1.GET("/admin-users", handler.ListAdminUsers)
-		v1.POST("/admin-users", handler.CreateAdminUser)
-		v1.GET("/admin-users/:id", handler.GetAdminUser)
-		v1.PUT("/admin-users/:id", handler.UpdateAdminUser)
-		v1.DELETE("/admin-users/:id", handler.DeleteAdminUser)
+		adminUsers := v1.Group("/admin-users")
+		{
+			adminUsers.GET("", adminHandler.ListAdminUsers)
+			adminUsers.POST("", adminHandler.CreateAdminUser)
+			adminUsers.GET("/:id", adminHandler.GetAdminUser)
+			adminUsers.PUT("/:id", adminHandler.UpdateAdminUser)
+			adminUsers.DELETE("/:id", adminHandler.DeleteAdminUser)
+		}
 
 		// Notification management
-		v1.GET("/notifications", handler.ListNotifications)
-		v1.POST("/notifications", handler.CreateNotification)
-		v1.GET("/notifications/:id", handler.GetNotification)
-		v1.PUT("/notifications/:id", handler.UpdateNotification)
-		v1.DELETE("/notifications/:id", handler.DeleteNotification)
+		notifications := v1.Group("/notifications")
+		{
+			notifications.GET("", adminHandler.ListNotifications)
+			notifications.POST("", adminHandler.CreateNotification)
+			notifications.GET("/:id", adminHandler.GetNotification)
+			notifications.PUT("/:id", adminHandler.UpdateNotification)
+			notifications.DELETE("/:id", adminHandler.DeleteNotification)
+		}
 
 		// Activity logs
-		v1.GET("/activities", handler.ListActivities)
+		activities := v1.Group("/activities")
+		{
+			activities.GET("", adminHandler.ListActivities)
+		}
 
 		// Backup management
-		v1.GET("/backups", handler.ListBackups)
-		v1.POST("/backups", handler.CreateBackup)
-		v1.GET("/backups/:id", handler.GetBackup)
-		v1.DELETE("/backups/:id", handler.DeleteBackup)
+		backups := v1.Group("/backups")
+		{
+			backups.GET("", adminHandler.ListBackups)
+			backups.POST("", adminHandler.CreateBackup)
+			backups.GET("/:id", adminHandler.GetBackup)
+			backups.DELETE("/:id", adminHandler.DeleteBackup)
+		}
 
 		// Pricing management
-		v1.GET("/pricing/features", handler.GetPricingFeatures)
-		v1.POST("/pricing/features", handler.CreatePricingFeature)
-		v1.PUT("/pricing/features/:id", handler.UpdatePricingFeature)
-		v1.DELETE("/pricing/features/:id", handler.DeletePricingFeature)
+		pricingFeatures := v1.Group("/pricing/features")
+		{
+			pricingFeatures.GET("", adminHandler.GetPricingFeatures)
+			pricingFeatures.POST("", adminHandler.CreatePricingFeature)
+			pricingFeatures.PUT("/:id", adminHandler.UpdatePricingFeature)
+			pricingFeatures.DELETE("/:id", adminHandler.DeletePricingFeature)
+		}
 
-		v1.GET("/pricing/plans/:planId/tiers", handler.GetPricingTiers)
-		v1.POST("/pricing/tiers", handler.CreatePricingTier)
-		v1.PUT("/pricing/tiers/:id", handler.UpdatePricingTier)
-		v1.DELETE("/pricing/tiers/:id", handler.DeletePricingTier)
+		pricingTiers := v1.Group("/pricing/plans/:planId/tiers")
+		{
+			pricingTiers.GET("", adminHandler.GetPricingTiers)
+		}
 
-		v1.GET("/pricing/plans/:planId/features", handler.GetPlanFeatures)
-		v1.POST("/pricing/plans/features/assign", handler.AssignFeatureToPlan)
-		v1.POST("/pricing/plans/features/remove", handler.RemoveFeatureFromPlan)
+		tiers := v1.Group("/pricing/tiers")
+		{
+			tiers.POST("", adminHandler.CreatePricingTier)
+				tiers.PUT("/:id", adminHandler.UpdatePricingTier)
+			tiers.DELETE("/:id", adminHandler.DeletePricingTier)
+		}
 
-		v1.GET("/pricing/plans/public", handler.GetPublicPricingPlans)
-		v1.POST("/pricing/sync", handler.SyncPricingToLandingPage)
+		planFeatures := v1.Group("/pricing/plans/:planId/features")
+		{
+			planFeatures.GET("", adminHandler.GetPlanFeatures)
+		}
+
+		planFeaturesActions := v1.Group("/pricing/plans/features")
+		{
+			planFeaturesActions.POST("/assign", adminHandler.AssignFeatureToPlan)
+			planFeaturesActions.POST("/remove", adminHandler.RemoveFeatureFromPlan)
+		}
+
+		publicPricing := v1.Group("/pricing/plans")
+		{
+			publicPricing.GET("/public", adminHandler.GetPublicPricingPlans)
+		}
+
+		pricingSync := v1.Group("/pricing")
+		{
+			pricingSync.POST("/sync", adminHandler.SyncPricingToLandingPage)
+		}
 	}
 }

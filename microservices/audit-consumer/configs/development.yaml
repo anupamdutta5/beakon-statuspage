@@ -20,11 +20,11 @@ kafka:
   enable_auto_commit: true
 
 database: test_db
-  host: localhost
-  port: 5432
-  user: test_user
-  password: test_password
-  name: statuspage_audit_consumer
+  host: ${DB_HOST:localhost}
+  port: ${DB_PORT:5432}
+  user: ${DB_USER:statuspage_user}
+  password: ${DB_PASSWORD}
+  name: ${DB_NAME:statuspage_audit_consumer
   ssl_mode: disable
   max_conns: 25
   min_conns: 5
@@ -33,7 +33,7 @@ database: test_db
 
 cache:
   provider: redis
-  host: localhost
+  host: ${DB_HOST:localhost}
   port: 6379
   password: ""
   db: 0
@@ -41,7 +41,7 @@ cache:
   key_prefix: "statuspage:audit-consumer"
 
 logging:
-  level: debug
+  level: ${LOG_LEVEL:debug}
   format: json
   output: stdout
 

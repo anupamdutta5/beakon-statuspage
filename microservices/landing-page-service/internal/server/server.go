@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/enterprise-status/statuspage-landing-service/internal/config"
-	"github.com/enterprise-status/statuspage-landing-service/internal/handlers"
-	"github.com/enterprise-status/statuspage-landing-service/internal/middleware"
-	"github.com/enterprise-status/statuspage-landing-service/internal/services"
+	"github.com/anupamdutta5/statuspage-landing-service/internal/config"
+	"github.com/anupamdutta5/statuspage-landing-service/internal/handlers"
+	"github.com/anupamdutta5/statuspage-landing-service/internal/services"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -41,10 +41,10 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 	router := gin.New()
 
 	// Add middleware
-	router.Use(middleware.Logger(logger))
-	router.Use(middleware.Recovery(logger))
-	router.Use(middleware.CORS())
-	router.Use(middleware.RequestID())
+	router.Use(gin.Logger())
+	router.Use(gin.Recovery())
+	router.Use(cors.Default())
+	// TODO: Add custom request ID and security middleware
 
 	// Initialize handlers
 	handler := handlers.NewLandingHandler(service, logger)

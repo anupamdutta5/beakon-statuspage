@@ -12,18 +12,18 @@ service:
     maintainer: devops@company.com
 
 server:
-  host: localhost
-  port: 5432
+  host: ${DB_HOST:localhost}
+  port: ${DB_PORT:5432}
   read_timeout: 30
   write_timeout: 30
   idle_timeout: 120
 
 database: test_db
-  host: localhost
-  port: 5432
-  user: test_user
-  password: test_password
-  name: statuspage_notification
+  host: ${DB_HOST:localhost}
+  port: ${DB_PORT:5432}
+  user: ${DB_USER:statuspage_user}
+  password: ${DB_PASSWORD}
+  name: ${DB_NAME:statuspage_notification
   ssl_mode: disable
   max_conns: 25
   min_conns: 5
@@ -32,7 +32,7 @@ database: test_db
 
 cache:
   provider: redis
-  host: localhost
+  host: ${DB_HOST:localhost}
   port: 6379
   password: ""
   db: 0
@@ -40,27 +40,27 @@ cache:
   key_prefix: "statuspage:notification-service"
 
 logging:
-  level: debug
+  level: ${LOG_LEVEL:debug}
   format: json
   output: stdout
 
 jwt:
-  secret: dev-secret-key-change-in-production
+  secret: ${JWT_SECRET}
   expiration: 24
   issuer: statuspage-dev
 
 monitoring:
   enabled: true
-  metrics_port: 5432
-  health_port: 5432
-  log_level: debug
+  metrics_port: ${DB_PORT:5432}
+  health_port: ${DB_PORT:5432}
+  log_level: ${LOG_LEVEL:debug}
 
 email:
   provider: smtp
-  smtp_host: localhost
-  smtp_port: 5432
+  smtp_host: ${DB_HOST:localhost}
+  smtp_port: ${DB_PORT:5432}
   smtp_username: ""
-  smtp_password: test_password
+  smtp_password: ${DB_PASSWORD}
   from_email: noreply@statuspage.dev
 
 sms:

@@ -9,9 +9,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/enterprise-status/statuspage-analytics-consumer/internal/config"
-	"github.com/enterprise-status/statuspage-analytics-consumer/internal/consumer"
-	"github.com/enterprise-status/statuspage-analytics-consumer/pkg/logger"
+	"github.com/anupamdutta5/statuspage-analytics-consumer/internal/config"
+	"github.com/anupamdutta5/statuspage-analytics-consumer/internal/consumer"
+	"github.com/anupamdutta5/statuspage-analytics-consumer/pkg/logger"
 	"go.uber.org/zap"
 )
 

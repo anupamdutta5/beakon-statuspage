@@ -176,25 +176,30 @@ func (s *InputSanitizer) GinMiddleware() gin.HandlerFunc {
 	}
 }
 
-// ValidationError represents a validation error
-type ValidationError struct {
+// InputValidationError represents a validation error
+type InputValidationError struct {
 	Field   string `json:"field"`
 	Message string `json:"message"`
 	Value   string `json:"value,omitempty"`
 }
 
+// Error implements the error interface
+func (e InputValidationError) Error() string {
+	return fmt.Sprintf("validation error for field '%s': %s", e.Field, e.Message)
+}
+
 // ValidationResult represents the result of validation
 type ValidationResult struct {
-	Valid     bool              `json:"valid"`
-	Errors    []ValidationError `json:"errors,omitempty"`
-	Sanitized map[string]string `json:"sanitized,omitempty"`
+	Valid     bool                    `json:"valid"`
+	Errors    []InputValidationError  `json:"errors,omitempty"`
+	Sanitized map[string]string       `json:"sanitized,omitempty"`
 }
 
 // ValidateAndSanitize validates and sanitizes input data
 func (s *InputSanitizer) ValidateAndSanitize(data map[string]interface{}) ValidationResult {
 	result := ValidationResult{
 		Valid:     true,
-		Errors:    []ValidationError{},
+		Errors:    []InputValidationError{},
 		Sanitized: make(map[string]string),
 	}
 
@@ -206,7 +211,7 @@ func (s *InputSanitizer) ValidateAndSanitize(data map[string]interface{}) Valida
 			// Additional validation based on field name
 			if err := s.validateField(key, sanitized); err != nil {
 				result.Valid = false
-				result.Errors = append(result.Errors, ValidationError{
+				result.Errors = append(result.Errors, InputValidationError{
 					Field:   key,
 					Message: err.Error(),
 					Value:   sanitized,

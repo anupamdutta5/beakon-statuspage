@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/enterprise-status/statuspage-analytics-service/internal/models"
-	"github.com/enterprise-status/statuspage-analytics-service/internal/services"
+	"github.com/anupamdutta5/statuspage-analytics-service/internal/models"
+	"github.com/anupamdutta5/statuspage-analytics-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )

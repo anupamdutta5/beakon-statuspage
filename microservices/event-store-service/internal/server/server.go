@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/enterprise-status/statuspage-event-store-service/internal/config"
-	"github.com/enterprise-status/statuspage-event-store-service/internal/handlers"
-	"github.com/enterprise-status/statuspage-event-store-service/internal/middleware"
-	"github.com/enterprise-status/statuspage-event-store-service/internal/services"
+	"github.com/anupamdutta5/statuspage-event-store-service/internal/config"
+	"github.com/anupamdutta5/statuspage-event-store-service/internal/handlers"
+	"github.com/anupamdutta5/statuspage-event-store-service/internal/middleware"
+	"github.com/anupamdutta5/statuspage-event-store-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -43,8 +43,8 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 	// Add middleware
 	router.Use(middleware.Logger(logger))
 	router.Use(middleware.Recovery(logger))
-	router.Use(middleware.CORS())
-	router.Use(middleware.RequestID())
+	router.Use(cors.Default())
+	router.Use(gin.Logger())
 
 	// Initialize handlers
 	handler := handlers.NewEventStoreHandler(service, logger)

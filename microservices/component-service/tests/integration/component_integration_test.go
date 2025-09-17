@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/enterprise-status/statuspage-component-service/internal/models"
+	"github.com/anupamdutta5/statuspage-component-service/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

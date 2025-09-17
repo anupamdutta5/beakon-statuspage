@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/enterprise-status/statuspage-status-ui-service/internal/models"
+	"github.com/anupamdutta5/statuspage-status-ui-service/internal/models"
 	"go.uber.org/zap"
 )
 

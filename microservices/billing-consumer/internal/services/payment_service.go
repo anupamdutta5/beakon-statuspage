@@ -5,8 +5,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/enterprise-status/statuspage-billing-consumer/internal/config"
-	"github.com/enterprise-status/statuspage-billing-consumer/internal/models"
+	"github.com/anupamdutta5/statuspage-billing-consumer/internal/config"
+	"github.com/anupamdutta5/statuspage-billing-consumer/internal/models"
 	"go.uber.org/zap"
 )
 

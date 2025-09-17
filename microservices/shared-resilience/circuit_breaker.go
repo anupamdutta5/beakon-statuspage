@@ -14,12 +14,13 @@ import (
 
 // CircuitBreakerConfig represents configuration for circuit breaker
 type CircuitBreakerConfig struct {
-	Name         string        `yaml:"name"`
-	MaxRequests  uint32        `yaml:"max_requests" default:"3"`
-	Interval     time.Duration `yaml:"interval" default:"10s"`
-	Timeout      time.Duration `yaml:"timeout" default:"60s"`
-	FailureRatio float64       `yaml:"failure_ratio" default:"0.6"`
-	MinRequests  uint32        `yaml:"min_requests" default:"5"`
+	Name         string        `yaml:"name" json:"name"`
+	MaxRequests  uint32        `yaml:"max_requests" json:"max_requests" default:"3"`
+	Interval     time.Duration `yaml:"interval" json:"interval" default:"10s"`
+	Timeout      time.Duration `yaml:"timeout" json:"timeout" default:"60s"`
+	FailureRatio float64       `yaml:"failure_ratio" json:"failure_ratio" default:"0.6"`
+	MinRequests  uint32        `yaml:"min_requests" json:"min_requests" default:"5"`
+	Enabled      bool          `yaml:"enabled" json:"enabled"`
 }
 
 // CircuitBreaker wraps gobreaker.CircuitBreaker with additional functionality
@@ -41,7 +42,11 @@ type CircuitBreakerMetrics struct {
 }
 
 // NewCircuitBreaker creates a new circuit breaker instance
-func NewCircuitBreaker(config CircuitBreakerConfig, logger *zap.Logger) *CircuitBreaker {
+func NewCircuitBreaker(name string, config CircuitBreakerConfig, logger *zap.Logger) *CircuitBreaker {
+	// Use the provided name or fall back to the config name
+	if name != "" {
+		config.Name = name
+	}
 	settings := gobreaker.Settings{
 		Name:        config.Name,
 		MaxRequests: config.MaxRequests,
@@ -175,7 +180,7 @@ func NewHTTPClientCircuitBreaker(config CircuitBreakerConfig, logger *zap.Logger
 		client: &http.Client{
 			Timeout: config.Timeout,
 		},
-		breaker: NewCircuitBreaker(config, logger),
+		breaker: NewCircuitBreaker("http-client", config, logger),
 	}
 }
 

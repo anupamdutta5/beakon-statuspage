@@ -4,6 +4,7 @@ package models
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -25,7 +26,7 @@ type Platform struct {
 
 // SaaSPlan represents a subscription plan.
 type SaaSPlan struct {
-	ID              uint           `gorm:"primarykey" json:"id"`
+	ID              uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
 	CreatedAt       time.Time      `json:"created_at"`
 	UpdatedAt       time.Time      `json:"updated_at"`
 	DeletedAt       gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
@@ -53,10 +54,14 @@ type SaaSPlan struct {
 	IsPopular       bool           `gorm:"default:false;index" json:"is_popular"` // For frontend display
 	ButtonText      string         `gorm:"default:Get Started" json:"button_text"`
 	ButtonURL       string         `gorm:"default:/signup" json:"button_url"`
-	Order           int            `gorm:"default:0" json:"order"`    // Display order
-	Features        string         `gorm:"type:text" json:"features"` // JSON array of features
-	Limits          string         `gorm:"type:text" json:"limits"`   // JSON object of limits
-	Metadata        string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
+	DisplayOrder    int            `gorm:"default:0" json:"display_order"` // Display order
+	Features        string         `gorm:"type:text" json:"features"`      // JSON array of features
+	Limits          string         `gorm:"type:text" json:"limits"`        // JSON object of limits
+	Metadata        string         `gorm:"type:text" json:"metadata"`      // JSON string for additional data
+
+	// Relationships
+	PricingTiers []PricingTier `gorm:"foreignKey:PlanID" json:"pricing_tiers,omitempty"`
+	PlanFeatures []PlanFeature `gorm:"foreignKey:PlanID" json:"plan_features,omitempty"`
 }
 
 // PricingTier represents a pricing tier with different billing intervals.
@@ -65,7 +70,7 @@ type PricingTier struct {
 	CreatedAt       time.Time      `json:"created_at"`
 	UpdatedAt       time.Time      `json:"updated_at"`
 	DeletedAt       gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
-	PlanID          uint           `gorm:"not null;index" json:"plan_id"`
+	PlanID          uuid.UUID      `gorm:"type:uuid;not null;index" json:"plan_id"`
 	Plan            SaaSPlan       `gorm:"foreignKey:PlanID" json:"plan"`
 	BillingInterval string         `gorm:"not null" json:"billing_interval"` // monthly, yearly
 	Price           float64        `gorm:"not null" json:"price"`
@@ -96,7 +101,7 @@ type PlanFeature struct {
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
-	PlanID    uint           `gorm:"not null;index" json:"plan_id"`
+	PlanID    uuid.UUID      `gorm:"type:uuid;not null;index" json:"plan_id"`
 	Plan      SaaSPlan       `gorm:"foreignKey:PlanID" json:"plan"`
 	FeatureID uint           `gorm:"not null;index" json:"feature_id"`
 	Feature   PricingFeature `gorm:"foreignKey:FeatureID" json:"feature"`

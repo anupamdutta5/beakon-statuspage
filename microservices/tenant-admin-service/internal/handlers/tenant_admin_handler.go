@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/enterprise-status/statuspage-tenant-admin-service/internal/models"
-	"github.com/enterprise-status/statuspage-tenant-admin-service/internal/services"
+	"github.com/anupamdutta5/statuspage-tenant-admin-service/internal/models"
+	"github.com/anupamdutta5/statuspage-tenant-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"go.uber.org/zap"
@@ -903,4 +903,252 @@ func (h *TenantAdminHandler) getTenantID(c *gin.Context) (uint, error) {
 
 	// Default to tenant ID 1 for development
 	return 1, nil
+}
+
+// ============================================================================
+// CORE TENANT CRUD HANDLERS (migrated from tenant-service)
+// ============================================================================
+
+// GetTenants handles getting a list of tenants.
+func (h *TenantAdminHandler) GetTenants(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	if limit > 100 {
+		limit = 100
+	}
+
+	tenants, total, err := h.service.GetTenants(limit, offset)
+	if err != nil {
+		h.logger.Error("Failed to get tenants", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tenants"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":   tenants,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
+	})
+}
+
+// CreateTenant handles creating a new tenant.
+func (h *TenantAdminHandler) CreateTenant(c *gin.Context) {
+	var tenant models.Tenant
+	if err := c.ShouldBindJSON(&tenant); err != nil {
+		h.logger.Error("Failed to bind tenant data", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant data"})
+		return
+	}
+
+	// Validate required fields
+	if tenant.Name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tenant name is required"})
+		return
+	}
+	if tenant.ContactEmail == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Contact email is required"})
+		return
+	}
+
+	if err := h.service.CreateTenant(&tenant); err != nil {
+		h.logger.Error("Failed to create tenant", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create tenant"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Tenant created successfully",
+		"data":    tenant,
+	})
+}
+
+// GetTenant handles getting a tenant by ID.
+func (h *TenantAdminHandler) GetTenant(c *gin.Context) {
+	idParam := c.Param("id")
+	id, err := strconv.ParseUint(idParam, 10, 32)
+	if err != nil {
+		h.logger.Error("Invalid tenant ID", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		return
+	}
+
+	tenant, err := h.service.GetTenant(uint(id))
+	if err != nil {
+		if err.Error() == "tenant not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Tenant not found"})
+			return
+		}
+		h.logger.Error("Failed to get tenant", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tenant"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": tenant})
+}
+
+// GetTenantBySlug handles getting a tenant by slug.
+func (h *TenantAdminHandler) GetTenantBySlug(c *gin.Context) {
+	slug := c.Param("slug")
+	if slug == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tenant slug is required"})
+		return
+	}
+
+	tenant, err := h.service.GetTenantBySlug(slug)
+	if err != nil {
+		if err.Error() == "tenant not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Tenant not found"})
+			return
+		}
+		h.logger.Error("Failed to get tenant by slug", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tenant"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": tenant})
+}
+
+// GetTenantByDomain handles getting a tenant by domain.
+func (h *TenantAdminHandler) GetTenantByDomain(c *gin.Context) {
+	domain := c.Param("domain")
+	if domain == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Domain is required"})
+		return
+	}
+
+	tenant, err := h.service.GetTenantByDomain(domain)
+	if err != nil {
+		if err.Error() == "tenant not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Tenant not found"})
+			return
+		}
+		h.logger.Error("Failed to get tenant by domain", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tenant"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": tenant})
+}
+
+// UpdateTenant handles updating a tenant.
+func (h *TenantAdminHandler) UpdateTenant(c *gin.Context) {
+	idParam := c.Param("id")
+	id, err := strconv.ParseUint(idParam, 10, 32)
+	if err != nil {
+		h.logger.Error("Invalid tenant ID", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		return
+	}
+
+	// Get existing tenant
+	tenant, err := h.service.GetTenant(uint(id))
+	if err != nil {
+		if err.Error() == "tenant not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Tenant not found"})
+			return
+		}
+		h.logger.Error("Failed to get tenant", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tenant"})
+		return
+	}
+
+	// Bind updates
+	if err := c.ShouldBindJSON(tenant); err != nil {
+		h.logger.Error("Failed to bind tenant data", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant data"})
+		return
+	}
+
+	if err := h.service.UpdateTenant(tenant); err != nil {
+		h.logger.Error("Failed to update tenant", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update tenant"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Tenant updated successfully",
+		"data":    tenant,
+	})
+}
+
+// DeleteTenant handles deleting a tenant.
+func (h *TenantAdminHandler) DeleteTenant(c *gin.Context) {
+	idParam := c.Param("id")
+	id, err := strconv.ParseUint(idParam, 10, 32)
+	if err != nil {
+		h.logger.Error("Invalid tenant ID", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		return
+	}
+
+	if err := h.service.DeleteTenant(uint(id)); err != nil {
+		h.logger.Error("Failed to delete tenant", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete tenant"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Tenant deleted successfully"})
+}
+
+// GetTenantBranding handles getting tenant branding information.
+func (h *TenantAdminHandler) GetTenantBranding(c *gin.Context) {
+	tenantID, err := h.getTenantID(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		return
+	}
+
+	branding, err := h.service.GetTenantBranding(tenantID)
+	if err != nil {
+		if err.Error() == "tenant branding not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Tenant branding not found"})
+			return
+		}
+		h.logger.Error("Failed to get tenant branding", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tenant branding"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": branding})
+}
+
+// UpdateTenantBranding handles updating tenant branding information.
+func (h *TenantAdminHandler) UpdateTenantBranding(c *gin.Context) {
+	tenantID, err := h.getTenantID(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		return
+	}
+
+	// Get existing branding
+	branding, err := h.service.GetTenantBranding(tenantID)
+	if err != nil {
+		if err.Error() == "tenant branding not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Tenant branding not found"})
+			return
+		}
+		h.logger.Error("Failed to get tenant branding", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tenant branding"})
+		return
+	}
+
+	// Bind updates
+	if err := c.ShouldBindJSON(branding); err != nil {
+		h.logger.Error("Failed to bind branding data", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid branding data"})
+		return
+	}
+
+	if err := h.service.UpdateTenantBranding(branding); err != nil {
+		h.logger.Error("Failed to update tenant branding", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update tenant branding"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Tenant branding updated successfully",
+		"data":    branding,
+	})
 }

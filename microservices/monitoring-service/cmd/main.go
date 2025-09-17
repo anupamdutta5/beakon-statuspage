@@ -1,4 +1,5 @@
 // Package main is the entry point for the Monitoring Service.
+// This is the modernized version using the shared-resilience module.
 package main
 
 import (
@@ -11,80 +12,272 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/enterprise-status/statuspage-monitoring-service/internal/config"
-	"github.com/enterprise-status/statuspage-monitoring-service/internal/handlers"
-	"github.com/enterprise-status/statuspage-monitoring-service/internal/middleware"
-	"github.com/enterprise-status/statuspage-monitoring-service/internal/services"
-	"github.com/enterprise-status/statuspage-monitoring-service/pkg/logger"
+	"github.com/anupamdutta5/statuspage-shared-resilience"
+	"github.com/anupamdutta5/statuspage-monitoring-service/internal/handlers"
+	"github.com/anupamdutta5/statuspage-monitoring-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
 func main() {
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+	// Load configuration from environment variables
+	resilienceConfig := resilience.LoadConfigFromEnv()
+	if err := resilienceConfig.Validate(); err != nil {
+		log.Fatalf("Configuration validation failed: %v", err)
 	}
 
-	// Initialize logger
-	logger, err := logger.New(cfg.Server.Environment)
+	// Initialize logger based on environment
+	var logger *zap.Logger
+	var err error
+
+	if resilienceConfig.Environment == "production" {
+		logger, err = zap.NewProduction()
+		gin.SetMode(gin.ReleaseMode)
+	} else {
+		logger, err = zap.NewDevelopment()
+		gin.SetMode(gin.DebugMode)
+	}
+
 	if err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 	defer logger.Sync()
 
 	logger.Info("Starting Monitoring Service",
-		zap.String("service", cfg.Service.Name),
-		zap.String("version", cfg.Service.Version),
-		zap.Int("port", cfg.Server.Port),
-		zap.String("environment", cfg.Server.Environment))
+		zap.String("service", "monitoring-service"),
+		zap.String("version", "1.0.0"),
+		zap.String("environment", resilienceConfig.Environment),
+		zap.Int("port", resilienceConfig.Server.Port),
+	)
 
-	// Set Gin mode
-	if cfg.Server.Environment == "production" {
-		gin.SetMode(gin.ReleaseMode)
-	}
-
-	// Initialize database
-	db, err := services.InitDatabase(cfg.Database)
+	// Initialize database manager with connection pooling and health checks
+	dbManager, err := resilience.NewDatabaseManager(resilienceConfig.Database, logger)
 	if err != nil {
-		logger.Fatal("Failed to initialize database", zap.Error(err))
+		logger.Fatal("Failed to initialize database manager", zap.Error(err))
 	}
+	defer dbManager.Close()
 
-	// Initialize services
-	monitoringService := services.NewMonitoringService(db, logger.Logger)
-
-	// Create router
+	// Create Gin router
 	router := gin.New()
 
-	// Add middleware
-	router.Use(middleware.Logger(logger.Logger))
-	router.Use(middleware.Recovery(logger.Logger))
-	router.Use(middleware.CORS())
-	router.Use(middleware.RequestID())
+	// Add comprehensive middleware stack
+	middleware := resilience.DefaultMiddlewareStack(resilienceConfig, logger)
+	for _, mw := range middleware {
+		router.Use(mw)
+	}
 
-	// Initialize handlers
-	monitoringHandler := handlers.NewMonitoringHandler(monitoringService, logger.Logger)
+	// Initialize modernized handlers
+	monitoringService := services.NewMonitoringService(dbManager.GetDB(), logger)
+	maintenanceManagementService := services.NewMaintenanceManagementService(dbManager.GetDB(), logger)
+	webhookService := services.NewWebhookService(dbManager.GetDB(), logger)
+	integrationService := services.NewIntegrationService(dbManager.GetDB(), logger)
+	monitoringHandler := handlers.NewMonitoringHandler(monitoringService, maintenanceManagementService, logger)
+	webhookHandler := handlers.NewWebhookHandler(webhookService, logger)
+	integrationHandler := handlers.NewIntegrationHandler(integrationService, logger)
 
-	// Setup routes
-	setupRoutes(router, monitoringHandler, cfg)
+	// Setup basic routes
+	router.GET("/health", monitoringHandler.Health)
+	router.GET("/metrics", monitoringHandler.Metrics)
 
-	// Create HTTP server
+	// Public API routes (no authentication required)
+	public := router.Group("/api/v1/public")
+	{
+		public.GET("/status", monitoringHandler.GetPublicStatus)
+		public.GET("/health", monitoringHandler.GetPublicHealth)
+	}
+
+	// Protected API routes (authentication required)
+	api := router.Group("/api/v1")
+	// TODO: Add authentication middleware here
+	{
+		// Monitoring overview
+		api.GET("/monitoring/overview", monitoringHandler.GetMonitoringOverview)
+
+		// Service management
+		services := api.Group("/services")
+		{
+			services.GET("", monitoringHandler.GetServices)
+			services.POST("", monitoringHandler.CreateService)
+			services.GET("/:id", monitoringHandler.GetService)
+			services.PUT("/:id", monitoringHandler.UpdateService)
+			services.DELETE("/:id", monitoringHandler.DeleteService)
+			services.GET("/:id/health", monitoringHandler.GetServiceHealth)
+			services.GET("/:id/metrics", monitoringHandler.GetServiceMetrics)
+
+			// Health checks for services
+			services.POST("/:id/health-checks", monitoringHandler.CreateHealthCheck)
+			services.PUT("/health-checks/:check_id", monitoringHandler.UpdateHealthCheck)
+			services.DELETE("/health-checks/:check_id", monitoringHandler.DeleteHealthCheck)
+		}
+
+		// Alert management
+		alerts := api.Group("/alerts")
+		{
+			alerts.GET("", monitoringHandler.GetAlerts)
+			alerts.POST("", monitoringHandler.CreateAlert)
+			alerts.GET("/:id", monitoringHandler.GetAlert)
+			alerts.PUT("/:id", monitoringHandler.UpdateAlert)
+			alerts.DELETE("/:id", monitoringHandler.DeleteAlert)
+			alerts.POST("/:id/acknowledge", monitoringHandler.AcknowledgeAlert)
+			alerts.POST("/:id/resolve", monitoringHandler.ResolveAlert)
+		}
+
+		// Maintenance management
+		maintenance := api.Group("/maintenance")
+		{
+			// Maintenance windows
+			maintenance.GET("/windows", monitoringHandler.GetMaintenanceWindows)
+			maintenance.POST("/windows", monitoringHandler.CreateMaintenanceWindow)
+			maintenance.GET("/windows/:id", monitoringHandler.GetMaintenanceWindow)
+			maintenance.PUT("/windows/:id", monitoringHandler.UpdateMaintenanceWindow)
+			maintenance.DELETE("/windows/:id", monitoringHandler.DeleteMaintenanceWindow)
+
+			// Maintenance window actions
+			maintenance.POST("/windows/:id/start", monitoringHandler.StartMaintenance)
+			maintenance.POST("/windows/:id/complete", monitoringHandler.CompleteMaintenance)
+			maintenance.POST("/windows/:id/cancel", monitoringHandler.CancelMaintenance)
+
+			// Maintenance updates
+			maintenance.POST("/windows/:id/updates", monitoringHandler.CreateMaintenanceUpdate)
+			maintenance.GET("/windows/:id/updates", monitoringHandler.GetMaintenanceUpdates)
+
+			// Maintenance components
+			maintenance.POST("/windows/:id/components", monitoringHandler.AddMaintenanceComponent)
+			maintenance.DELETE("/windows/:id/components/:component_id", monitoringHandler.RemoveMaintenanceComponent)
+
+			// Convenience endpoints
+			maintenance.GET("/upcoming", monitoringHandler.GetUpcomingMaintenance)
+			maintenance.GET("/active", monitoringHandler.GetActiveMaintenance)
+			maintenance.GET("/statistics", monitoringHandler.GetMaintenanceStatistics)
+
+			// Maintenance templates
+			maintenance.GET("/templates", monitoringHandler.GetMaintenanceTemplates)
+			maintenance.POST("/templates", monitoringHandler.CreateMaintenanceTemplate)
+			maintenance.POST("/templates/:template_id/create-maintenance", monitoringHandler.CreateMaintenanceFromTemplate)
+		}
+
+		// Placeholder routes for future features
+		uptime := api.Group("/uptime")
+		{
+			uptime.GET("/checks", monitoringHandler.GetUptimeChecks)
+			uptime.POST("/checks", monitoringHandler.CreateUptimeCheck)
+			uptime.GET("/checks/:id", monitoringHandler.GetUptimeCheck)
+			uptime.PUT("/checks/:id", monitoringHandler.UpdateUptimeCheck)
+			uptime.DELETE("/checks/:id", monitoringHandler.DeleteUptimeCheck)
+			uptime.GET("/results", monitoringHandler.GetUptimeResults)
+			uptime.GET("/statistics", monitoringHandler.GetUptimeStatistics)
+		}
+
+		performance := api.Group("/performance")
+		{
+			performance.GET("/metrics", monitoringHandler.GetPerformanceMetrics)
+			performance.POST("/metrics", monitoringHandler.CreatePerformanceMetric)
+			performance.GET("/metrics/:id", monitoringHandler.GetPerformanceMetric)
+			performance.PUT("/metrics/:id", monitoringHandler.UpdatePerformanceMetric)
+			performance.DELETE("/metrics/:id", monitoringHandler.DeletePerformanceMetric)
+			performance.GET("/data", monitoringHandler.GetPerformanceData)
+			performance.POST("/data", monitoringHandler.AddPerformanceData)
+		}
+
+		logs := api.Group("/logs")
+		{
+			logs.GET("", monitoringHandler.GetLogs)
+			logs.GET("/search", monitoringHandler.SearchLogs)
+			logs.GET("/aggregate", monitoringHandler.AggregateLogs)
+			logs.GET("/stream", monitoringHandler.StreamLogs)
+		}
+
+		// Webhook management
+		webhooks := api.Group("/webhooks")
+		{
+			// Webhook endpoints management
+			webhooks.GET("", webhookHandler.GetWebhookEndpoints)
+			webhooks.POST("", webhookHandler.CreateWebhookEndpoint)
+			webhooks.GET("/:id", webhookHandler.GetWebhookEndpoint)
+			webhooks.PUT("/:id", webhookHandler.UpdateWebhookEndpoint)
+			webhooks.DELETE("/:id", webhookHandler.DeleteWebhookEndpoint)
+			webhooks.POST("/:id/test", webhookHandler.TestWebhookEndpoint)
+
+			// Webhook delivery management
+			webhooks.GET("/deliveries", webhookHandler.GetWebhookDeliveries)
+			webhooks.POST("/deliveries/:id/retry", webhookHandler.RetryWebhookDelivery)
+
+			// Webhook statistics and utilities
+			webhooks.GET("/statistics", webhookHandler.GetWebhookStatistics)
+			webhooks.GET("/event-types", webhookHandler.GetSupportedEventTypes)
+		}
+
+		// Third-party integrations
+		integrations := api.Group("/integrations")
+		{
+			// Integration management
+			integrations.GET("", integrationHandler.GetIntegrations)
+			integrations.POST("", integrationHandler.CreateIntegration)
+			integrations.GET("/:id", integrationHandler.GetIntegration)
+			integrations.PUT("/:id", integrationHandler.UpdateIntegration)
+			integrations.DELETE("/:id", integrationHandler.DeleteIntegration)
+
+			// Integration operations
+			integrations.POST("/:id/sync", integrationHandler.SyncIntegration)
+			integrations.POST("/:id/test", integrationHandler.TestIntegration)
+
+			// Component mappings
+			integrations.POST("/:id/mappings", integrationHandler.CreateComponentMapping)
+			integrations.GET("/:id/mappings", integrationHandler.GetComponentMappings)
+
+			// Integration logs and monitoring
+			integrations.GET("/:id/logs", integrationHandler.GetIntegrationSyncLogs)
+
+			// Supported integrations
+			integrations.GET("/supported", integrationHandler.GetSupportedIntegrations)
+		}
+	}
+
+	// Create HTTP server with proper timeouts and configuration
 	server := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
+		Addr:         fmt.Sprintf("%s:%d", resilienceConfig.Server.Host, resilienceConfig.Server.Port),
 		Handler:      router,
-		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
-		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
-		IdleTimeout:  time.Duration(cfg.Server.IdleTimeout) * time.Second,
+		ReadTimeout:  resilienceConfig.Server.ReadTimeout,
+		WriteTimeout: resilienceConfig.Server.WriteTimeout,
+		IdleTimeout:  resilienceConfig.Server.IdleTimeout,
 	}
 
 	// Start server in a goroutine
 	go func() {
-		logger.Info("Monitoring Service server starting", zap.String("addr", server.Addr))
+		logger.Info("Monitoring Service server starting",
+			zap.String("addr", server.Addr),
+			zap.Duration("read_timeout", resilienceConfig.Server.ReadTimeout),
+			zap.Duration("write_timeout", resilienceConfig.Server.WriteTimeout),
+		)
+
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("Failed to start server", zap.Error(err))
 		}
 	}()
+
+	// Setup health check monitoring
+	if resilienceConfig.Monitoring.Enabled {
+		dbHealthChecker := resilience.NewDatabaseHealthChecker(dbManager)
+
+		// Periodically log health status
+		go func() {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ticker.C:
+					healthCtx, healthCancel := context.WithTimeout(context.Background(), 5*time.Second)
+					health := dbHealthChecker.Check(healthCtx)
+					healthCancel()
+
+					if status, ok := health["status"].(string); ok && status != "healthy" {
+						logger.Warn("Database health check failed", zap.Any("health", health))
+					}
+				}
+			}
+		}()
+	}
 
 	// Wait for interrupt signal to gracefully shutdown the server
 	quit := make(chan os.Signal, 1)
@@ -93,99 +286,19 @@ func main() {
 
 	logger.Info("Shutting down Monitoring Service server...")
 
-	// Give outstanding requests 30 seconds to complete
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	// Graceful shutdown with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), resilienceConfig.Server.GracefulStop)
+	defer shutdownCancel()
 
-	if err := server.Shutdown(ctx); err != nil {
-		logger.Fatal("Server forced to shutdown", zap.Error(err))
+	// Shutdown HTTP server
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		logger.Error("Server forced to shutdown", zap.Error(err))
 	}
 
-	logger.Info("Monitoring Service server exited")
-}
-
-// setupRoutes configures all the routes for the Monitoring Service.
-func setupRoutes(router *gin.Engine, handler *handlers.MonitoringHandler, cfg *config.Config) {
-	// Health check endpoint
-	router.GET("/health", handler.Health)
-
-	// Metrics endpoint for Prometheus
-	router.GET("/metrics", handler.Metrics)
-
-	// API routes
-	api := router.Group("/api/v1")
-	{
-		// Public routes (no authentication required)
-		public := api.Group("/public")
-		{
-			public.GET("/status", handler.GetPublicStatus)
-			public.GET("/health", handler.GetPublicHealth)
-		}
-
-		// Protected routes (authentication required)
-		protected := api.Group("/")
-		protected.Use(middleware.Auth(cfg.JWT.Secret))
-		{
-			// Monitoring and health routes
-			monitoring := protected.Group("/monitoring")
-			{
-				monitoring.GET("/overview", handler.GetMonitoringOverview)
-				monitoring.GET("/services", handler.GetServices)
-				monitoring.GET("/services/:id", handler.GetService)
-				monitoring.POST("/services", handler.CreateService)
-				monitoring.PUT("/services/:id", handler.UpdateService)
-				monitoring.DELETE("/services/:id", handler.DeleteService)
-				monitoring.GET("/services/:id/health", handler.GetServiceHealth)
-				monitoring.GET("/services/:id/metrics", handler.GetServiceMetrics)
-				monitoring.POST("/services/:id/checks", handler.CreateHealthCheck)
-				monitoring.PUT("/services/:id/checks/:check_id", handler.UpdateHealthCheck)
-				monitoring.DELETE("/services/:id/checks/:check_id", handler.DeleteHealthCheck)
-			}
-
-			// Alert management
-			alerts := protected.Group("/alerts")
-			{
-				alerts.GET("", handler.GetAlerts)
-				alerts.POST("", handler.CreateAlert)
-				alerts.GET("/:id", handler.GetAlert)
-				alerts.PUT("/:id", handler.UpdateAlert)
-				alerts.DELETE("/:id", handler.DeleteAlert)
-				alerts.POST("/:id/acknowledge", handler.AcknowledgeAlert)
-				alerts.POST("/:id/resolve", handler.ResolveAlert)
-			}
-
-			// Uptime monitoring
-			uptime := protected.Group("/uptime")
-			{
-				uptime.GET("/checks", handler.GetUptimeChecks)
-				uptime.POST("/checks", handler.CreateUptimeCheck)
-				uptime.GET("/checks/:id", handler.GetUptimeCheck)
-				uptime.PUT("/checks/:id", handler.UpdateUptimeCheck)
-				uptime.DELETE("/checks/:id", handler.DeleteUptimeCheck)
-				uptime.GET("/checks/:id/results", handler.GetUptimeResults)
-				uptime.GET("/checks/:id/statistics", handler.GetUptimeStatistics)
-			}
-
-			// Performance monitoring
-			performance := protected.Group("/performance")
-			{
-				performance.GET("/metrics", handler.GetPerformanceMetrics)
-				performance.GET("/metrics/:id", handler.GetPerformanceMetric)
-				performance.POST("/metrics", handler.CreatePerformanceMetric)
-				performance.PUT("/metrics/:id", handler.UpdatePerformanceMetric)
-				performance.DELETE("/metrics/:id", handler.DeletePerformanceMetric)
-				performance.GET("/metrics/:id/data", handler.GetPerformanceData)
-				performance.POST("/metrics/:id/data", handler.AddPerformanceData)
-			}
-
-			// Log aggregation
-			logs := protected.Group("/logs")
-			{
-				logs.GET("", handler.GetLogs)
-				logs.GET("/search", handler.SearchLogs)
-				logs.GET("/aggregate", handler.AggregateLogs)
-				logs.POST("/stream", handler.StreamLogs)
-			}
-		}
+	// Close database connections
+	if err := dbManager.Close(); err != nil {
+		logger.Error("Failed to close database connections", zap.Error(err))
 	}
+
+	logger.Info("Monitoring Service server exited gracefully")
 }

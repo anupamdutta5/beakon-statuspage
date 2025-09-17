@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/enterprise-status/statuspage-database-service/internal/models"
-	"github.com/enterprise-status/statuspage-database-service/internal/services"
+	"github.com/anupamdutta5/statuspage-database-service/internal/models"
+	"github.com/anupamdutta5/statuspage-database-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )

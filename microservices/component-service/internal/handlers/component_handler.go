@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/enterprise-status/statuspage-component-service/internal/models"
-	"github.com/enterprise-status/statuspage-component-service/internal/services"
+	"github.com/anupamdutta5/statuspage-component-service/internal/models"
+	"github.com/anupamdutta5/statuspage-component-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -501,4 +501,64 @@ func (h *ComponentHandler) DeleteComponentGroup(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Component group deleted successfully"})
+}
+
+// GetPublicComponentStatus returns the status of a component for public view
+func (h *ComponentHandler) GetPublicComponentStatus(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid component ID"})
+		return
+	}
+
+	component, err := h.componentService.GetComponent(uint(id))
+	if err != nil {
+		h.logger.Error("Failed to get component", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get component"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": component.Status})
+}
+
+// GetPublicComponentGroups returns public component groups
+func (h *ComponentHandler) GetPublicComponentGroups(c *gin.Context) {
+	tenantID := uint(1) // Default tenant for public view
+
+	groups, _, err := h.componentService.GetComponentGroups(tenantID, 100, 0)
+	if err != nil {
+		h.logger.Error("Failed to get component groups", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get component groups"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"groups": groups})
+}
+
+// GetOverallStatus returns the overall status across all components
+func (h *ComponentHandler) GetOverallStatus(c *gin.Context) {
+	tenantID := uint(1) // Default tenant for public view
+
+	status, err := h.componentService.GetPublicStatus(tenantID)
+	if err != nil {
+		h.logger.Error("Failed to get overall status", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get overall status"})
+		return
+	}
+
+	c.JSON(http.StatusOK, status)
+}
+
+// GetStatusSummary returns a summary of all component statuses
+func (h *ComponentHandler) GetStatusSummary(c *gin.Context) {
+	tenantID := uint(1) // Default tenant for public view
+
+	status, err := h.componentService.GetPublicStatus(tenantID)
+	if err != nil {
+		h.logger.Error("Failed to get status summary", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get status summary"})
+		return
+	}
+
+	c.JSON(http.StatusOK, status)
 }

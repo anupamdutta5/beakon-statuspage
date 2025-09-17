@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/enterprise-status/statuspage-branding-service/internal/models"
-	"github.com/enterprise-status/statuspage-branding-service/internal/services"
+	"github.com/anupamdutta5/statuspage-branding-service/internal/models"
+	"github.com/anupamdutta5/statuspage-branding-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -123,7 +123,14 @@ func (h *BrandingHandler) GetBrand(c *gin.Context) {
 
 	h.logger.Info("Getting brand", zap.Uint64("brand_id", brandID))
 
-	brand, err := h.service.GetBrand(c.Request.Context(), uint(brandID))
+	// Get tenant ID from context
+	tenantID, exists := c.Get("tenant_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Tenant ID not found"})
+		return
+	}
+
+	brand, err := h.service.GetBrand(c.Request.Context(), uint(brandID), tenantID.(uint))
 	if err != nil {
 		h.logger.Error("Failed to get brand", zap.Error(err))
 		c.JSON(http.StatusNotFound, gin.H{
@@ -562,10 +569,87 @@ func (h *BrandingHandler) DeleteAsset(c *gin.Context) {
 	})
 }
 
-// UploadAsset handles uploading an asset file.
+// UploadAsset handles uploading an asset file with multi-tenant support.
 func (h *BrandingHandler) UploadAsset(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"error": "Asset upload not implemented yet",
+	brandIDStr := c.Param("brand_id")
+	brandID, err := strconv.ParseUint(brandIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid brand ID",
+		})
+		return
+	}
+
+	// Get tenant ID from context (set by auth middleware)
+	tenantID, exists := c.Get("tenant_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Tenant ID not found in context",
+		})
+		return
+	}
+
+	// Parse multipart form
+	err = c.Request.ParseMultipartForm(10 << 20) // 10MB max
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Failed to parse multipart form",
+		})
+		return
+	}
+
+	// Get file from form
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "No file provided",
+		})
+		return
+	}
+	defer file.Close()
+
+	// Get asset metadata from form
+	name := c.PostForm("name")
+	assetType := c.PostForm("type")
+	category := c.PostForm("category")
+	description := c.PostForm("description")
+	altText := c.PostForm("alt_text")
+
+	if name == "" || assetType == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Name and type are required",
+		})
+		return
+	}
+
+	// Create asset model
+	asset := &models.Asset{
+		BrandID:     uint(brandID),
+		Name:        name,
+		Type:        assetType,
+		Category:    category,
+		Description: description,
+		AltText:     altText,
+		Status:      "active",
+	}
+
+	h.logger.Info("Uploading asset file",
+		zap.String("filename", header.Filename),
+		zap.String("asset_type", assetType),
+		zap.Uint64("brand_id", brandID))
+
+	// Use enhanced service method with tenant validation
+	if err := h.service.CreateAssetWithFile(c.Request.Context(), asset, file, header, tenantID.(uint)); err != nil {
+		h.logger.Error("Failed to upload asset", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to upload asset: " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"asset":   asset,
+		"message": "Asset uploaded successfully",
 	})
 }
 
@@ -760,45 +844,151 @@ func (h *BrandingHandler) GetStats(c *gin.Context) {
 	})
 }
 
-// Placeholder handlers for remaining endpoints
+// Color Scheme Management Handlers
+
 func (h *BrandingHandler) ListColorSchemes(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
+	themeIDStr := c.Param("theme_id")
+	themeID, err := strconv.ParseUint(themeIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid theme ID"})
+		return
+	}
+
+	// For now, return empty list - would implement database query
+	c.JSON(http.StatusOK, gin.H{
+		"color_schemes": []interface{}{},
+		"theme_id":      themeID,
+	})
 }
 
 func (h *BrandingHandler) CreateColorScheme(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
+	themeIDStr := c.Param("theme_id")
+	themeID, err := strconv.ParseUint(themeIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid theme ID"})
+		return
+	}
+
+	// Get tenant ID from context
+	tenantID, exists := c.Get("tenant_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Tenant ID not found"})
+		return
+	}
+
+	var colorScheme models.ColorScheme
+	if err := c.ShouldBindJSON(&colorScheme); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	colorScheme.ThemeID = uint(themeID)
+
+	if err := h.service.CreateColorScheme(c.Request.Context(), &colorScheme, tenantID.(uint)); err != nil {
+		h.logger.Error("Failed to create color scheme", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"color_scheme": colorScheme,
+		"message":      "Color scheme created successfully",
+	})
 }
 
 func (h *BrandingHandler) GetColorScheme(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
+	colorSchemeIDStr := c.Param("id")
+	colorSchemeID, err := strconv.ParseUint(colorSchemeIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid color scheme ID"})
+		return
+	}
+
+	// Get tenant ID from context
+	tenantID, exists := c.Get("tenant_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Tenant ID not found"})
+		return
+	}
+
+	colorScheme, err := h.service.GetColorScheme(c.Request.Context(), uint(colorSchemeID), tenantID.(uint))
+	if err != nil {
+		h.logger.Error("Failed to get color scheme", zap.Error(err))
+		c.JSON(http.StatusNotFound, gin.H{"error": "Color scheme not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"color_scheme": colorScheme})
 }
 
 func (h *BrandingHandler) UpdateColorScheme(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Update color scheme not implemented"})
 }
 
 func (h *BrandingHandler) DeleteColorScheme(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Delete color scheme not implemented"})
 }
 
+// Typography Management Handlers
+
 func (h *BrandingHandler) ListTypographies(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
+	themeIDStr := c.Param("theme_id")
+	themeID, err := strconv.ParseUint(themeIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid theme ID"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"typographies": []interface{}{},
+		"theme_id":     themeID,
+	})
 }
 
 func (h *BrandingHandler) CreateTypography(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
+	themeIDStr := c.Param("theme_id")
+	themeID, err := strconv.ParseUint(themeIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid theme ID"})
+		return
+	}
+
+	tenantID, exists := c.Get("tenant_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Tenant ID not found"})
+		return
+	}
+
+	var typography models.Typography
+	if err := c.ShouldBindJSON(&typography); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	typography.ThemeID = uint(themeID)
+
+	if err := h.service.CreateTypography(c.Request.Context(), &typography, tenantID.(uint)); err != nil {
+		h.logger.Error("Failed to create typography", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"typography": typography,
+		"message":    "Typography created successfully",
+	})
 }
 
 func (h *BrandingHandler) GetTypography(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Get typography not implemented"})
 }
 
 func (h *BrandingHandler) UpdateTypography(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Update typography not implemented"})
 }
 
 func (h *BrandingHandler) DeleteTypography(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "Delete typography not implemented"})
 }
 
 func (h *BrandingHandler) ListCustomJS(c *gin.Context) {
@@ -879,5 +1069,55 @@ func (h *BrandingHandler) GetPublicTheme(c *gin.Context) {
 
 func (h *BrandingHandler) GetPublicAsset(c *gin.Context) {
 	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented"})
+}
+
+// CompileTheme handles theme compilation for preview/export
+func (h *BrandingHandler) CompileTheme(c *gin.Context) {
+	themeIDStr := c.Param("id")
+	themeID, err := strconv.ParseUint(themeIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid theme ID"})
+		return
+	}
+
+	tenantID, exists := c.Get("tenant_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Tenant ID not found"})
+		return
+	}
+
+	h.logger.Info("Compiling theme", zap.Uint64("theme_id", themeID))
+
+	compiledTheme, err := h.service.CompileTheme(c.Request.Context(), uint(themeID), tenantID.(uint))
+	if err != nil {
+		h.logger.Error("Failed to compile theme", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"compiled_theme": compiledTheme,
+		"message":        "Theme compiled successfully",
+	})
+}
+
+// GetTenantStats handles getting tenant-specific branding statistics
+func (h *BrandingHandler) GetTenantStats(c *gin.Context) {
+	tenantID, exists := c.Get("tenant_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Tenant ID not found"})
+		return
+	}
+
+	h.logger.Info("Getting tenant branding statistics", zap.Uint("tenant_id", tenantID.(uint)))
+
+	stats, err := h.service.GetTenantBrandingStats(c.Request.Context(), tenantID.(uint))
+	if err != nil {
+		h.logger.Error("Failed to get tenant statistics", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get statistics"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"stats": stats})
 }
 

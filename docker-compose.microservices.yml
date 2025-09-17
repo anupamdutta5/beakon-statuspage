@@ -51,11 +51,13 @@ services:
       - ./configs:/app/configs:ro
     restart: unless-stopped
 
-  # Tenant Service
-  tenant-service:
+  # Tenant Admin Service (consolidated tenant management)
+  tenant-admin-service:
     build:
       context: .
-      dockerfile: Dockerfile.tenant-service
+      dockerfile: Dockerfile.tenant-admin-service
+    ports:
+      - "8080:8080"  # Expose for external access
     environment:
       - ENVIRONMENT=development
       - DB_HOST=postgres
@@ -65,9 +67,15 @@ services:
       - DB_NAME=statuspage_tenants
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_KEY_PREFIX=statuspage:tenant-service
+      - REDIS_KEY_PREFIX=statuspage:tenant-admin-service
       - CONSUL_ADDR=consul:8500
       - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+      # Service URLs for inter-service communication
+      - COMPONENT_SERVICE_URL=http://component-service:8001
+      - INCIDENT_SERVICE_URL=http://incident-service:8002
+      - MONITORING_SERVICE_URL=http://monitoring-service:8003
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8004
+      - BRANDING_SERVICE_URL=http://branding-service:8005
     depends_on:
       - postgres
       - redis
@@ -262,14 +270,52 @@ services:
     environment:
       - POSTGRES_USER=statuspage_user
       - POSTGRES_PASSWORD=statuspage_password
-      - POSTGRES_DB=statuspage
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
+      - POSTGRES_DB=statuspage_management
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./microservices/database-service/scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U statuspage_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - statuspage-network
+
+  # Database Management Service
+  database-service:
+    build:
+      context: ./microservices/database-service
+      dockerfile: Dockerfile
+    ports:
+      - "8089:8089"
+    environment:
+      - ENVIRONMENT=development
+      - SERVER_PORT=8089
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=statuspage_management
+      - DB_USER=statuspage_user
+      - DB_PASSWORD=statuspage_password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CONSUL_ADDR=consul:8500
+      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+    networks:
+      - statuspage-network
+    volumes:
+      - ./configs:/app/configs:ro
     restart: unless-stopped
 
   # Redis Cache

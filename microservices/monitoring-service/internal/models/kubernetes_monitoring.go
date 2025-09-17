@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/enterprise-status/statuspage-monitoring-service/internal/utils"
+	"github.com/anupamdutta5/statuspage-monitoring-service/internal/utils"
 	"gorm.io/gorm"
 )
 

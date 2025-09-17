@@ -3,11 +3,15 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"mime/multipart"
+	"strings"
 	"time"
 
-	"github.com/enterprise-status/statuspage-branding-service/internal/config"
-	"github.com/enterprise-status/statuspage-branding-service/internal/models"
+	"github.com/anupamdutta5/statuspage-branding-service/internal/config"
+	"github.com/anupamdutta5/statuspage-branding-service/internal/models"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -47,13 +51,18 @@ func (s *BrandingService) SetDB(db *gorm.DB) {
 
 // Brand Management
 
-// CreateBrand creates a new brand.
+// CreateBrand creates a new brand with validation and multi-tenant support.
 func (s *BrandingService) CreateBrand(ctx context.Context, brand *models.Brand) error {
+	if err := s.validateBrand(brand); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
 	s.logger.Info("Creating brand",
 		zap.String("brand_name", brand.Name),
-		zap.String("brand_slug", brand.Slug))
+		zap.String("brand_slug", brand.Slug),
+		zap.Uint("tenant_id", brand.TenantID))
 
-	if err := s.db.Create(brand).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(brand).Error; err != nil {
 		s.logger.Error("Failed to create brand", zap.Error(err))
 		return fmt.Errorf("failed to create brand: %w", err)
 	}
@@ -65,13 +74,18 @@ func (s *BrandingService) CreateBrand(ctx context.Context, brand *models.Brand) 
 	return nil
 }
 
-// GetBrand retrieves a brand by ID.
-func (s *BrandingService) GetBrand(ctx context.Context, brandID uint) (*models.Brand, error) {
-	s.logger.Info("Getting brand", zap.Uint("brand_id", brandID))
+// GetBrand retrieves a brand by ID with tenant isolation.
+func (s *BrandingService) GetBrand(ctx context.Context, brandID, tenantID uint) (*models.Brand, error) {
+	s.logger.Info("Getting brand", zap.Uint("brand_id", brandID), zap.Uint("tenant_id", tenantID))
 
 	var brand models.Brand
-	if err := s.db.Preload("Themes").First(&brand, brandID).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+	err := s.db.WithContext(ctx).
+		Where("id = ? AND tenant_id = ?", brandID, tenantID).
+		Preload("Themes").
+		First(&brand).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("brand not found")
 		}
 		s.logger.Error("Failed to get brand", zap.Error(err))
@@ -483,4 +497,431 @@ func initDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	}
 
 	return db, nil
+}
+
+// Enhanced Asset Management with File Upload Support
+
+func (s *BrandingService) CreateAssetWithFile(ctx context.Context, asset *models.Asset, file multipart.File, header *multipart.FileHeader, tenantID uint) error {
+	if err := s.validateAssetCreation(asset, tenantID); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
+	// Read file content
+	content, err := io.ReadAll(file)
+	if err != nil {
+		return fmt.Errorf("failed to read file: %w", err)
+	}
+
+	// Set asset properties from file
+	asset.OriginalName = header.Filename
+	asset.Filename = fmt.Sprintf("%d_%s", time.Now().Unix(), header.Filename)
+	asset.MimeType = header.Header.Get("Content-Type")
+	asset.Size = int64(len(content))
+
+	// Validate file type
+	if err := s.validateFileType(asset.Type, asset.MimeType); err != nil {
+		return err
+	}
+
+	// In production, upload to cloud storage (S3, GCS, etc.)
+	asset.URL = fmt.Sprintf("/assets/%s", asset.Filename)
+
+	if err := s.db.WithContext(ctx).Create(asset).Error; err != nil {
+		s.logger.Error("Failed to create asset", zap.Error(err))
+		return fmt.Errorf("failed to create asset: %w", err)
+	}
+
+	s.logger.Info("Asset created successfully", zap.Uint("asset_id", asset.ID), zap.String("filename", asset.Filename))
+	return nil
+}
+
+// Enhanced Color Scheme Management
+
+func (s *BrandingService) CreateColorScheme(ctx context.Context, colorScheme *models.ColorScheme, tenantID uint) error {
+	if err := s.validateColorScheme(colorScheme); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
+	// Verify theme belongs to tenant
+	var theme models.Theme
+	err := s.db.WithContext(ctx).
+		Joins("JOIN brands ON themes.brand_id = brands.id").
+		Where("themes.id = ? AND brands.tenant_id = ?", colorScheme.ThemeID, tenantID).
+		First(&theme).Error
+
+	if err != nil {
+		return fmt.Errorf("theme not found or access denied")
+	}
+
+	if err := s.db.WithContext(ctx).Create(colorScheme).Error; err != nil {
+		s.logger.Error("Failed to create color scheme", zap.Error(err))
+		return fmt.Errorf("failed to create color scheme: %w", err)
+	}
+
+	s.logger.Info("Color scheme created successfully", zap.Uint("color_scheme_id", colorScheme.ID))
+	return nil
+}
+
+func (s *BrandingService) GetColorScheme(ctx context.Context, id uint, tenantID uint) (*models.ColorScheme, error) {
+	var colorScheme models.ColorScheme
+	err := s.db.WithContext(ctx).
+		Joins("JOIN themes ON color_schemes.theme_id = themes.id").
+		Joins("JOIN brands ON themes.brand_id = brands.id").
+		Where("color_schemes.id = ? AND brands.tenant_id = ?", id, tenantID).
+		Preload("Theme").
+		First(&colorScheme).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("color scheme not found")
+		}
+		return nil, fmt.Errorf("failed to get color scheme: %w", err)
+	}
+
+	return &colorScheme, nil
+}
+
+// Enhanced Typography Management
+
+func (s *BrandingService) CreateTypography(ctx context.Context, typography *models.Typography, tenantID uint) error {
+	if err := s.validateTypography(typography); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
+	// Verify theme belongs to tenant
+	var theme models.Theme
+	err := s.db.WithContext(ctx).
+		Joins("JOIN brands ON themes.brand_id = brands.id").
+		Where("themes.id = ? AND brands.tenant_id = ?", typography.ThemeID, tenantID).
+		First(&theme).Error
+
+	if err != nil {
+		return fmt.Errorf("theme not found or access denied")
+	}
+
+	if err := s.db.WithContext(ctx).Create(typography).Error; err != nil {
+		s.logger.Error("Failed to create typography", zap.Error(err))
+		return fmt.Errorf("failed to create typography: %w", err)
+	}
+
+	s.logger.Info("Typography created successfully", zap.Uint("typography_id", typography.ID))
+	return nil
+}
+
+// Enhanced Custom CSS with Security Validation
+
+func (s *BrandingService) CreateSecureCustomCSS(ctx context.Context, customCSS *models.CustomCSS, tenantID uint) error {
+	if err := s.validateCustomCSS(customCSS); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
+	// Verify brand belongs to tenant
+	var brand models.Brand
+	err := s.db.WithContext(ctx).
+		Where("id = ? AND tenant_id = ?", customCSS.BrandID, tenantID).
+		First(&brand).Error
+
+	if err != nil {
+		return fmt.Errorf("brand not found or access denied")
+	}
+
+	if err := s.db.WithContext(ctx).Create(customCSS).Error; err != nil {
+		s.logger.Error("Failed to create custom CSS", zap.Error(err))
+		return fmt.Errorf("failed to create custom CSS: %w", err)
+	}
+
+	s.logger.Info("Custom CSS created successfully", zap.Uint("css_id", customCSS.ID))
+	return nil
+}
+
+// Enhanced Custom JS with Security Validation
+
+func (s *BrandingService) CreateSecureCustomJS(ctx context.Context, customJS *models.CustomJS, tenantID uint) error {
+	if err := s.validateCustomJS(customJS); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
+	// Verify brand belongs to tenant
+	var brand models.Brand
+	err := s.db.WithContext(ctx).
+		Where("id = ? AND tenant_id = ?", customJS.BrandID, tenantID).
+		First(&brand).Error
+
+	if err != nil {
+		return fmt.Errorf("brand not found or access denied")
+	}
+
+	if err := s.db.WithContext(ctx).Create(customJS).Error; err != nil {
+		s.logger.Error("Failed to create custom JS", zap.Error(err))
+		return fmt.Errorf("failed to create custom JS: %w", err)
+	}
+
+	s.logger.Info("Custom JS created successfully", zap.Uint("js_id", customJS.ID))
+	return nil
+}
+
+// Theme Compilation and Preview
+
+func (s *BrandingService) CompileTheme(ctx context.Context, themeID, tenantID uint) (map[string]interface{}, error) {
+	theme, err := s.GetTheme(ctx, themeID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify theme belongs to tenant
+	var brand models.Brand
+	err = s.db.WithContext(ctx).
+		Where("id = ? AND tenant_id = ?", theme.BrandID, tenantID).
+		First(&brand).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("theme not found or access denied")
+	}
+
+	// Get all theme components
+	var colorSchemes []*models.ColorScheme
+	var typographies []*models.Typography
+	var layouts []*models.Layout
+	var components []*models.Component
+
+	if err := s.db.WithContext(ctx).Where("theme_id = ?", themeID).Find(&colorSchemes).Error; err != nil {
+		return nil, fmt.Errorf("failed to load color schemes: %w", err)
+	}
+
+	if err := s.db.WithContext(ctx).Where("theme_id = ?", themeID).Find(&typographies).Error; err != nil {
+		return nil, fmt.Errorf("failed to load typographies: %w", err)
+	}
+
+	if err := s.db.WithContext(ctx).Where("theme_id = ?", themeID).Find(&layouts).Error; err != nil {
+		return nil, fmt.Errorf("failed to load layouts: %w", err)
+	}
+
+	if err := s.db.WithContext(ctx).Where("theme_id = ?", themeID).Find(&components).Error; err != nil {
+		return nil, fmt.Errorf("failed to load components: %w", err)
+	}
+
+	// Compile theme data
+	compiledTheme := map[string]interface{}{
+		"theme":         theme,
+		"color_schemes": colorSchemes,
+		"typographies":  typographies,
+		"layouts":       layouts,
+		"components":    components,
+		"compiled_at":   time.Now(),
+	}
+
+	return compiledTheme, nil
+}
+
+// Enhanced Statistics with Tenant Filtering
+
+func (s *BrandingService) GetTenantBrandingStats(ctx context.Context, tenantID uint) (*models.BrandingStats, error) {
+	var stats models.BrandingStats
+
+	// Count variables for GORM
+	var totalBrands, totalThemes, totalAssets, totalCustomCSS, totalCustomJS, totalLayouts, totalComponents int64
+
+	// Count brands
+	if err := s.db.WithContext(ctx).Model(&models.Brand{}).Where("tenant_id = ?", tenantID).Count(&totalBrands).Error; err != nil {
+		return nil, fmt.Errorf("failed to count brands: %w", err)
+	}
+	stats.TotalBrands = int(totalBrands)
+
+	// Count themes
+	if err := s.db.WithContext(ctx).
+		Table("themes").
+		Joins("JOIN brands ON themes.brand_id = brands.id").
+		Where("brands.tenant_id = ?", tenantID).
+		Count(&totalThemes).Error; err != nil {
+		return nil, fmt.Errorf("failed to count themes: %w", err)
+	}
+	stats.TotalThemes = int(totalThemes)
+
+	// Count assets
+	if err := s.db.WithContext(ctx).
+		Table("assets").
+		Joins("JOIN brands ON assets.brand_id = brands.id").
+		Where("brands.tenant_id = ?", tenantID).
+		Count(&totalAssets).Error; err != nil {
+		return nil, fmt.Errorf("failed to count assets: %w", err)
+	}
+	stats.TotalAssets = int(totalAssets)
+
+	// Count custom CSS
+	if err := s.db.WithContext(ctx).
+		Table("custom_css").
+		Joins("JOIN brands ON custom_css.brand_id = brands.id").
+		Where("brands.tenant_id = ?", tenantID).
+		Count(&totalCustomCSS).Error; err != nil {
+		return nil, fmt.Errorf("failed to count custom CSS: %w", err)
+	}
+	stats.TotalCustomCSS = int(totalCustomCSS)
+
+	// Count custom JS
+	if err := s.db.WithContext(ctx).
+		Table("custom_js").
+		Joins("JOIN brands ON custom_js.brand_id = brands.id").
+		Where("brands.tenant_id = ?", tenantID).
+		Count(&totalCustomJS).Error; err != nil {
+		return nil, fmt.Errorf("failed to count custom JS: %w", err)
+	}
+	stats.TotalCustomJS = int(totalCustomJS)
+
+	// Count layouts
+	if err := s.db.WithContext(ctx).
+		Table("layouts").
+		Joins("JOIN themes ON layouts.theme_id = themes.id").
+		Joins("JOIN brands ON themes.brand_id = brands.id").
+		Where("brands.tenant_id = ?", tenantID).
+		Count(&totalLayouts).Error; err != nil {
+		return nil, fmt.Errorf("failed to count layouts: %w", err)
+	}
+	stats.TotalLayouts = int(totalLayouts)
+
+	// Count components
+	if err := s.db.WithContext(ctx).
+		Table("components").
+		Joins("JOIN themes ON components.theme_id = themes.id").
+		Joins("JOIN brands ON themes.brand_id = brands.id").
+		Where("brands.tenant_id = ?", tenantID).
+		Count(&totalComponents).Error; err != nil {
+		return nil, fmt.Errorf("failed to count components: %w", err)
+	}
+	stats.TotalComponents = int(totalComponents)
+
+	stats.LastUpdated = time.Now()
+	return &stats, nil
+}
+
+// Enhanced Validation Methods
+
+func (s *BrandingService) validateBrand(brand *models.Brand) error {
+	if brand.Name == "" {
+		return errors.New("brand name is required")
+	}
+	if brand.Slug == "" {
+		return errors.New("brand slug is required")
+	}
+	if brand.TenantID == 0 {
+		return errors.New("tenant ID is required")
+	}
+	return nil
+}
+
+func (s *BrandingService) validateAssetCreation(asset *models.Asset, tenantID uint) error {
+	if asset.Name == "" {
+		return errors.New("asset name is required")
+	}
+	if asset.Type == "" {
+		return errors.New("asset type is required")
+	}
+	if asset.BrandID == 0 {
+		return errors.New("brand ID is required")
+	}
+
+	// Verify brand belongs to tenant
+	var brand models.Brand
+	err := s.db.Where("id = ? AND tenant_id = ?", asset.BrandID, tenantID).First(&brand).Error
+	if err != nil {
+		return errors.New("brand not found or access denied")
+	}
+
+	return nil
+}
+
+func (s *BrandingService) validateFileType(assetType, mimeType string) error {
+	allowedTypes := map[string][]string{
+		"logo":       {"image/png", "image/jpeg", "image/svg+xml"},
+		"favicon":    {"image/png", "image/x-icon", "image/vnd.microsoft.icon"},
+		"background": {"image/png", "image/jpeg"},
+		"icon":       {"image/png", "image/svg+xml"},
+		"font":       {"font/woff", "font/woff2", "font/ttf", "font/otf"},
+		"css":        {"text/css"},
+		"js":         {"application/javascript", "text/javascript"},
+	}
+
+	allowed, exists := allowedTypes[assetType]
+	if !exists {
+		return fmt.Errorf("unsupported asset type: %s", assetType)
+	}
+
+	for _, allowedType := range allowed {
+		if mimeType == allowedType {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid file type %s for asset type %s", mimeType, assetType)
+}
+
+func (s *BrandingService) validateColorScheme(colorScheme *models.ColorScheme) error {
+	if colorScheme.Name == "" {
+		return errors.New("color scheme name is required")
+	}
+	if colorScheme.Primary == "" {
+		return errors.New("primary color is required")
+	}
+	if colorScheme.Background == "" {
+		return errors.New("background color is required")
+	}
+	if colorScheme.ThemeID == 0 {
+		return errors.New("theme ID is required")
+	}
+	return nil
+}
+
+func (s *BrandingService) validateTypography(typography *models.Typography) error {
+	if typography.Name == "" {
+		return errors.New("typography name is required")
+	}
+	if typography.FontFamily == "" {
+		return errors.New("font family is required")
+	}
+	if typography.ThemeID == 0 {
+		return errors.New("theme ID is required")
+	}
+	return nil
+}
+
+func (s *BrandingService) validateCustomCSS(customCSS *models.CustomCSS) error {
+	if customCSS.Name == "" {
+		return errors.New("custom CSS name is required")
+	}
+	if customCSS.CSS == "" {
+		return errors.New("CSS content is required")
+	}
+	if customCSS.BrandID == 0 {
+		return errors.New("brand ID is required")
+	}
+
+	// Basic CSS validation - check for malicious content
+	css := strings.ToLower(customCSS.CSS)
+	if strings.Contains(css, "javascript:") || strings.Contains(css, "expression(") {
+		return errors.New("CSS contains potentially malicious content")
+	}
+
+	return nil
+}
+
+func (s *BrandingService) validateCustomJS(customJS *models.CustomJS) error {
+	if customJS.Name == "" {
+		return errors.New("custom JS name is required")
+	}
+	if customJS.JavaScript == "" {
+		return errors.New("JavaScript content is required")
+	}
+	if customJS.BrandID == 0 {
+		return errors.New("brand ID is required")
+	}
+
+	// Basic JS validation - check for malicious content
+	js := strings.ToLower(customJS.JavaScript)
+	maliciousPatterns := []string{"eval(", "function(", "settimeout(", "setinterval(", "document.cookie"}
+	for _, pattern := range maliciousPatterns {
+		if strings.Contains(js, pattern) {
+			return fmt.Errorf("JavaScript contains potentially malicious content: %s", pattern)
+		}
+	}
+
+	return nil
 }

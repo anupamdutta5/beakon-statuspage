@@ -26,6 +26,7 @@ type RedisCacheConfig struct {
 	ReadTimeout  time.Duration `yaml:"read_timeout" default:"3s"`
 	WriteTimeout time.Duration `yaml:"write_timeout" default:"3s"`
 	KeyPrefix    string        `yaml:"key_prefix" default:"statuspage"`
+	TTL          time.Duration `yaml:"ttl" default:"5m"`
 }
 
 // RedisCache provides Redis-based cache implementation
@@ -36,7 +37,30 @@ type RedisCache struct {
 }
 
 // NewRedisCache creates a new Redis cache instance
-func NewRedisCache(config RedisCacheConfig, logger *zap.Logger) (*RedisCache, error) {
+func NewRedisCache(redisConfig RedisConfig, cacheConfig CacheConfig, logger *zap.Logger) Cache {
+	// Convert configs to the internal RedisCacheConfig format
+	config := RedisCacheConfig{
+		Host:         redisConfig.Host,
+		Port:         redisConfig.Port,
+		Password:     redisConfig.Password,
+		DB:           redisConfig.DB,
+		MaxRetries:   redisConfig.MaxRetries,
+		PoolSize:     redisConfig.PoolSize,
+		MinIdleConns: redisConfig.MinIdleConns,
+		KeyPrefix:    redisConfig.KeyPrefix,
+		TTL:          cacheConfig.DefaultTTL,
+	}
+
+	cache, err := newRedisCache(config, logger)
+	if err != nil {
+		logger.Error("Failed to create Redis cache", zap.Error(err))
+		// Return in-memory cache as fallback
+		return NewInMemoryCache(cacheConfig, logger)
+	}
+	return cache
+}
+
+func newRedisCache(config RedisCacheConfig, logger *zap.Logger) (*RedisCache, error) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:         fmt.Sprintf("%s:%d", config.Host, config.Port),
 		Password:     config.Password,

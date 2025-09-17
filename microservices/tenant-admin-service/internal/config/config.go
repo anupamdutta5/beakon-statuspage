@@ -11,12 +11,13 @@ import (
 
 // Config represents the Tenant Admin Service configuration.
 type Config struct {
-	Environment string         `yaml:"environment"`
-	Service     ServiceConfig  `yaml:"service"`
-	Server      ServerConfig   `yaml:"server"`
-	Database    DatabaseConfig `yaml:"database"`
-	Tenant      TenantConfig   `yaml:"tenant"`
-	Logging     LoggingConfig  `yaml:"logging"`
+	Environment string           `yaml:"environment"`
+	Service     ServiceConfig    `yaml:"service"`
+	Server      ServerConfig     `yaml:"server"`
+	Database    DatabaseConfig   `yaml:"database"`
+	Tenant      TenantConfig     `yaml:"tenant"`
+	Logging     LoggingConfig    `yaml:"logging"`
+	Services    ServicesConfig   `yaml:"services"`
 }
 
 // ServiceConfig represents service-specific configuration.
@@ -80,6 +81,15 @@ type LoggingConfig struct {
 	Format string `yaml:"format"` // json, console
 }
 
+// ServicesConfig represents external services configuration.
+type ServicesConfig struct {
+	ComponentServiceURL    string `yaml:"component_service_url"`
+	IncidentServiceURL     string `yaml:"incident_service_url"`
+	MonitoringServiceURL   string `yaml:"monitoring_service_url"`
+	NotificationServiceURL string `yaml:"notification_service_url"`
+	BrandingServiceURL     string `yaml:"branding_service_url"`
+}
+
 // Load loads configuration from environment variables and config file.
 func Load() (*Config, error) {
 	config := &Config{
@@ -133,6 +143,13 @@ func Load() (*Config, error) {
 		Logging: LoggingConfig{
 			Level:  getEnv("LOG_LEVEL", "info"),
 			Format: getEnv("LOG_FORMAT", "json"),
+		},
+		Services: ServicesConfig{
+			ComponentServiceURL:    getEnv("COMPONENT_SERVICE_URL", "http://localhost:8001"),
+			IncidentServiceURL:     getEnv("INCIDENT_SERVICE_URL", "http://localhost:8002"),
+			MonitoringServiceURL:   getEnv("MONITORING_SERVICE_URL", "http://localhost:8003"),
+			NotificationServiceURL: getEnv("NOTIFICATION_SERVICE_URL", "http://localhost:8004"),
+			BrandingServiceURL:     getEnv("BRANDING_SERVICE_URL", "http://localhost:8005"),
 		},
 	}
 

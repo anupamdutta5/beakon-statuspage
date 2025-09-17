@@ -19,11 +19,11 @@ kafka:
   auto_offset_reset: latest
   enable_auto_commit: true
 
-database: test_db
-  host: localhost
-  port: 5432
-  user: test_user
-  password: test_password
+database:
+  host: ${DB_HOST}
+  port: ${DB_PORT}
+  user: ${DB_USER}
+  password: ${DB_PASSWORD}
   name: ${DB_NAME}
   ssl_mode: require
   max_conns: 100
@@ -59,4 +59,7 @@ billing:
     client_id: ${PAYPAL_CLIENT_ID}
     client_secret: ${PAYPAL_CLIENT_SECRET}
     mode: live
+
+
+
 

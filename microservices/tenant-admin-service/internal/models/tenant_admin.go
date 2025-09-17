@@ -7,6 +7,63 @@ import (
 	"gorm.io/gorm"
 )
 
+// Tenant represents a tenant in the system.
+type Tenant struct {
+	ID           uint           `gorm:"primarykey" json:"id"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	DeletedAt    gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
+	Name         string         `gorm:"not null" json:"name"`
+	Slug         string         `gorm:"uniqueIndex;not null" json:"slug"`
+	Domain       string         `gorm:"uniqueIndex" json:"domain"`
+	Subdomain    string         `gorm:"uniqueIndex" json:"subdomain"`
+	ContactEmail string         `gorm:"not null" json:"contact_email"`
+	BillingEmail string         `json:"billing_email"`
+	Plan         string         `gorm:"default:free" json:"plan"`
+	Status       string         `gorm:"default:active" json:"status"`
+	IsActive     bool           `gorm:"default:true" json:"is_active"`
+	Settings     string         `gorm:"type:text" json:"settings"` // JSON string
+	Branding     string         `gorm:"type:text" json:"branding"` // JSON string
+	Features     string         `gorm:"type:text" json:"features"` // JSON string
+}
+
+// TenantBranding represents tenant branding information.
+type TenantBranding struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
+	TenantID  uint           `gorm:"uniqueIndex;not null" json:"tenant_id"`
+	Tenant    Tenant         `gorm:"foreignKey:TenantID" json:"tenant"`
+
+	// Branding Elements
+	LogoURL         string `json:"logo_url"`
+	FaviconURL      string `json:"favicon_url"`
+	PrimaryColor    string `json:"primary_color"`
+	SecondaryColor  string `json:"secondary_color"`
+	AccentColor     string `json:"accent_color"`
+	BackgroundColor string `json:"background_color"`
+	TextColor       string `json:"text_color"`
+
+	// Typography
+	FontFamily string `json:"font_family"`
+	FontSize   string `json:"font_size"`
+	FontWeight string `json:"font_weight"`
+
+	// Layout
+	Layout     string `json:"layout"` // default, minimal, custom
+	ShowLogo   bool   `json:"show_logo"`
+	ShowFooter bool   `json:"show_footer"`
+	FooterText string `json:"footer_text"`
+
+	// Custom Content
+	CustomHeader    string `gorm:"type:text" json:"custom_header"`
+	CustomFooter    string `gorm:"type:text" json:"custom_footer"`
+	MetaTitle       string `json:"meta_title"`
+	MetaDescription string `json:"meta_description"`
+	MetaKeywords    string `json:"meta_keywords"`
+}
+
 // TenantAdmin represents a tenant administrator.
 type TenantAdmin struct {
 	ID          uint           `gorm:"primarykey" json:"id"`
@@ -167,6 +224,16 @@ type TenantStats struct {
 	StorageUsed       int64     `json:"storage_used"`
 	BandwidthUsed     int64     `json:"bandwidth_used"`
 	LastUpdated       time.Time `json:"last_updated"`
+}
+
+// TableName returns the table name for Tenant.
+func (Tenant) TableName() string {
+	return "tenants"
+}
+
+// TableName returns the table name for TenantBranding.
+func (TenantBranding) TableName() string {
+	return "tenant_branding"
 }
 
 // TableName returns the table name for TenantAdmin.

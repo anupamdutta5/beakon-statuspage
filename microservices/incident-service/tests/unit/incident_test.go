@@ -8,9 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/enterprise-status/statuspage-incident-service/internal/handlers"
-	"github.com/enterprise-status/statuspage-incident-service/internal/models"
-	"github.com/enterprise-status/statuspage-incident-service/internal/services"
+	"github.com/anupamdutta5/statuspage-incident-service/internal/handlers"
+	"github.com/anupamdutta5/statuspage-incident-service/internal/models"
+	"github.com/anupamdutta5/statuspage-incident-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

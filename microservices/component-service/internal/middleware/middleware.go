@@ -10,6 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"go.uber.org/zap"
+
+	resilience "github.com/anupamdutta5/statuspage-shared-resilience"
 )
 
 // Logger middleware for request logging.
@@ -38,13 +40,18 @@ func Recovery(logger *zap.Logger) gin.HandlerFunc {
 	})
 }
 
-// CORS middleware for cross-origin requests.
+// CORS middleware for cross-origin requests with secure configuration.
 func CORS() gin.HandlerFunc {
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"*"}
+	// SECURITY: Use environment variable for allowed origins instead of wildcard
+	config.AllowOrigins = []string{
+		"http://localhost:3000",    // Development frontend
+		"https://yourdomain.com",   // Production domain - replace with actual domain
+		"https://admin.yourdomain.com", // Admin domain - replace with actual domain
+	}
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
-	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With"}
-	config.ExposeHeaders = []string{"Content-Length"}
+	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With", "X-Correlation-ID"}
+	config.ExposeHeaders = []string{"Content-Length", "X-Request-ID"}
 	config.AllowCredentials = true
 	config.MaxAge = 12 * time.Hour
 
@@ -107,17 +114,14 @@ func Auth(jwtSecret string) gin.HandlerFunc {
 	}
 }
 
-// generateRequestID generates a unique request ID.
+// generateRequestID generates a cryptographically secure unique request ID.
 func generateRequestID() string {
-	return time.Now().Format("20060102150405") + "-" + randomString(8)
-}
-
-// randomString generates a random string of specified length.
-func randomString(length int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = charset[time.Now().UnixNano()%int64(len(charset))]
+	// Use secure correlation ID generation from shared resilience package
+	correlationID, err := resilience.GenerateCorrelationID()
+	if err != nil {
+		// Fallback to timestamp-based ID if secure generation fails
+		// This should never happen in practice but provides safety
+		return time.Now().Format("20060102150405") + "-fallback"
 	}
-	return string(b)
+	return correlationID
 }

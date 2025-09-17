@@ -11,9 +11,18 @@ shared-resilience/
 ├── circuit_breaker.go      # Circuit breaker pattern
 ├── input_sanitization.go   # Security middleware
 ├── cache.go               # Caching strategies
-├── rate_limiting.go       # Rate limiting (future)
-├── retry.go              # Retry mechanisms (future)
-└── README.md             # This file
+├── rate_limiter.go        # Rate limiting implementation
+├── retry.go              # Retry mechanisms with exponential backoff
+├── shutdown.go           # Graceful shutdown management
+├── validation.go         # Input validation utilities
+├── health.go            # Health check framework
+├── database.go          # Database connection management
+├── security.go          # Security utilities
+├── middleware.go        # HTTP middleware collection
+├── config.go           # Configuration management
+├── errors.go           # Error handling utilities
+├── helpers.go          # Common helper functions
+└── README.md           # This file
 ```
 
 ## 🏗️ **Architecture Decision**
@@ -30,7 +39,7 @@ shared-resilience/
 #### **Option 1: Shared Library (Recommended)**
 ```go
 // Each service imports the shared package
-import "github.com/enterprise-status/statuspage-shared-resilience"
+import "github.com/anupamdutta5/statuspage-shared-resilience"
 
 // Usage in service
 circuitBreaker := resilience.NewCircuitBreaker(config, logger)
@@ -54,7 +63,7 @@ cache := resilience.NewInMemoryCache(config, logger)
 
 ### **Circuit Breaker**
 ```go
-import "github.com/enterprise-status/statuspage-shared-resilience"
+import "github.com/anupamdutta5/statuspage-shared-resilience"
 
 // Create circuit breaker
 cb := resilience.NewCircuitBreaker(resilience.CircuitBreakerConfig{
@@ -158,13 +167,13 @@ resilience:
 ### **Development**
 ```bash
 # Use local shared package
-go mod replace github.com/enterprise-status/statuspage-shared-resilience => ./shared-resilience
+go mod replace github.com/anupamdutta5/statuspage-shared-resilience => ./shared-resilience
 ```
 
 ### **Production**
 ```bash
 # Use versioned package
-go get github.com/enterprise-status/statuspage-shared-resilience@v1.0.0
+go get github.com/anupamdutta5/statuspage-shared-resilience@v1.0.0
 ```
 
 ### **Docker**
@@ -227,14 +236,24 @@ if err != nil {
 
 ## 🔮 **Future Enhancements**
 
+### **Implemented Features**
+- [x] Circuit breaker pattern
+- [x] Input sanitization and validation
+- [x] In-memory and Redis caching
+- [x] Rate limiting with memory/Redis backends
+- [x] Retry mechanisms with exponential backoff
+- [x] Graceful shutdown management
+- [x] Health check framework
+- [x] Database connection management
+- [x] Security utilities and middleware
+- [x] Configuration management
+
 ### **Planned Features**
-- [ ] Redis-based distributed caching
-- [ ] Advanced rate limiting (sliding window)
-- [ ] Retry mechanisms with exponential backoff
 - [ ] Bulkhead pattern implementation
 - [ ] Distributed tracing integration
-- [ ] Health check utilities
 - [ ] Configuration hot-reloading
+- [ ] Metrics collection and export
+- [ ] Service mesh integration
 
 ### **Integration Points**
 - [ ] Prometheus metrics
@@ -261,4 +280,7 @@ if err != nil {
 ## 📄 **License**
 
 This package is part of the Status Page microservices architecture and follows the same licensing terms.
+
+
+
 

@@ -1,54 +1,49 @@
 # Beakon Status Page
 
-A comprehensive microservices-based status page application with monitoring capabilities.
+A comprehensive microservices-based status page application. Each microservice is an independent Git repository.
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Go 1.25.0+
 - Docker & Docker Compose
-- PostgreSQL
 
-### Running Tests
+### Start All Services
 ```bash
-# Make the test script executable
-chmod +x run-all-tests-fixed.sh
+# Start all microservices
+./start-all.sh
 
-# Run all tests (unit + integration)
-./run-all-tests-fixed.sh --all
-
-# Run only unit tests
-./run-all-tests-fixed.sh --unit-only
-
-# Run only integration tests
-./run-all-tests-fixed.sh --integration
-
-# Generate detailed test report
-./run-all-tests-fixed.sh --report
+# Stop all microservices
+./stop-all.sh
 ```
 
 ## 📁 Project Structure
 
-### Core Files
-- `run-all-tests-fixed.sh` - **Main test runner** (handles everything)
-- `docker-compose.microservices.yml` - Docker Compose for all services
-- `env.template` - Environment variables template
+### Root Files (Coordination Only)
+- `start-all.sh` - Start all microservices
+- `stop-all.sh` - Stop all microservices
+- `docker-compose.microservices.yml` - Docker orchestration
+- `.env.template` - Environment configuration template
 
-### Microservices
-- `microservices/` - All microservices and consumers
-- `k8s/` - Kubernetes deployment configurations
-- `docs/` - Technical documentation
+### Directories
+- `microservices/` - **Independent Git repositories** for each service (20 services)
+- `docs/` - Documentation and archived development files
 
-## 🧪 Testing
+### Recent Changes
+- ✅ **Tenant services consolidated**: `tenant-service` merged into `tenant-admin-service` for unified tenant management
 
-The `run-all-tests-fixed.sh` script:
-1. ✅ Checks prerequisites (Go, Docker, Docker Compose)
-2. 🚀 Sets up Kafka infrastructure automatically
-3. 🔧 Fixes consumer services for external Kafka
-4. 🧪 Runs unit tests for all services
-5. 🔗 Runs integration tests for consumer services
-6. 📊 Generates detailed test reports
-7. 🧹 Cleans up resources
+## 🛠️ Individual Service Development
+
+Each microservice in `microservices/` is its own Git repository with:
+- Own build system (`Makefile` or build scripts)
+- Own testing framework
+- Own dependencies (`go.mod`)
+- Own documentation
+
+Navigate to any service directory to work on that specific service:
+```bash
+cd microservices/[service-name]
+# Follow that service's README for development
+```
 
 ## 📊 Monitoring System
 

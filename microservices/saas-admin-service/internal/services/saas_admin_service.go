@@ -5,11 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
 	"strings"
 	"time"
 
-	"github.com/enterprise-status/statuspage-saas-admin-service/internal/config"
-	"github.com/enterprise-status/statuspage-saas-admin-service/internal/models"
+	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/config"
+	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/models"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -23,14 +24,7 @@ type SaaSAdminService struct {
 }
 
 // NewSaaSAdminService creates a new SaaS admin service.
-func NewSaaSAdminService(cfg *config.Config, logger *zap.Logger) (*SaaSAdminService, error) {
-	// Initialize database connection
-	db, err := initDatabase(cfg.Database)
-	if err != nil {
-		logger.Warn("Failed to initialize database, running without database", zap.Error(err))
-		db = nil // Allow service to run without database for testing
-	}
-
+func NewSaaSAdminService(cfg *config.Config, logger *zap.Logger, db *gorm.DB) (*SaaSAdminService, error) {
 	return &SaaSAdminService{
 		config: cfg,
 		logger: logger,
@@ -41,6 +35,11 @@ func NewSaaSAdminService(cfg *config.Config, logger *zap.Logger) (*SaaSAdminServ
 // SetDB allows injecting a test database for testing purposes
 func (s *SaaSAdminService) SetDB(db *gorm.DB) {
 	s.db = db
+}
+
+// GetDB returns the database connection
+func (s *SaaSAdminService) GetDB() *gorm.DB {
+	return s.db
 }
 
 // Platform Management
@@ -140,25 +139,27 @@ func (s *SaaSAdminService) CreatePlan(ctx context.Context, plan *models.SaaSPlan
 	}
 
 	s.logger.Info("SaaS plan created successfully",
-		zap.Uint("plan_id", plan.ID),
+		zap.String("plan_id", plan.ID.String()),
 		zap.String("plan_name", plan.Name))
 
 	return nil
 }
 
 // GetPlan retrieves a plan by ID.
-func (s *SaaSAdminService) GetPlan(ctx context.Context, planID uint) (*models.SaaSPlan, error) {
-	s.logger.Info("Getting SaaS plan", zap.Uint("plan_id", planID))
+func (s *SaaSAdminService) GetPlan(ctx context.Context, planID uuid.UUID) (*models.SaaSPlan, error) {
+	s.logger.Info("Getting SaaS plan", zap.String("plan_id", planID.String()))
 
 	var plan models.SaaSPlan
-	if err := s.db.First(&plan, planID).Error; err != nil {
+	if err := s.db.Preload("Features").Preload("Tiers").First(&plan, "id = ?", planID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
+			s.logger.Warn("Plan not found", zap.String("plan_id", planID.String()))
 			return nil, fmt.Errorf("plan not found")
 		}
 		s.logger.Error("Failed to get plan", zap.Error(err))
 		return nil, fmt.Errorf("failed to get plan: %w", err)
 	}
 
+	s.logger.Info("Plan retrieved successfully", zap.String("plan_id", planID.String()))
 	return &plan, nil
 }
 
@@ -207,8 +208,8 @@ func (s *SaaSAdminService) ListPlans(ctx context.Context, limit, offset int) ([]
 }
 
 // UpdatePlan updates a plan.
-func (s *SaaSAdminService) UpdatePlan(ctx context.Context, planID uint, updates *models.SaaSPlan) (*models.SaaSPlan, error) {
-	s.logger.Info("Updating SaaS plan", zap.Uint("plan_id", planID))
+func (s *SaaSAdminService) UpdatePlan(ctx context.Context, planID uuid.UUID, updates *models.SaaSPlan) (*models.SaaSPlan, error) {
+	s.logger.Info("Updating SaaS plan", zap.String("plan_id", planID.String()))
 
 	// Use Select to ensure zero values are updated, but only for specific fields
 	if err := s.db.Model(&models.SaaSPlan{}).Where("id = ?", planID).Select("is_public", "is_active", "is_popular", "name", "description", "price", "currency", "billing_interval").Updates(updates).Error; err != nil {
@@ -218,25 +219,25 @@ func (s *SaaSAdminService) UpdatePlan(ctx context.Context, planID uint, updates 
 
 	// Get the updated plan
 	var updatedPlan models.SaaSPlan
-	if err := s.db.First(&updatedPlan, planID).Error; err != nil {
+	if err := s.db.First(&updatedPlan, "id = ?", planID).Error; err != nil {
 		s.logger.Error("Failed to get updated plan", zap.Error(err))
 		return nil, fmt.Errorf("failed to get updated plan: %w", err)
 	}
 
-	s.logger.Info("SaaS plan updated successfully", zap.Uint("plan_id", planID))
+	s.logger.Info("SaaS plan updated successfully", zap.String("plan_id", planID.String()))
 	return &updatedPlan, nil
 }
 
 // DeletePlan deletes a plan.
-func (s *SaaSAdminService) DeletePlan(ctx context.Context, planID uint) error {
-	s.logger.Info("Deleting SaaS plan", zap.Uint("plan_id", planID))
+func (s *SaaSAdminService) DeletePlan(ctx context.Context, planID uuid.UUID) error {
+	s.logger.Info("Deleting SaaS plan", zap.String("plan_id", planID.String()))
 
-	if err := s.db.Delete(&models.SaaSPlan{}, planID).Error; err != nil {
+	if err := s.db.Delete(&models.SaaSPlan{}, "id = ?", planID).Error; err != nil {
 		s.logger.Error("Failed to delete plan", zap.Error(err))
 		return fmt.Errorf("failed to delete plan: %w", err)
 	}
 
-	s.logger.Info("SaaS plan deleted successfully", zap.Uint("plan_id", planID))
+	s.logger.Info("Plan deleted successfully", zap.String("plan_id", planID.String()))
 	return nil
 }
 
@@ -532,21 +533,34 @@ func (s *SaaSAdminService) DeletePricingFeature(ctx context.Context, featureID u
 // CreatePricingTier creates a new pricing tier for a plan.
 func (s *SaaSAdminService) CreatePricingTier(ctx context.Context, tier *models.PricingTier) error {
 	s.logger.Info("Creating pricing tier",
-		zap.Uint("plan_id", tier.PlanID),
+		zap.String("plan_id", tier.PlanID.String()),
 		zap.String("billing_interval", tier.BillingInterval))
 
+	// Verify the plan exists before creating the tier
+	var plan models.SaaSPlan
+	if err := s.db.First(&plan, "id = ?", tier.PlanID).Error; err != nil {
+		s.logger.Error("Plan not found", 
+			zap.String("plan_id", tier.PlanID.String()),
+			zap.Error(err))
+		return fmt.Errorf("plan not found: %w", err)
+	}
+
 	if err := s.db.Create(tier).Error; err != nil {
-		s.logger.Error("Failed to create pricing tier", zap.Error(err))
+		s.logger.Error("Failed to create pricing tier", 
+			zap.String("plan_id", tier.PlanID.String()),
+			zap.Error(err))
 		return fmt.Errorf("failed to create pricing tier: %w", err)
 	}
 
-	s.logger.Info("Pricing tier created successfully", zap.Uint("tier_id", tier.ID))
+	s.logger.Info("Pricing tier created successfully", 
+		zap.Uint("tier_id", tier.ID),
+		zap.String("plan_id", tier.PlanID.String()))
 	return nil
 }
 
 // GetPricingTiers retrieves pricing tiers for a plan.
-func (s *SaaSAdminService) GetPricingTiers(ctx context.Context, planID uint) ([]*models.PricingTier, error) {
-	s.logger.Info("Getting pricing tiers", zap.Uint("plan_id", planID))
+func (s *SaaSAdminService) GetPricingTiers(ctx context.Context, planID uuid.UUID) ([]*models.PricingTier, error) {
+	s.logger.Info("Getting pricing tiers", zap.String("plan_id", planID.String()))
 
 	var tiers []*models.PricingTier
 	if err := s.db.Where("plan_id = ? AND is_active = ?", planID, true).Order("billing_interval").Find(&tiers).Error; err != nil {
@@ -590,13 +604,13 @@ func (s *SaaSAdminService) DeletePricingTier(ctx context.Context, tierID uint) e
 }
 
 // AssignFeatureToPlan assigns a feature to a plan.
-func (s *SaaSAdminService) AssignFeatureToPlan(ctx context.Context, planID, featureID uint, order int) error {
+func (s *SaaSAdminService) AssignFeatureToPlan(ctx context.Context, planUUID uuid.UUID, featureID uint, order int) error {
 	s.logger.Info("Assigning feature to plan",
-		zap.Uint("plan_id", planID),
+		zap.String("plan_id", planUUID.String()),
 		zap.Uint("feature_id", featureID))
 
 	planFeature := &models.PlanFeature{
-		PlanID:    planID,
+		PlanID:    planUUID,
 		FeatureID: featureID,
 		IsEnabled: true,
 		Order:     order,
@@ -612,26 +626,31 @@ func (s *SaaSAdminService) AssignFeatureToPlan(ctx context.Context, planID, feat
 }
 
 // RemoveFeatureFromPlan removes a feature from a plan.
-func (s *SaaSAdminService) RemoveFeatureFromPlan(ctx context.Context, planID, featureID uint) error {
+func (s *SaaSAdminService) RemoveFeatureFromPlan(ctx context.Context, planID uuid.UUID, featureID uint) error {
 	s.logger.Info("Removing feature from plan",
-		zap.Uint("plan_id", planID),
+		zap.String("plan_id", planID.String()),
 		zap.Uint("feature_id", featureID))
 
 	if err := s.db.Where("plan_id = ? AND feature_id = ?", planID, featureID).Delete(&models.PlanFeature{}).Error; err != nil {
-		s.logger.Error("Failed to remove feature from plan", zap.Error(err))
+		s.logger.Error("Failed to remove feature from plan", 
+			zap.String("plan_id", planID.String()),
+			zap.Uint("feature_id", featureID),
+			zap.Error(err))
 		return fmt.Errorf("failed to remove feature from plan: %w", err)
 	}
 
-	s.logger.Info("Feature removed from plan successfully")
+	s.logger.Info("Feature removed from plan successfully",
+		zap.String("plan_id", planID.String()),
+		zap.Uint("feature_id", featureID))
 	return nil
 }
 
 // GetPlanFeatures retrieves all features for a plan.
-func (s *SaaSAdminService) GetPlanFeatures(ctx context.Context, planID uint) ([]*models.PlanFeature, error) {
-	s.logger.Info("Getting plan features", zap.Uint("plan_id", planID))
+func (s *SaaSAdminService) GetPlanFeatures(ctx context.Context, planID uuid.UUID) ([]*models.PlanFeature, error) {
+	s.logger.Info("Getting plan features", zap.String("plan_id", planID.String()))
 
 	var planFeatures []*models.PlanFeature
-	if err := s.db.Preload("Feature").Where("plan_id = ? AND is_enabled = ?", planID, true).Order("`order`").Find(&planFeatures).Error; err != nil {
+	if err := s.db.Where("plan_id = ?", planID).Preload("Feature").Order("`order`").Find(&planFeatures).Error; err != nil {
 		s.logger.Error("Failed to get plan features", zap.Error(err))
 		return nil, fmt.Errorf("failed to get plan features: %w", err)
 	}
@@ -766,24 +785,37 @@ func (s *SaaSAdminService) SyncPricingToLandingPage(ctx context.Context) error {
 }
 
 // initDatabase initializes the database connection.
+// This is kept for backward compatibility and testing purposes.
 func initDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
-	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Name, cfg.SSLMode)
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+		cfg.Host,
+		cfg.User,
+		cfg.Password,
+		cfg.Name,
+		cfg.Port,
+		cfg.SSLMode,
+	)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
+		return nil, fmt.Errorf("failed to connect to database: %v", err)
 	}
 
 	// Configure connection pool
 	sqlDB, err := db.DB()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
+		return nil, fmt.Errorf("failed to get database instance: %v", err)
 	}
 
-	sqlDB.SetMaxOpenConns(cfg.MaxConns)
-	sqlDB.SetMaxIdleConns(cfg.MaxIdle)
-	sqlDB.SetConnMaxLifetime(time.Duration(cfg.MaxLifetime) * time.Second)
+	// Set connection pool settings
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(100)
+	sqlDB.SetConnMaxLifetime(time.Hour)
+
+	// Test the connection
+	if err := sqlDB.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %v", err)
+	}
 
 	// Auto-migrate models
 	if err := db.AutoMigrate(

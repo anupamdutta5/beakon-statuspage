@@ -1,4 +1,5 @@
 // Package main is the entry point for the Payment Service.
+// This is the modernized version using the shared-resilience module.
 package main
 
 import (
@@ -11,80 +12,113 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/enterprise-status/statuspage-payment-service/internal/config"
-	"github.com/enterprise-status/statuspage-payment-service/internal/handlers"
-	"github.com/enterprise-status/statuspage-payment-service/internal/middleware"
-	"github.com/enterprise-status/statuspage-payment-service/internal/services"
-	"github.com/enterprise-status/statuspage-payment-service/pkg/logger"
+	"github.com/anupamdutta5/statuspage-shared-resilience"
+	"github.com/anupamdutta5/statuspage-payment-service/internal/handlers"
+	"github.com/anupamdutta5/statuspage-payment-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
 func main() {
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+	// Load configuration from environment variables
+	resilienceConfig := resilience.LoadConfigFromEnv()
+	if err := resilienceConfig.Validate(); err != nil {
+		log.Fatalf("Configuration validation failed: %v", err)
 	}
 
-	// Initialize logger
-	logger, err := logger.New(cfg.Server.Environment)
+	// Initialize logger based on environment
+	var logger *zap.Logger
+	var err error
+
+	if resilienceConfig.Environment == "production" {
+		logger, err = zap.NewProduction()
+		gin.SetMode(gin.ReleaseMode)
+	} else {
+		logger, err = zap.NewDevelopment()
+		gin.SetMode(gin.DebugMode)
+	}
+
 	if err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 	defer logger.Sync()
 
 	logger.Info("Starting Payment Service",
-		zap.String("service", cfg.Service.Name),
-		zap.String("version", cfg.Service.Version),
-		zap.Int("port", cfg.Server.Port),
-		zap.String("environment", cfg.Server.Environment))
+		zap.String("service", "payment-service"),
+		zap.String("version", "1.0.0"),
+		zap.String("environment", resilienceConfig.Environment),
+		zap.Int("port", resilienceConfig.Server.Port),
+	)
 
-	// Set Gin mode
-	if cfg.Server.Environment == "production" {
-		gin.SetMode(gin.ReleaseMode)
-	}
-
-	// Initialize database
-	db, err := services.InitDatabase(cfg.Database)
+	// Initialize database manager with connection pooling and health checks
+	dbManager, err := resilience.NewDatabaseManager(resilienceConfig.Database, logger)
 	if err != nil {
-		logger.Fatal("Failed to initialize database", zap.Error(err))
+		logger.Fatal("Failed to initialize database manager", zap.Error(err))
 	}
+	defer dbManager.Close()
 
-	// Initialize services
-	paymentService := services.NewPaymentService(db, logger.Logger)
-
-	// Create router
+	// Create Gin router
 	router := gin.New()
 
-	// Add middleware
-	router.Use(middleware.Logger(logger.Logger))
-	router.Use(middleware.Recovery(logger.Logger))
-	router.Use(middleware.CORS())
-	router.Use(middleware.RequestID())
+	// Add comprehensive middleware stack
+	middleware := resilience.DefaultMiddlewareStack(resilienceConfig, logger)
+	for _, mw := range middleware {
+		router.Use(mw)
+	}
 
-	// Initialize handlers
-	paymentHandler := handlers.NewPaymentHandler(paymentService, logger.Logger)
+	// Initialize payment service and handlers
+	paymentService := services.NewPaymentService(dbManager.GetDB(), logger)
+	paymentHandler := handlers.NewPaymentHandler(paymentService, logger)
 
-	// Setup routes
-	setupRoutes(router, paymentHandler, cfg)
+	// Setup basic routes
+	router.GET("/health", paymentHandler.Health)
+	router.GET("/api/v1/payments", paymentHandler.GetPayments)
 
-	// Create HTTP server
+	// Create HTTP server with proper timeouts and configuration
 	server := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
+		Addr:         fmt.Sprintf("%s:%d", resilienceConfig.Server.Host, resilienceConfig.Server.Port),
 		Handler:      router,
-		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
-		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
-		IdleTimeout:  time.Duration(cfg.Server.IdleTimeout) * time.Second,
+		ReadTimeout:  resilienceConfig.Server.ReadTimeout,
+		WriteTimeout: resilienceConfig.Server.WriteTimeout,
+		IdleTimeout:  resilienceConfig.Server.IdleTimeout,
 	}
 
 	// Start server in a goroutine
 	go func() {
-		logger.Info("Payment Service server starting", zap.String("addr", server.Addr))
+		logger.Info("Payment Service server starting",
+			zap.String("addr", server.Addr),
+			zap.Duration("read_timeout", resilienceConfig.Server.ReadTimeout),
+			zap.Duration("write_timeout", resilienceConfig.Server.WriteTimeout),
+		)
+
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("Failed to start server", zap.Error(err))
 		}
 	}()
+
+	// Setup health check monitoring
+	if resilienceConfig.Monitoring.Enabled {
+		dbHealthChecker := resilience.NewDatabaseHealthChecker(dbManager)
+
+		// Periodically log health status
+		go func() {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ticker.C:
+					healthCtx, healthCancel := context.WithTimeout(context.Background(), 5*time.Second)
+					health := dbHealthChecker.Check(healthCtx)
+					healthCancel()
+
+					if status, ok := health["status"].(string); ok && status != "healthy" {
+						logger.Warn("Database health check failed", zap.Any("health", health))
+					}
+				}
+			}
+		}()
+	}
 
 	// Wait for interrupt signal to gracefully shutdown the server
 	quit := make(chan os.Signal, 1)
@@ -93,86 +127,19 @@ func main() {
 
 	logger.Info("Shutting down Payment Service server...")
 
-	// Give outstanding requests 30 seconds to complete
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	// Graceful shutdown with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), resilienceConfig.Server.GracefulStop)
+	defer shutdownCancel()
 
-	if err := server.Shutdown(ctx); err != nil {
-		logger.Fatal("Server forced to shutdown", zap.Error(err))
+	// Shutdown HTTP server
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		logger.Error("Server forced to shutdown", zap.Error(err))
 	}
 
-	logger.Info("Payment Service server exited")
-}
-
-// setupRoutes configures all the routes for the Payment Service.
-func setupRoutes(router *gin.Engine, handler *handlers.PaymentHandler, cfg *config.Config) {
-	// Health check endpoint
-	router.GET("/health", handler.Health)
-
-	// Webhook endpoints (no authentication required)
-	webhooks := router.Group("/webhooks")
-	{
-		webhooks.POST("/stripe", handler.StripeWebhook)
-		webhooks.POST("/paypal", handler.PayPalWebhook)
-		webhooks.POST("/razorpay", handler.RazorpayWebhook)
+	// Close database connections
+	if err := dbManager.Close(); err != nil {
+		logger.Error("Failed to close database connections", zap.Error(err))
 	}
 
-	// API routes
-	api := router.Group("/api/v1")
-	{
-		// Public routes (no authentication required)
-		public := api.Group("/public")
-		{
-			public.GET("/plans", handler.GetPublicPlans)
-			public.GET("/plans/:id", handler.GetPublicPlan)
-		}
-
-		// Protected routes (authentication required)
-		protected := api.Group("/")
-		protected.Use(middleware.Auth(cfg.JWT.Secret))
-		{
-			// Payment management routes
-			payments := protected.Group("/payments")
-			{
-				payments.GET("", handler.GetPayments)
-				payments.POST("", handler.CreatePayment)
-				payments.GET("/:id", handler.GetPayment)
-				payments.PUT("/:id", handler.UpdatePayment)
-				payments.POST("/:id/refund", handler.RefundPayment)
-				payments.GET("/:id/transactions", handler.GetPaymentTransactions)
-			}
-
-			// Subscription management
-			subscriptions := protected.Group("/subscriptions")
-			{
-				subscriptions.GET("", handler.GetSubscriptions)
-				subscriptions.POST("", handler.CreateSubscription)
-				subscriptions.GET("/:id", handler.GetSubscription)
-				subscriptions.PUT("/:id", handler.UpdateSubscription)
-				subscriptions.DELETE("/:id", handler.CancelSubscription)
-				subscriptions.POST("/:id/upgrade", handler.UpgradeSubscription)
-				subscriptions.POST("/:id/downgrade", handler.DowngradeSubscription)
-			}
-
-			// Plan management
-			plans := protected.Group("/plans")
-			{
-				plans.GET("", handler.GetPlans)
-				plans.POST("", handler.CreatePlan)
-				plans.GET("/:id", handler.GetPlan)
-				plans.PUT("/:id", handler.UpdatePlan)
-				plans.DELETE("/:id", handler.DeletePlan)
-			}
-
-			// Billing management
-			billing := protected.Group("/billing")
-			{
-				billing.GET("/invoices", handler.GetInvoices)
-				billing.GET("/invoices/:id", handler.GetInvoice)
-				billing.POST("/invoices/:id/pay", handler.PayInvoice)
-				billing.GET("/usage", handler.GetUsage)
-				billing.GET("/history", handler.GetBillingHistory)
-			}
-		}
-	}
+	logger.Info("Payment Service server exited gracefully")
 }

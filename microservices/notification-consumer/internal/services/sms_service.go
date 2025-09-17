@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/enterprise-status/statuspage-notification-consumer/internal/config"
-	"github.com/enterprise-status/statuspage-notification-consumer/internal/models"
+	"github.com/anupamdutta5/statuspage-notification-consumer/internal/config"
+	"github.com/anupamdutta5/statuspage-notification-consumer/internal/models"
 	"go.uber.org/zap"
 )
 

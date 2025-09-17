@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/enterprise-status/statuspage-analytics-service/internal/config"
-	"github.com/enterprise-status/statuspage-analytics-service/internal/models"
+	"github.com/anupamdutta5/statuspage-analytics-service/internal/models"
 	"go.uber.org/zap"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -483,29 +481,3 @@ func (s *AnalyticsService) GetPublicReports(tenantID uint) ([]*models.Report, er
 	return reports, nil
 }
 
-// InitDatabase initializes the database connection and runs migrations.
-func InitDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
-	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Name, cfg.SSLMode)
-
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	// Auto-migrate models
-	if err := db.AutoMigrate(
-		&models.Metric{},
-		&models.MetricDataPoint{},
-		&models.Report{},
-		&models.ReportGeneration{},
-		&models.Dashboard{},
-		&models.DashboardWidget{},
-		&models.AnalyticsEvent{},
-		&models.DataExport{},
-	); err != nil {
-		return nil, fmt.Errorf("failed to migrate database: %w", err)
-	}
-
-	return db, nil
-}

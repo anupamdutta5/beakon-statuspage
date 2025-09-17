@@ -17,6 +17,11 @@ type Config struct {
 	Database    DatabaseConfig `yaml:"database"`
 	SaaS        SaaSConfig     `yaml:"saas"`
 	Logging     LoggingConfig  `yaml:"logging"`
+	
+	// Feature flags
+	Features struct {
+		UseDatabaseService bool `yaml:"use_database_service"`
+	} `yaml:"features"`
 }
 
 // ServiceConfig represents service-specific configuration.
@@ -37,8 +42,17 @@ type ServerConfig struct {
 	IdleTimeout  int    `yaml:"idle_timeout"`
 }
 
+// DatabaseServiceConfig represents database service configuration.
+type DatabaseServiceConfig struct {
+	Enabled    bool   `yaml:"enabled"`
+	BaseURL    string `yaml:"base_url"`
+	AuthToken  string `yaml:"auth_token"`
+	DatabaseID string `yaml:"database_id"`
+}
+
 // DatabaseConfig represents database configuration.
 type DatabaseConfig struct {
+	// Direct database connection settings (used when DatabaseService is disabled)
 	Host        string `yaml:"host"`
 	Port        int    `yaml:"port"`
 	User        string `yaml:"user"`
@@ -49,6 +63,9 @@ type DatabaseConfig struct {
 	MinConns    int    `yaml:"min_conns"`
 	MaxIdle     int    `yaml:"max_idle"`
 	MaxLifetime int    `yaml:"max_lifetime"`
+	
+	// Database service configuration (used when DatabaseService is enabled)
+	Service    DatabaseServiceConfig `yaml:"service"`
 }
 
 // SaaSConfig represents SaaS-specific configuration.
@@ -87,6 +104,13 @@ func Load() (*Config, error) {
 			Description: getEnv("SERVICE_DESCRIPTION", "SaaS Admin Service for Platform Administration"),
 			Tags:        getEnvSlice("SERVICE_TAGS", []string{"saas-admin-service", "microservice", "admin"}),
 		},
+		
+		// Feature flags
+		Features: struct {
+			UseDatabaseService bool `yaml:"use_database_service"`
+		}{
+			UseDatabaseService: getEnvBool("FEATURE_USE_DATABASE_SERVICE", true),
+		},
 		Server: ServerConfig{
 			Host:         getEnv("SERVER_HOST", "0.0.0.0"),
 			Port:         getEnvInt("SERVER_PORT", 8098),
@@ -95,16 +119,25 @@ func Load() (*Config, error) {
 			IdleTimeout:  getEnvInt("SERVER_IDLE_TIMEOUT", 120),
 		},
 		Database: DatabaseConfig{
+			// Direct database connection settings
 			Host:        getEnv("DB_HOST", "localhost"),
 			Port:        getEnvInt("DB_PORT", 5432),
 			User:        getEnv("DB_USER", "postgres"),
-			Password:    getEnv("DB_PASSWORD", "postgres"),
-			Name:        getEnv("DB_NAME", "statuspage_saas_admin"),
-			SSLMode:     getEnv("DB_SSL_MODE", "disable"),
-			MaxConns:    getEnvInt("DB_MAX_CONNS", 100),
-			MinConns:    getEnvInt("DB_MIN_CONNS", 10),
+			Password:    getEnv("DB_PASSWORD", ""),
+			Name:        getEnv("DB_NAME", "saas_admin"),
+			SSLMode:     getEnv("DB_SSLMODE", "disable"),
+			MaxConns:    getEnvInt("DB_MAX_CONNS", 25),
+			MinConns:    getEnvInt("DB_MIN_CONNS", 5),
 			MaxIdle:     getEnvInt("DB_MAX_IDLE", 10),
-			MaxLifetime: getEnvInt("DB_MAX_LIFETIME", 3600),
+			MaxLifetime: getEnvInt("DB_MAX_LIFETIME", 300), // 5 minutes
+			
+			// Database service settings
+			Service: DatabaseServiceConfig{
+				Enabled:    getEnvBool("DB_SERVICE_ENABLED", true),
+				BaseURL:    getEnv("DB_SERVICE_URL", "http://database-service:8089"),
+				AuthToken:  getEnv("DB_SERVICE_AUTH_TOKEN", ""),
+				DatabaseID: getEnv("DB_SERVICE_DATABASE_ID", ""),
+			},
 		},
 		SaaS: SaaSConfig{
 			PlatformName:        getEnv("SAAS_PLATFORM_NAME", "StatusPage Pro"),

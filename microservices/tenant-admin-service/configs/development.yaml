@@ -18,36 +18,36 @@ server:
   write_timeout: 30
   idle_timeout: 120
 
-database: test_db
-  host: localhost
-  port: 5432
-  user: test_user
-  password: test_password
-  name: statuspage_tenant_admin
-  ssl_mode: disable
-  max_conns: 25
-  min_conns: 5
-  max_idle: 10
-  max_lifetime: 3600
+database:
+  host: ${DB_HOST:localhost}
+  port: ${DB_PORT:5432}
+  user: ${DB_USER:statuspage_user}
+  password: ${DB_PASSWORD}
+  name: ${DB_NAME:statuspage_tenant_admin}
+  ssl_mode: ${DB_SSL_MODE:disable}
+  max_conns: ${DB_MAX_OPEN_CONNS:25}
+  min_conns: ${DB_MAX_IDLE_CONNS:5}
+  max_idle: ${DB_MAX_IDLE_CONNS:10}
+  max_lifetime: ${DB_CONN_MAX_LIFETIME:3600}
 
 cache:
   provider: redis
-  host: localhost
-  port: 6379
-  password: ""
-  db: 0
+  host: ${REDIS_HOST:localhost}
+  port: ${REDIS_PORT:6379}
+  password: ${REDIS_PASSWORD}
+  db: ${REDIS_DB:0}
   ttl: 300
   key_prefix: "statuspage:tenant-admin-service"
 
 logging:
-  level: debug
-  format: json
+  level: ${LOG_LEVEL:debug}
+  format: ${LOG_FORMAT:json}
   output: stdout
 
 jwt:
-  secret: dev-secret-key-change-in-production
-  expiration: 24
-  issuer: statuspage-dev
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION:24}
+  issuer: ${JWT_ISSUER:statuspage-dev}
 
 monitoring:
   enabled: true

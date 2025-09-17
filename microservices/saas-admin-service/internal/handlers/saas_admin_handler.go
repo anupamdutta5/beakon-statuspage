@@ -6,10 +6,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/enterprise-status/statuspage-saas-admin-service/internal/models"
-	"github.com/enterprise-status/statuspage-saas-admin-service/internal/services"
+	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/models"
+	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // SaaSAdminHandler handles SaaS admin-related HTTP requests.
@@ -180,17 +182,18 @@ func (h *SaaSAdminHandler) CreatePlan(c *gin.Context) {
 // GetPlan handles retrieving a plan by ID.
 func (h *SaaSAdminHandler) GetPlan(c *gin.Context) {
 	planIDStr := c.Param("id")
-	planID, err := strconv.ParseUint(planIDStr, 10, 32)
+	planID, err := uuid.Parse(planIDStr)
 	if err != nil {
+		h.logger.Error("Invalid plan ID format", zap.String("planId", planIDStr), zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid plan ID",
+			"error": "Invalid plan ID format, expected UUID",
 		})
 		return
 	}
 
-	h.logger.Info("Getting SaaS plan", zap.Uint64("plan_id", planID))
+	h.logger.Info("Getting SaaS plan", zap.String("plan_id", planID.String()))
 
-	plan, err := h.service.GetPlan(c.Request.Context(), uint(planID))
+	plan, err := h.service.GetPlan(c.Request.Context(), planID)
 	if err != nil {
 		h.logger.Error("Failed to get plan", zap.Error(err))
 		c.JSON(http.StatusNotFound, gin.H{
@@ -227,10 +230,11 @@ func (h *SaaSAdminHandler) GetPlanBySlug(c *gin.Context) {
 // UpdatePlan handles updating a plan.
 func (h *SaaSAdminHandler) UpdatePlan(c *gin.Context) {
 	planIDStr := c.Param("id")
-	planID, err := strconv.ParseUint(planIDStr, 10, 32)
+	planID, err := uuid.Parse(planIDStr)
 	if err != nil {
+		h.logger.Error("Invalid plan ID format", zap.String("planId", planIDStr), zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid plan ID",
+			"error": "Invalid plan ID format, expected UUID",
 		})
 		return
 	}
@@ -244,9 +248,9 @@ func (h *SaaSAdminHandler) UpdatePlan(c *gin.Context) {
 		return
 	}
 
-	h.logger.Info("Updating SaaS plan", zap.Uint64("plan_id", planID))
+	h.logger.Info("Updating SaaS plan", zap.String("plan_id", planID.String()))
 
-	updatedPlan, err := h.service.UpdatePlan(c.Request.Context(), uint(planID), &updates)
+	updatedPlan, err := h.service.UpdatePlan(c.Request.Context(), planID, &updates)
 	if err != nil {
 		h.logger.Error("Failed to update plan", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -264,17 +268,18 @@ func (h *SaaSAdminHandler) UpdatePlan(c *gin.Context) {
 // DeletePlan handles deleting a plan.
 func (h *SaaSAdminHandler) DeletePlan(c *gin.Context) {
 	planIDStr := c.Param("id")
-	planID, err := strconv.ParseUint(planIDStr, 10, 32)
+	planID, err := uuid.Parse(planIDStr)
 	if err != nil {
+		h.logger.Error("Invalid plan ID format", zap.String("planId", planIDStr), zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid plan ID",
+			"error": "Invalid plan ID format, expected UUID",
 		})
 		return
 	}
 
-	h.logger.Info("Deleting SaaS plan", zap.Uint64("plan_id", planID))
+	h.logger.Info("Deleting SaaS plan", zap.String("plan_id", planID.String()))
 
-	if err := h.service.DeletePlan(c.Request.Context(), uint(planID)); err != nil {
+	if err := h.service.DeletePlan(c.Request.Context(), planID); err != nil {
 		h.logger.Error("Failed to delete plan", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to delete plan",
@@ -780,16 +785,38 @@ func (h *SaaSAdminHandler) DeletePricingFeature(c *gin.Context) {
 func (h *SaaSAdminHandler) CreatePricingTier(c *gin.Context) {
 	h.logger.Info("Creating pricing tier")
 
-	var tier models.PricingTier
-	if err := c.ShouldBindJSON(&tier); err != nil {
+	var request struct {
+		models.PricingTier
+		PlanID string `json:"plan_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
 		h.logger.Error("Invalid request body", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
 		return
 	}
 
+	// Parse plan ID as UUID
+	planID, err := uuid.Parse(request.PlanID)
+	if err != nil {
+		h.logger.Error("Invalid plan ID format", zap.String("planId", request.PlanID), zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid plan ID format, expected UUID",
+		})
+		return
+	}
+
+	tier := request.PricingTier
+	tier.PlanID = planID
+
 	if err := h.service.CreatePricingTier(c.Request.Context(), &tier); err != nil {
-		h.logger.Error("Failed to create pricing tier", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create pricing tier", "details": err.Error()})
+		h.logger.Error("Failed to create pricing tier", 
+			zap.String("plan_id", planID.String()),
+			zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to create pricing tier", 
+			"details": err.Error(),
+		})
 		return
 	}
 
@@ -805,14 +832,16 @@ func (h *SaaSAdminHandler) GetPricingTiers(c *gin.Context) {
 	h.logger.Info("Getting pricing tiers")
 
 	planIDStr := c.Param("planId")
-	planID, err := strconv.ParseUint(planIDStr, 10, 32)
+	planID, err := uuid.Parse(planIDStr)
 	if err != nil {
-		h.logger.Error("Invalid plan ID", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid plan ID"})
+		h.logger.Error("Invalid plan ID format", zap.String("planId", planIDStr), zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid plan ID format, expected UUID",
+		})
 		return
 	}
 
-	tiers, err := h.service.GetPricingTiers(c.Request.Context(), uint(planID))
+	tiers, err := h.service.GetPricingTiers(c.Request.Context(), planID)
 	if err != nil {
 		h.logger.Error("Failed to get pricing tiers", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get pricing tiers", "details": err.Error()})
@@ -833,26 +862,63 @@ func (h *SaaSAdminHandler) UpdatePricingTier(c *gin.Context) {
 	tierIDStr := c.Param("id")
 	tierID, err := strconv.ParseUint(tierIDStr, 10, 32)
 	if err != nil {
-		h.logger.Error("Invalid tier ID", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tier ID"})
+		h.logger.Error("Invalid tier ID format", 
+			zap.String("tier_id", tierIDStr), 
+			zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid tier ID, expected numeric value",
+		})
 		return
 	}
 
-	var updates models.PricingTier
-	if err := c.ShouldBindJSON(&updates); err != nil {
+	var request struct {
+		models.PricingTier
+		PlanID *string `json:"plan_id,omitempty"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
 		h.logger.Error("Invalid request body", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request body", 
+			"details": err.Error(),
+		})
 		return
 	}
 
-	updatedTier, err := h.service.UpdatePricingTier(c.Request.Context(), uint(tierID), &updates)
+	// If plan_id is provided in the request, validate it's a valid UUID
+	if request.PlanID != nil {
+		if _, err := uuid.Parse(*request.PlanID); err != nil {
+			h.logger.Error("Invalid plan ID format", 
+				zap.String("plan_id", *request.PlanID), 
+				zap.Error(err))
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Invalid plan ID format, expected UUID",
+			})
+			return
+		}
+	}
+
+	updatedTier, err := h.service.UpdatePricingTier(c.Request.Context(), uint(tierID), &request.PricingTier)
 	if err != nil {
-		h.logger.Error("Failed to update pricing tier", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update pricing tier", "details": err.Error()})
+		h.logger.Error("Failed to update pricing tier", 
+			zap.Uint("tier_id", uint(tierID)),
+			zap.Error(err))
+		status := http.StatusInternalServerError
+		errMsg := "Failed to update pricing tier"
+		if err == gorm.ErrRecordNotFound {
+			status = http.StatusNotFound
+			errMsg = "Pricing tier not found"
+		}
+		c.JSON(status, gin.H{
+			"error": errMsg, 
+			"details": err.Error(),
+		})
 		return
 	}
 
-	h.logger.Info("Pricing tier updated successfully", zap.Uint("tier_id", uint(tierID)))
+	h.logger.Info("Pricing tier updated successfully", 
+		zap.Uint("tier_id", updatedTier.ID),
+		zap.String("plan_id", updatedTier.PlanID.String()))
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Pricing tier updated successfully",
 		"tier":    updatedTier,
@@ -888,9 +954,9 @@ func (h *SaaSAdminHandler) AssignFeatureToPlan(c *gin.Context) {
 	h.logger.Info("Assigning feature to plan")
 
 	var request struct {
-		PlanID    uint `json:"plan_id" binding:"required"`
-		FeatureID uint `json:"feature_id" binding:"required"`
-		Order     int  `json:"order"`
+		PlanID    string `json:"plan_id" binding:"required"`
+		FeatureID uint   `json:"feature_id" binding:"required"`
+		Order     int    `json:"order"`
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -899,7 +965,14 @@ func (h *SaaSAdminHandler) AssignFeatureToPlan(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.AssignFeatureToPlan(c.Request.Context(), request.PlanID, request.FeatureID, request.Order); err != nil {
+	planUUID, err := uuid.Parse(request.PlanID)
+	if err != nil {
+		h.logger.Error("Invalid plan ID format", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid plan ID format"})
+		return
+	}
+
+	if err := h.service.AssignFeatureToPlan(c.Request.Context(), planUUID, request.FeatureID, request.Order); err != nil {
 		h.logger.Error("Failed to assign feature to plan", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign feature to plan", "details": err.Error()})
 		return
@@ -916,8 +989,8 @@ func (h *SaaSAdminHandler) RemoveFeatureFromPlan(c *gin.Context) {
 	h.logger.Info("Removing feature from plan")
 
 	var request struct {
-		PlanID    uint `json:"plan_id" binding:"required"`
-		FeatureID uint `json:"feature_id" binding:"required"`
+		PlanID    string `json:"plan_id" binding:"required"`
+		FeatureID uint   `json:"feature_id" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -926,13 +999,31 @@ func (h *SaaSAdminHandler) RemoveFeatureFromPlan(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.RemoveFeatureFromPlan(c.Request.Context(), request.PlanID, request.FeatureID); err != nil {
-		h.logger.Error("Failed to remove feature from plan", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove feature from plan", "details": err.Error()})
+	// Parse plan ID as UUID
+	planID, err := uuid.Parse(request.PlanID)
+	if err != nil {
+		h.logger.Error("Invalid plan ID format", zap.String("planId", request.PlanID), zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid plan ID format, expected UUID",
+		})
 		return
 	}
 
-	h.logger.Info("Feature removed from plan successfully")
+	if err := h.service.RemoveFeatureFromPlan(c.Request.Context(), planID, request.FeatureID); err != nil {
+		h.logger.Error("Failed to remove feature from plan", 
+			zap.String("plan_id", planID.String()),
+			zap.Uint("feature_id", request.FeatureID),
+			zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to remove feature from plan",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	h.logger.Info("Feature removed from plan successfully",
+		zap.String("plan_id", planID.String()),
+		zap.Uint("feature_id", request.FeatureID))
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Feature removed from plan successfully",
 	})
@@ -943,14 +1034,14 @@ func (h *SaaSAdminHandler) GetPlanFeatures(c *gin.Context) {
 	h.logger.Info("Getting plan features")
 
 	planIDStr := c.Param("planId")
-	planID, err := strconv.ParseUint(planIDStr, 10, 32)
+	planID, err := uuid.Parse(planIDStr)
 	if err != nil {
-		h.logger.Error("Invalid plan ID", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid plan ID"})
+		h.logger.Error("Invalid plan ID format", zap.String("planId", planIDStr), zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid plan ID format, expected UUID"})
 		return
 	}
 
-	features, err := h.service.GetPlanFeatures(c.Request.Context(), uint(planID))
+	features, err := h.service.GetPlanFeatures(c.Request.Context(), planID)
 	if err != nil {
 		h.logger.Error("Failed to get plan features", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get plan features", "details": err.Error()})

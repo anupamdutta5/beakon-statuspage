@@ -1,4 +1,5 @@
 // Package main is the entry point for the Incident Service.
+// This is the modernized version using the shared-resilience module.
 package main
 
 import (
@@ -11,80 +12,172 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/enterprise-status/statuspage-incident-service/internal/config"
-	"github.com/enterprise-status/statuspage-incident-service/internal/handlers"
-	"github.com/enterprise-status/statuspage-incident-service/internal/middleware"
-	"github.com/enterprise-status/statuspage-incident-service/internal/services"
-	"github.com/enterprise-status/statuspage-incident-service/pkg/logger"
+	"github.com/anupamdutta5/statuspage-shared-resilience"
+	"github.com/anupamdutta5/statuspage-incident-service/internal/handlers"
+	"github.com/anupamdutta5/statuspage-incident-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
 func main() {
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+	// Load configuration from environment variables
+	resilienceConfig := resilience.LoadConfigFromEnv()
+	if err := resilienceConfig.Validate(); err != nil {
+		log.Fatalf("Configuration validation failed: %v", err)
 	}
 
-	// Initialize logger
-	logger, err := logger.New(cfg.Server.Environment)
+	// Initialize logger based on environment
+	var logger *zap.Logger
+	var err error
+
+	if resilienceConfig.Environment == "production" {
+		logger, err = zap.NewProduction()
+		gin.SetMode(gin.ReleaseMode)
+	} else {
+		logger, err = zap.NewDevelopment()
+		gin.SetMode(gin.DebugMode)
+	}
+
 	if err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 	defer logger.Sync()
 
 	logger.Info("Starting Incident Service",
-		zap.String("service", cfg.Service.Name),
-		zap.String("version", cfg.Service.Version),
-		zap.Int("port", cfg.Server.Port),
-		zap.String("environment", cfg.Server.Environment))
+		zap.String("service", "incident-service"),
+		zap.String("version", "1.0.0"),
+		zap.String("environment", resilienceConfig.Environment),
+		zap.Int("port", resilienceConfig.Server.Port),
+	)
 
-	// Set Gin mode
-	if cfg.Server.Environment == "production" {
-		gin.SetMode(gin.ReleaseMode)
-	}
-
-	// Initialize database
-	db, err := services.InitDatabase(cfg.Database)
+	// Initialize database manager with connection pooling and health checks
+	dbManager, err := resilience.NewDatabaseManager(resilienceConfig.Database, logger)
 	if err != nil {
-		logger.Fatal("Failed to initialize database", zap.Error(err))
+		logger.Fatal("Failed to initialize database manager", zap.Error(err))
+	}
+	defer dbManager.Close()
+
+	// Test database connectivity
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := dbManager.HealthCheck(ctx); err != nil {
+		logger.Fatal("Database health check failed", zap.Error(err))
 	}
 
-	// Initialize services
-	incidentService := services.NewIncidentService(db, logger.Logger)
+	logger.Info("Database connection established successfully")
 
-	// Create router
+	// Initialize circuit breakers for external dependencies
+	var circuitBreakers = make(map[string]*resilience.CircuitBreaker)
+
+	if resilienceConfig.CircuitBreaker.Database.Enabled {
+		circuitBreakers["database"] = resilience.NewCircuitBreaker(
+			resilienceConfig.CircuitBreaker.Database.Name,
+			resilienceConfig.CircuitBreaker.Database,
+			logger,
+		)
+	}
+
+	if resilienceConfig.CircuitBreaker.External.Enabled {
+		circuitBreakers["external"] = resilience.NewCircuitBreaker(
+			resilienceConfig.CircuitBreaker.External.Name,
+			resilienceConfig.CircuitBreaker.External,
+			logger,
+		)
+	}
+
+	// Initialize cache if enabled
+	var cache resilience.Cache
+	if resilienceConfig.Cache.Enabled {
+		if resilienceConfig.Cache.Type == "redis" {
+			cache = resilience.NewRedisCache(resilienceConfig.Redis, resilienceConfig.Cache, logger)
+		} else {
+			cache = resilience.NewInMemoryCache(resilienceConfig.Cache, logger)
+		}
+		logger.Info("Cache initialized", zap.String("type", resilienceConfig.Cache.Type))
+	}
+
+	// Initialize rate limiter if enabled
+	var rateLimiter resilience.RateLimiter
+	if resilienceConfig.RateLimit.Enabled {
+		if resilienceConfig.Cache.Type == "redis" {
+			rateLimiter = resilience.NewRedisRateLimiter(resilienceConfig.Redis, resilienceConfig.RateLimit, logger)
+		} else {
+			rateLimiter = resilience.NewInMemoryRateLimiter(resilienceConfig.RateLimit, logger)
+		}
+		logger.Info("Rate limiter initialized")
+	}
+
+	// Initialize business services with modernized dependencies
+	incidentService := services.NewIncidentService(dbManager.GetDB(), logger)
+	templateService := services.NewIncidentTemplateService(dbManager.GetDB(), logger)
+
+	// Create Gin router
 	router := gin.New()
 
-	// Add middleware
-	router.Use(middleware.Logger(logger.Logger))
-	router.Use(middleware.Recovery(logger.Logger))
-	router.Use(middleware.CORS())
-	router.Use(middleware.RequestID())
+	// Add comprehensive middleware stack
+	middleware := resilience.DefaultMiddlewareStack(resilienceConfig, logger)
+	for _, mw := range middleware {
+		router.Use(mw)
+	}
 
-	// Initialize handlers
-	incidentHandler := handlers.NewIncidentHandler(incidentService, logger.Logger)
+	// Add rate limiting middleware if enabled
+	if rateLimiter != nil {
+		router.Use(resilience.RateLimitMiddleware(resilienceConfig.RateLimit.RequestsPerMinute, time.Minute))
+	}
 
-	// Setup routes
-	setupRoutes(router, incidentHandler, cfg)
+	// Initialize modernized handlers
+	incidentHandler := handlers.NewIncidentHandler(incidentService, logger)
+	templateHandler := handlers.NewIncidentTemplateHandler(templateService, logger)
 
-	// Create HTTP server
+	// Setup routes with improved structure
+	setupModernizedRoutes(router, incidentHandler, templateHandler, resilienceConfig)
+
+	// Create HTTP server with proper timeouts and configuration
 	server := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
+		Addr:         fmt.Sprintf("%s:%d", resilienceConfig.Server.Host, resilienceConfig.Server.Port),
 		Handler:      router,
-		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
-		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
-		IdleTimeout:  time.Duration(cfg.Server.IdleTimeout) * time.Second,
+		ReadTimeout:  resilienceConfig.Server.ReadTimeout,
+		WriteTimeout: resilienceConfig.Server.WriteTimeout,
+		IdleTimeout:  resilienceConfig.Server.IdleTimeout,
 	}
 
 	// Start server in a goroutine
 	go func() {
-		logger.Info("Incident Service server starting", zap.String("addr", server.Addr))
+		logger.Info("Incident Service server starting",
+			zap.String("addr", server.Addr),
+			zap.Duration("read_timeout", resilienceConfig.Server.ReadTimeout),
+			zap.Duration("write_timeout", resilienceConfig.Server.WriteTimeout),
+		)
+
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("Failed to start server", zap.Error(err))
 		}
 	}()
+
+	// Setup health check monitoring
+	if resilienceConfig.Monitoring.Enabled {
+		dbHealthChecker := resilience.NewDatabaseHealthChecker(dbManager)
+
+		// Periodically log health status
+		go func() {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ticker.C:
+					healthCtx, healthCancel := context.WithTimeout(context.Background(), 5*time.Second)
+					health := dbHealthChecker.Check(healthCtx)
+					healthCancel()
+
+					if status, ok := health["status"].(string); ok && status != "healthy" {
+						logger.Warn("Database health check failed", zap.Any("health", health))
+					}
+				}
+			}
+		}()
+	}
 
 	// Wait for interrupt signal to gracefully shutdown the server
 	quit := make(chan os.Signal, 1)
@@ -93,23 +186,46 @@ func main() {
 
 	logger.Info("Shutting down Incident Service server...")
 
-	// Give outstanding requests 30 seconds to complete
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	// Graceful shutdown with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), resilienceConfig.Server.GracefulStop)
+	defer shutdownCancel()
 
-	if err := server.Shutdown(ctx); err != nil {
-		logger.Fatal("Server forced to shutdown", zap.Error(err))
+	// Shutdown HTTP server
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		logger.Error("Server forced to shutdown", zap.Error(err))
 	}
 
-	logger.Info("Incident Service server exited")
+	// Close database connections
+	if err := dbManager.Close(); err != nil {
+		logger.Error("Failed to close database connections", zap.Error(err))
+	}
+
+	// Close cache if initialized
+	if cache != nil {
+		cache.Close()
+	}
+
+	// Close rate limiter if initialized
+	if rateLimiter != nil {
+		rateLimiter.Close()
+	}
+
+	logger.Info("Incident Service server exited gracefully")
 }
 
-// setupRoutes configures all the routes for the Incident Service.
-func setupRoutes(router *gin.Engine, handler *handlers.IncidentHandler, cfg *config.Config) {
-	// Health check endpoint
-	router.GET("/health", handler.Health)
+// setupModernizedRoutes configures all the routes with improved structure and security
+func setupModernizedRoutes(router *gin.Engine, handler *handlers.IncidentHandler, templateHandler *handlers.IncidentTemplateHandler, resilienceConfig *resilience.Config) {
+	// Health check endpoints (excluded from auth and rate limiting)
+	health := router.Group("/health")
+	{
+		health.GET("", handler.Health)
+	}
 
-	// API routes
+	// Metrics endpoint (excluded from auth)
+	if resilienceConfig.Monitoring.MetricsEnabled {
+	}
+
+	// API routes with versioning
 	api := router.Group("/api/v1")
 	{
 		// Public routes (no authentication required)
@@ -121,9 +237,17 @@ func setupRoutes(router *gin.Engine, handler *handlers.IncidentHandler, cfg *con
 
 		// Protected routes (authentication required)
 		protected := api.Group("/")
-		protected.Use(middleware.Auth(cfg.JWT.Secret))
+
+		// Add JWT authentication middleware
+		if resilienceConfig.JWT.Secret != "" {
+			protected.Use(resilience.AuthMiddleware(resilienceConfig.JWT))
+		}
+
+		// Add tenant middleware for multi-tenancy
+		protected.Use(resilience.TenantMiddleware())
+
 		{
-			// Incident management routes
+			// Incident management routes (only including existing handlers)
 			incidents := protected.Group("/incidents")
 			{
 				incidents.GET("", handler.GetIncidents)
@@ -131,21 +255,59 @@ func setupRoutes(router *gin.Engine, handler *handlers.IncidentHandler, cfg *con
 				incidents.GET("/:id", handler.GetIncident)
 				incidents.PUT("/:id", handler.UpdateIncident)
 				incidents.DELETE("/:id", handler.DeleteIncident)
-				incidents.PUT("/:id/status", handler.UpdateIncidentStatus)
+
+				// Incident updates (using existing handlers)
 				incidents.POST("/:id/updates", handler.AddIncidentUpdate)
 				incidents.PUT("/:id/updates/:update_id", handler.UpdateIncidentUpdate)
 				incidents.DELETE("/:id/updates/:update_id", handler.DeleteIncidentUpdate)
 			}
 
-			// Incident template management
-			templates := protected.Group("/incident-templates")
+			// Incident templates management
+			templates := protected.Group("/templates")
 			{
-				templates.GET("", handler.GetIncidentTemplates)
-				templates.POST("", handler.CreateIncidentTemplate)
-				templates.GET("/:id", handler.GetIncidentTemplate)
-				templates.PUT("/:id", handler.UpdateIncidentTemplate)
-				templates.DELETE("/:id", handler.DeleteIncidentTemplate)
+				templates.GET("", templateHandler.GetTemplates)
+				templates.POST("", templateHandler.CreateTemplate)
+				templates.GET("/:id", templateHandler.GetTemplate)
+				templates.PUT("/:id", templateHandler.UpdateTemplate)
+				templates.DELETE("/:id", templateHandler.DeleteTemplate)
+				templates.POST("/:id/clone", templateHandler.CloneTemplate)
+				templates.POST("/:id/create-incident", templateHandler.CreateIncidentFromTemplate)
+
+				// Workflow step management
+				templates.POST("/:template_id/steps", templateHandler.CreateWorkflowStep)
+				templates.PUT("/steps/:step_id", templateHandler.UpdateWorkflowStep)
+				templates.DELETE("/steps/:step_id", templateHandler.DeleteWorkflowStep)
+				templates.PUT("/:template_id/steps/reorder", templateHandler.ReorderWorkflowSteps)
+			}
+
+			// Workflow execution management
+			workflows := protected.Group("/workflows")
+			{
+				workflows.GET("/incidents/:incident_id/executions", templateHandler.GetStepExecutions)
+				workflows.POST("/executions/:execution_id/execute", templateHandler.ExecuteManualStep)
+			}
+
+			// Administrative template functions
+			admin := protected.Group("/admin")
+			{
+				admin.POST("/initialize-templates", templateHandler.InitializeDefaultTemplates)
 			}
 		}
 	}
+
+	// Admin routes with additional security
+	admin := router.Group("/admin/v1")
+	admin.Use(resilience.AuthMiddleware(resilienceConfig.JWT))
+	admin.Use(resilience.TenantMiddleware())
+	// admin.Use(middleware.RequireRole("admin")) // Would be implemented
+	{
+		// Admin routes will be implemented as needed
+		// For now, only include basic health endpoint
+	}
+
+	// Webhook endpoints for external integrations (to be implemented)
+	// webhooks := router.Group("/webhooks")
+	// {
+	//     // Webhook handlers will be implemented as needed
+	// }
 }

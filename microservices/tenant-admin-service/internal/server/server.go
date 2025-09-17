@@ -8,10 +8,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/enterprise-status/statuspage-tenant-admin-service/internal/config"
-	"github.com/enterprise-status/statuspage-tenant-admin-service/internal/handlers"
-	"github.com/enterprise-status/statuspage-tenant-admin-service/internal/middleware"
-	"github.com/enterprise-status/statuspage-tenant-admin-service/internal/services"
+	"github.com/anupamdutta5/statuspage-tenant-admin-service/internal/config"
+	"github.com/anupamdutta5/statuspage-tenant-admin-service/internal/handlers"
+	"github.com/anupamdutta5/statuspage-tenant-admin-service/internal/middleware"
+	"github.com/anupamdutta5/statuspage-tenant-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -36,11 +36,11 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 
 	// Initialize status page management service
 	statusPageService := services.NewStatusPageManagementService(service.GetDB(), logger, &services.StatusPageConfig{
-		ComponentServiceURL:    "http://localhost:8082",
-		IncidentServiceURL:     "http://localhost:8083",
-		MonitoringServiceURL:   "http://localhost:8088",
-		NotificationServiceURL: "http://localhost:8085",
-		BrandingServiceURL:     "http://localhost:8089",
+		ComponentServiceURL:    cfg.Services.ComponentServiceURL,
+		IncidentServiceURL:     cfg.Services.IncidentServiceURL,
+		MonitoringServiceURL:   cfg.Services.MonitoringServiceURL,
+		NotificationServiceURL: cfg.Services.NotificationServiceURL,
+		BrandingServiceURL:     cfg.Services.BrandingServiceURL,
 	})
 
 	// Set Gin mode
@@ -57,8 +57,8 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 	// Add middleware
 	router.Use(middleware.Logger(logger))
 	router.Use(middleware.Recovery(logger))
-	router.Use(middleware.CORS())
-	router.Use(middleware.RequestID())
+	router.Use(cors.Default())
+	router.Use(gin.Logger())
 
 	// Initialize handlers
 	handler := handlers.NewTenantAdminHandler(service, statusPageService, logger)

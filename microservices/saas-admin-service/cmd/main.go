@@ -1,79 +1,148 @@
 // Package main is the entry point for the SaaS Admin Service.
+// This is the modernized version using the shared-resilience module.
 package main
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/enterprise-status/statuspage-saas-admin-service/internal/config"
-	"github.com/enterprise-status/statuspage-saas-admin-service/internal/server"
-	"github.com/enterprise-status/statuspage-saas-admin-service/pkg/logger"
+	"github.com/anupamdutta5/statuspage-shared-resilience"
+	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/handlers"
+	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/services"
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
 func main() {
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+	// Load configuration from environment variables
+	resilienceConfig := resilience.LoadConfigFromEnv()
+	if err := resilienceConfig.Validate(); err != nil {
+		log.Fatalf("Configuration validation failed: %v", err)
 	}
 
-	// Initialize logger
-	logger, err := logger.New(cfg.Environment)
+	// Initialize logger based on environment
+	var logger *zap.Logger
+	var err error
+
+	if resilienceConfig.Environment == "production" {
+		logger, err = zap.NewProduction()
+		gin.SetMode(gin.ReleaseMode)
+	} else {
+		logger, err = zap.NewDevelopment()
+		gin.SetMode(gin.DebugMode)
+	}
+
 	if err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 	defer logger.Sync()
 
 	logger.Info("Starting SaaS Admin Service",
-		zap.String("service", cfg.Service.Name),
-		zap.String("version", cfg.Service.Version),
-		zap.String("environment", cfg.Environment))
+		zap.String("service", "saas-admin-service"),
+		zap.String("version", "1.0.0"),
+		zap.String("environment", resilienceConfig.Environment),
+		zap.Int("port", resilienceConfig.Server.Port),
+	)
 
-	// Initialize server
-	srv, err := server.New(cfg, logger.Logger)
+	// Initialize database manager with connection pooling and health checks
+	dbManager, err := resilience.NewDatabaseManager(resilienceConfig.Database, logger)
 	if err != nil {
-		logger.Fatal("Failed to initialize server", zap.Error(err))
+		logger.Fatal("Failed to initialize database manager", zap.Error(err))
+	}
+	defer dbManager.Close()
+
+	// Create Gin router
+	router := gin.New()
+
+	// Add comprehensive middleware stack
+	middleware := resilience.DefaultMiddlewareStack(resilienceConfig, logger)
+	for _, mw := range middleware {
+		router.Use(mw)
 	}
 
-	// Start server
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// Initialize saas admin service and handlers
+	saasAdminService, err := services.NewSaaSAdminService(nil, logger, dbManager.GetDB())
+	if err != nil {
+		logger.Fatal("Failed to create SaaS admin service", zap.Error(err))
+	}
+	saasAdminHandler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
+
+	// Setup basic routes
+	router.GET("/health", saasAdminHandler.HealthCheck)
+	router.GET("/api/v1/plans", saasAdminHandler.ListPlans)
+
+	// Create HTTP server with proper timeouts and configuration
+	server := &http.Server{
+		Addr:         fmt.Sprintf("%s:%d", resilienceConfig.Server.Host, resilienceConfig.Server.Port),
+		Handler:      router,
+		ReadTimeout:  resilienceConfig.Server.ReadTimeout,
+		WriteTimeout: resilienceConfig.Server.WriteTimeout,
+		IdleTimeout:  resilienceConfig.Server.IdleTimeout,
+	}
 
 	// Start server in a goroutine
 	go func() {
-		logger.Info("SaaS Admin Service starting...")
-		if err := srv.Start(ctx); err != nil {
+		logger.Info("SaaS Admin Service server starting",
+			zap.String("addr", server.Addr),
+			zap.Duration("read_timeout", resilienceConfig.Server.ReadTimeout),
+			zap.Duration("write_timeout", resilienceConfig.Server.WriteTimeout),
+		)
+
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("Failed to start server", zap.Error(err))
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown
+	// Setup health check monitoring
+	if resilienceConfig.Monitoring.Enabled {
+		dbHealthChecker := resilience.NewDatabaseHealthChecker(dbManager)
+
+		// Periodically log health status
+		go func() {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ticker.C:
+					healthCtx, healthCancel := context.WithTimeout(context.Background(), 5*time.Second)
+					health := dbHealthChecker.Check(healthCtx)
+					healthCancel()
+
+					if status, ok := health["status"].(string); ok && status != "healthy" {
+						logger.Warn("Database health check failed", zap.Any("health", health))
+					}
+				}
+			}
+		}()
+	}
+
+	// Wait for interrupt signal to gracefully shutdown the server
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Info("Shutting down SaaS Admin Service...")
+	logger.Info("Shutting down SaaS Admin Service server...")
 
-	// Cancel context to stop server
-	cancel()
-
-	// Give server time to finish processing
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Graceful shutdown with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), resilienceConfig.Server.GracefulStop)
 	defer shutdownCancel()
 
-	// Wait for server to stop
-	select {
-	case <-shutdownCtx.Done():
-		logger.Warn("SaaS Admin Service shutdown timeout")
-	default:
-		logger.Info("SaaS Admin Service stopped gracefully")
+	// Shutdown HTTP server
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		logger.Error("Server forced to shutdown", zap.Error(err))
 	}
 
-	logger.Info("SaaS Admin Service exited")
-}
+	// Close database connections
+	if err := dbManager.Close(); err != nil {
+		logger.Error("Failed to close database connections", zap.Error(err))
+	}
 
+	logger.Info("SaaS Admin Service server exited gracefully")
+}

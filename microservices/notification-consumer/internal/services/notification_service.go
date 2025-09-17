@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/enterprise-status/statuspage-notification-consumer/internal/models"
+	"github.com/anupamdutta5/statuspage-notification-consumer/internal/models"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
