@@ -73,3 +73,8 @@ logs/
 secrets/
 *.backup
 *_backup
+
+# Individual microservice repositories
+microservices/notification-consumer/
+microservices/shared-resilience/
+microservices/status-page-ui-service/
