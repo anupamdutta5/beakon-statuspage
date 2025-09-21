@@ -1,9 +1,9 @@
-module github.com/anupamdutta5/statuspage-landing-service
+module github.com/anupamdutta5/landing-page-service
 
 go 1.25.0
 
 require (
-	github.com/anupamdutta5/statuspage-shared-resilience v0.0.0
+	github.com/anupamdutta5/shared-resilience v0.0.0
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-gonic/gin v1.10.1
 	github.com/lib/pq v1.10.9
@@ -56,4 +56,4 @@ require (
 	google.golang.org/protobuf v1.36.6 // indirect
 )
 
-replace github.com/anupamdutta5/statuspage-shared-resilience => ../shared-resilience
+replace github.com/anupamdutta5/shared-resilience => ../shared-resilience

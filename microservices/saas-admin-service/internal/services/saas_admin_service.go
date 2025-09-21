@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/config"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/models"
+	"github.com/anupamdutta5/saas-admin-service/internal/config"
+	"github.com/anupamdutta5/saas-admin-service/internal/models"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

@@ -1,43 +1,64 @@
 // Package main is the entry point for the Database Service.
+// This is the modernized version using the shared-resilience module.
 package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-database-service/internal/config"
-	"github.com/anupamdutta5/statuspage-database-service/internal/server"
-	"github.com/anupamdutta5/statuspage-database-service/pkg/logger"
+	"github.com/anupamdutta5/shared-resilience"
+	"github.com/anupamdutta5/database-service/internal/config"
+	"github.com/anupamdutta5/database-service/internal/server"
+	"github.com/anupamdutta5/database-service/pkg/logger"
 	"go.uber.org/zap"
 )
 
 func main() {
-	// Load configuration
-	cfg, err := config.Load()
+	// Load configuration from environment variables
+	resilConfig := resilience.LoadConfigFromEnv()
+
+	// Create startup manager for proper error handling
+	startupMgr, err := resilience.NewStartupManager("database-service", resilConfig)
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		// This is the only acceptable use of fatal - when we can't even initialize logging
+		fmt.Fprintf(os.Stderr, "Failed to create startup manager: %v\n", err)
+		os.Exit(1)
 	}
 
-	// Initialize logger
-	logger, err := logger.New(cfg.Environment)
-	if err != nil {
-		log.Fatalf("Failed to initialize logger: %v", err)
-	}
+	// Set up panic recovery
+	defer startupMgr.RecoverFromPanic()
+
+	logger := startupMgr.Logger
 	defer logger.Sync()
 
+	// Validate configuration
+	if err := startupMgr.ValidateConfiguration(); err != nil {
+		startupMgr.HandleStartupError(err)
+		return
+	}
+
+	// Load legacy configuration
+	cfg, err := config.Load()
+	if err != nil {
+		startupMgr.HandleStartupError(fmt.Errorf("failed to load configuration: %w", err))
+		return
+	}
+
 	logger.Info("Starting Database Service",
-		zap.String("service", cfg.Service.Name),
-		zap.String("version", cfg.Service.Version),
-		zap.String("environment", cfg.Environment))
+		zap.String("service", "database-service"),
+		zap.String("version", "1.0.0"),
+		zap.String("environment", resilConfig.Environment))
 
 	// Initialize server
-	srv, err := server.New(cfg, logger.Logger)
+	srv, err := server.New(cfg, logger)
 	if err != nil {
-		logger.Fatal("Failed to initialize server", zap.Error(err))
+		startupMgr.HandleStartupError(fmt.Errorf("failed to initialize server: %w", err))
+		return
 	}
 
 	// Start server
@@ -48,7 +69,8 @@ func main() {
 	go func() {
 		logger.Info("Database Service starting...")
 		if err := srv.Start(ctx); err != nil {
-			logger.Fatal("Failed to start server", zap.Error(err))
+			logger.Error("Failed to start server", zap.Error(err))
+			cancel()
 		}
 	}()
 

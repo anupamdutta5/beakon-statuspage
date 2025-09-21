@@ -1,9 +1,9 @@
-module github.com/anupamdutta5/statuspage-event-store-service
+module github.com/anupamdutta5/event-store-service
 
 go 1.25.0
 
 require (
-	github.com/anupamdutta5/statuspage-shared-resilience v0.0.0
+	github.com/anupamdutta5/shared-resilience v0.0.0
 	github.com/gin-gonic/gin v1.10.1
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.10.9
@@ -56,4 +56,4 @@ require (
 	google.golang.org/protobuf v1.36.6 // indirect
 )
 
-replace github.com/anupamdutta5/statuspage-shared-resilience => ../shared-resilience
+replace github.com/anupamdutta5/shared-resilience => ../shared-resilience

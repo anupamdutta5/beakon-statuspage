@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/config"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/database"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/handlers"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/middleware"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/services"
+	"github.com/anupamdutta5/saas-admin-service/internal/config"
+	"github.com/anupamdutta5/saas-admin-service/internal/database"
+	"github.com/anupamdutta5/saas-admin-service/internal/handlers"
+	"github.com/anupamdutta5/saas-admin-service/internal/middleware"
+	"github.com/anupamdutta5/saas-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )

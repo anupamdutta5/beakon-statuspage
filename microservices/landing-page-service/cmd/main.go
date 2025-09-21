@@ -9,9 +9,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-landing-service/internal/config"
-	"github.com/anupamdutta5/statuspage-landing-service/internal/server"
-	"github.com/anupamdutta5/statuspage-landing-service/pkg/logger"
+	"github.com/anupamdutta5/landing-page-service/internal/config"
+	"github.com/anupamdutta5/landing-page-service/internal/server"
+	"github.com/anupamdutta5/landing-page-service/pkg/logger"
 	"go.uber.org/zap"
 )
 

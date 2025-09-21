@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-notification-service/internal/models"
-	"github.com/anupamdutta5/statuspage-notification-service/internal/providers"
+	"github.com/anupamdutta5/notification-service/internal/models"
+	"github.com/anupamdutta5/notification-service/internal/providers"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )

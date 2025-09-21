@@ -1,14 +1,17 @@
 // Package main is the entry point for the Analytics Consumer.
+// This is the modernized version using the shared-resilience module.
 package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/anupamdutta5/shared-resilience"
 	"github.com/anupamdutta5/statuspage-analytics-consumer/internal/config"
 	"github.com/anupamdutta5/statuspage-analytics-consumer/internal/consumer"
 	"github.com/anupamdutta5/statuspage-analytics-consumer/pkg/logger"
@@ -16,28 +19,46 @@ import (
 )
 
 func main() {
-	// Load configuration
-	cfg, err := config.Load()
+	// Load configuration from environment variables
+	resilConfig := resilience.LoadConfigFromEnv()
+
+	// Create startup manager for proper error handling
+	startupMgr, err := resilience.NewStartupManager("analytics-consumer", resilConfig)
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		// This is the only acceptable use of fatal - when we can't even initialize logging
+		fmt.Fprintf(os.Stderr, "Failed to create startup manager: %v\n", err)
+		os.Exit(1)
 	}
 
-	// Initialize logger
-	logger, err := logger.New(cfg.Environment)
-	if err != nil {
-		log.Fatalf("Failed to initialize logger: %v", err)
-	}
+	// Set up panic recovery
+	defer startupMgr.RecoverFromPanic()
+
+	logger := startupMgr.Logger
 	defer logger.Sync()
 
+	// Validate configuration
+	if err := startupMgr.ValidateConfiguration(); err != nil {
+		startupMgr.HandleStartupError(err)
+		return
+	}
+
+	// Load legacy configuration
+	cfg, err := config.Load()
+	if err != nil {
+		startupMgr.HandleStartupError(fmt.Errorf("failed to load configuration: %w", err))
+		return
+	}
+
 	logger.Info("Starting Analytics Consumer",
-		zap.String("service", cfg.Service.Name),
-		zap.String("version", cfg.Service.Version),
-		zap.String("environment", cfg.Environment))
+		zap.String("service", "analytics-consumer"),
+		zap.String("version", "1.0.0"),
+		zap.String("environment", resilConfig.Environment))
 
 	// Initialize consumer
-	analyticsConsumer, err := consumer.NewAnalyticsConsumer(cfg, logger.Logger)
+	analyticsConsumer, err := consumer.NewAnalyticsConsumer(cfg, logger)
 	if err != nil {
-		logger.Fatal("Failed to initialize analytics consumer", zap.Error(err))
+		startupMgr.HandleStartupError(fmt.Errorf("failed to initialize analytics consumer: %w", err))
+		return
 	}
 
 	// Start consumer
@@ -48,7 +69,8 @@ func main() {
 	go func() {
 		logger.Info("Analytics Consumer starting...")
 		if err := analyticsConsumer.Start(ctx); err != nil {
-			logger.Fatal("Failed to start analytics consumer", zap.Error(err))
+			logger.Error("Failed to start analytics consumer", zap.Error(err))
+			cancel()
 		}
 	}()
 

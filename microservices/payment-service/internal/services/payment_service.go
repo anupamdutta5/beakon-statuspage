@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-payment-service/internal/config"
-	"github.com/anupamdutta5/statuspage-payment-service/internal/models"
+	"github.com/anupamdutta5/payment-service/internal/config"
+	"github.com/anupamdutta5/payment-service/internal/models"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

@@ -5,7 +5,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/models"
+	"github.com/anupamdutta5/saas-admin-service/internal/models"
 )
 
 // SeedPricingPlans populates the database with sample pricing plans

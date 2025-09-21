@@ -9,9 +9,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/anupamdutta5/statuspage-notification-service/internal/handlers"
-	"github.com/anupamdutta5/statuspage-notification-service/internal/models"
-	"github.com/anupamdutta5/statuspage-notification-service/internal/services"
+	"github.com/anupamdutta5/notification-service/internal/handlers"
+	"github.com/anupamdutta5/notification-service/internal/models"
+	"github.com/anupamdutta5/notification-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-branding-service/internal/config"
-	"github.com/anupamdutta5/statuspage-branding-service/internal/handlers"
-	"github.com/anupamdutta5/statuspage-branding-service/internal/middleware"
-	"github.com/anupamdutta5/statuspage-branding-service/internal/services"
+	"github.com/anupamdutta5/branding-service/internal/config"
+	"github.com/anupamdutta5/branding-service/internal/handlers"
+	"github.com/anupamdutta5/branding-service/internal/middleware"
+	"github.com/anupamdutta5/branding-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )

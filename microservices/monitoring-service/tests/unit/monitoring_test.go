@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-monitoring-service/internal/handlers"
-	"github.com/anupamdutta5/statuspage-monitoring-service/internal/models"
-	"github.com/anupamdutta5/statuspage-monitoring-service/internal/services"
+	"github.com/anupamdutta5/monitoring-service/internal/handlers"
+	"github.com/anupamdutta5/monitoring-service/internal/models"
+	"github.com/anupamdutta5/monitoring-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

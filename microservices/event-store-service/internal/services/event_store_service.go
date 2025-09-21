@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-event-store-service/internal/config"
-	"github.com/anupamdutta5/statuspage-event-store-service/internal/models"
+	"github.com/anupamdutta5/event-store-service/internal/config"
+	"github.com/anupamdutta5/event-store-service/internal/models"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"

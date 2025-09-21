@@ -3,10 +3,10 @@ package main
 import (
 	"log"
 
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/config"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/database"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/models"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/seed"
+	"github.com/anupamdutta5/saas-admin-service/internal/config"
+	"github.com/anupamdutta5/saas-admin-service/internal/database"
+	"github.com/anupamdutta5/saas-admin-service/internal/models"
+	"github.com/anupamdutta5/saas-admin-service/internal/seed"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/driver/postgres"

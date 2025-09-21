@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/models"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/services"
+	"github.com/anupamdutta5/saas-admin-service/internal/models"
+	"github.com/anupamdutta5/saas-admin-service/internal/services"
 )
 
 type PricingPlanHandler struct {

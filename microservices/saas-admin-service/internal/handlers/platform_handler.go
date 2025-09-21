@@ -4,8 +4,8 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/models"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/services"
+	"github.com/anupamdutta5/saas-admin-service/internal/models"
+	"github.com/anupamdutta5/saas-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )

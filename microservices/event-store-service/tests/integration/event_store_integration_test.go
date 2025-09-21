@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-event-store-service/internal/config"
-	"github.com/anupamdutta5/statuspage-event-store-service/internal/models"
-	"github.com/anupamdutta5/statuspage-event-store-service/internal/services"
+	"github.com/anupamdutta5/event-store-service/internal/config"
+	"github.com/anupamdutta5/event-store-service/internal/models"
+	"github.com/anupamdutta5/event-store-service/internal/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-payment-service/internal/handlers"
-	"github.com/anupamdutta5/statuspage-payment-service/internal/models"
-	"github.com/anupamdutta5/statuspage-payment-service/internal/services"
+	"github.com/anupamdutta5/payment-service/internal/handlers"
+	"github.com/anupamdutta5/payment-service/internal/models"
+	"github.com/anupamdutta5/payment-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

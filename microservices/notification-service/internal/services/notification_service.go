@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-notification-service/internal/config"
-	"github.com/anupamdutta5/statuspage-notification-service/internal/models"
+	"github.com/anupamdutta5/notification-service/internal/config"
+	"github.com/anupamdutta5/notification-service/internal/models"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

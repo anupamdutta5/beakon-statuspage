@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	resilience "github.com/anupamdutta5/statuspage-shared-resilience"
+	resilience "github.com/anupamdutta5/shared-resilience"
 
 	"go.uber.org/zap"
 )

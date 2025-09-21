@@ -12,11 +12,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-shared-resilience"
-	"github.com/anupamdutta5/statuspage-tenant-admin-service/internal/config"
-	"github.com/anupamdutta5/statuspage-tenant-admin-service/internal/handlers"
-	"github.com/anupamdutta5/statuspage-tenant-admin-service/internal/middleware"
-	"github.com/anupamdutta5/statuspage-tenant-admin-service/internal/services"
+	"github.com/anupamdutta5/shared-resilience"
+	"github.com/anupamdutta5/tenant-admin-service/internal/config"
+	"github.com/anupamdutta5/tenant-admin-service/internal/handlers"
+	"github.com/anupamdutta5/tenant-admin-service/internal/middleware"
+	"github.com/anupamdutta5/tenant-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -225,6 +225,7 @@ func main() {
 
 	// Close cache if initialized
 	if cache != nil {
+		cache.Close()
 	}
 
 	// Close rate limiter if initialized

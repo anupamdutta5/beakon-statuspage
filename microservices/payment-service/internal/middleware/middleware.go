@@ -11,7 +11,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"go.uber.org/zap"
 
-	resilience "github.com/anupamdutta5/statuspage-shared-resilience"
+	resilience "github.com/anupamdutta5/shared-resilience"
 )
 
 // Logger middleware for request logging.

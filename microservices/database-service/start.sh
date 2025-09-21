@@ -1,56 +1,78 @@
 #!/bin/bash
 
 # Database Service Startup Script
-# This script sets up environment variables and starts the Database Service
 
-echo "Starting Database Service..."
+# Load environment variables from .env file if it exists
+if [ -f .env ]; then
+    echo "Loading environment from .env file..."
+    export $(cat .env | grep -v '^#' | xargs)
+else
+    echo "Warning: No .env file found. Using default development settings."
+    echo "For production, create .env file from .env.example"
 
-# Set required environment variables
-export ENVIRONMENT="development"
+    # Development-only defaults (DO NOT use in production)
+    export PORT=${PORT:-8095}
+    export HOST=${HOST:-"0.0.0.0"}
+    export ENVIRONMENT=${ENVIRONMENT:-"development"}
+
+    # Security check for JWT_SECRET
+    if [ -z "$JWT_SECRET" ]; then
+        if [ "$ENVIRONMENT" = "production" ]; then
+            echo "ERROR: JWT_SECRET must be set in production environment"
+            exit 1
+        else
+            # Generate a random secret for development only
+            export JWT_SECRET=$(openssl rand -base64 32 2>/dev/null || echo "dev-only-insecure-secret")
+            echo "Generated development JWT_SECRET (not for production use)"
+        fi
+    fi
+
+    export JWT_EXPIRATION=${JWT_EXPIRATION:-24}
+    export JWT_ISSUER=${JWT_ISSUER:-"statuspage-database-service"}
+
+    # Database configuration with security checks
+    export DB_HOST=${DB_HOST:-"localhost"}
+    export DB_PORT=${DB_PORT:-5432}
+    export DB_USER=${DB_USER:-"postgres"}
+
+    if [ -z "$DB_PASSWORD" ]; then
+        if [ "$ENVIRONMENT" = "production" ]; then
+            echo "ERROR: DB_PASSWORD must be set in production environment"
+            exit 1
+        else
+            export DB_PASSWORD="postgres"
+            echo "Warning: Using default DB_PASSWORD (development only)"
+        fi
+    fi
+
+    export DB_NAME=${DB_NAME:-"statuspage_database_service"}
+    export DB_SSL_MODE=${DB_SSL_MODE:-"disable"}
+    export DB_MAX_CONNS=${DB_MAX_CONNS:-100}
+    export DB_MIN_CONNS=${DB_MIN_CONNS:-10}
+fi
+
+# Service configuration
 export SERVICE_NAME="database-service"
 export SERVICE_VERSION="1.0.0"
+export SERVICE_DESCRIPTION="Database Management Service for Status Page"
+
+# Monitoring
+export MONITORING_ENABLED=true
+export METRICS_PORT=9090
+export HEALTH_PORT=8081
 export LOG_LEVEL="info"
-export LOG_FORMAT="json"
 
-# Server configuration
-export SERVER_HOST="0.0.0.0"
-export SERVER_PORT=8095
-export SERVER_READ_TIMEOUT=30
-export SERVER_WRITE_TIMEOUT=30
-export SERVER_IDLE_TIMEOUT=120
+# Server timeouts
+export READ_TIMEOUT=30
+export WRITE_TIMEOUT=30
+export IDLE_TIMEOUT=120
 
-# Database configuration
-export DB_HOST="localhost"
-export DB_PORT=5432
-export DB_USER="postgres"
-export DB_PASSWORD="postgres"
-export DB_NAME="statuspage_database"
-export DB_SSL_MODE="disable"
-export DB_MAX_CONNS=100
-export DB_MIN_CONNS=10
-export DB_MAX_IDLE=10
-export DB_MAX_LIFETIME=3600
-
-# Cache configuration
-export CACHE_PROVIDER="redis"
-export CACHE_HOST="localhost"
-export CACHE_PORT=6379
-export CACHE_PASSWORD=""
-export CACHE_DB=0
-export CACHE_TTL=3600
-
-echo "Environment variables set:"
-echo "  ENVIRONMENT: $ENVIRONMENT"
-echo "  SERVICE_NAME: $SERVICE_NAME"
-echo "  SERVER_HOST: $SERVER_HOST"
-echo "  SERVER_PORT: $SERVER_PORT"
-echo "  DB_HOST: $DB_HOST"
-echo "  DB_PORT: $DB_PORT"
-echo "  DB_NAME: $DB_NAME"
-echo "  CACHE_PROVIDER: $CACHE_PROVIDER"
-echo "  CACHE_HOST: $CACHE_HOST"
-
-# Start the Database Service
 echo "Starting Database Service..."
+echo "Port: $PORT"
+echo "Environment: $ENVIRONMENT"
+echo "Service: $SERVICE_NAME v$SERVICE_VERSION"
+echo "Database: $DB_HOST:$DB_PORT/$DB_NAME"
+
+# Start the service
 go run ./cmd
 

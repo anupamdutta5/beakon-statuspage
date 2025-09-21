@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-incident-service/internal/models"
+	"github.com/anupamdutta5/incident-service/internal/models"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )

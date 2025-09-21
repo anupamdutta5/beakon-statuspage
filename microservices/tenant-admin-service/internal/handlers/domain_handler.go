@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/anupamdutta5/statuspage-tenant-admin-service/internal/services"
+	"github.com/anupamdutta5/tenant-admin-service/internal/services"
 	"go.uber.org/zap"
 )
 

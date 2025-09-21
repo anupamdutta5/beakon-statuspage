@@ -4,12 +4,13 @@ package server
 import (
 	"context"
 	"fmt"
+	"html/template"
 	"net/http"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-landing-service/internal/config"
-	"github.com/anupamdutta5/statuspage-landing-service/internal/handlers"
-	"github.com/anupamdutta5/statuspage-landing-service/internal/services"
+	"github.com/anupamdutta5/landing-page-service/internal/config"
+	"github.com/anupamdutta5/landing-page-service/internal/handlers"
+	"github.com/anupamdutta5/landing-page-service/internal/services"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -39,6 +40,26 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 
 	// Create router
 	router := gin.New()
+
+	// Configure HTML templates with custom functions
+	funcMap := template.FuncMap{
+		"mul": func(a, b int) int {
+			return a * b
+		},
+		"add": func(a, b int) int {
+			return a + b
+		},
+		"sub": func(a, b int) int {
+			return a - b
+		},
+		"mulFloat": func(a int, b float64) float64 {
+			return float64(a) * b
+		},
+	}
+
+	// Load templates
+	tmpl := template.Must(template.New("").Funcs(funcMap).ParseGlob("web/templates/*.html"))
+	router.SetHTMLTemplate(tmpl)
 
 	// Add middleware
 	router.Use(gin.Logger())
@@ -117,6 +138,12 @@ func setupRoutes(router *gin.Engine, handler *handlers.LandingHandler) {
 	router.GET("/privacy", handler.PrivacyPage)
 	router.GET("/terms", handler.TermsPage)
 
+	// Authentication routes
+	router.GET("/login", handler.LoginPage)
+	router.GET("/signup", handler.SignupPage)
+	router.GET("/payment", handler.PaymentPage)
+	router.GET("/dashboard", handler.DashboardPage)
+
 	// API routes
 	api := router.Group("/api/v1")
 	{
@@ -125,6 +152,11 @@ func setupRoutes(router *gin.Engine, handler *handlers.LandingHandler) {
 
 		// Newsletter
 		api.POST("/newsletter", handler.SubscribeNewsletter)
+
+		// Mock Authentication & Payment APIs
+		api.POST("/auth/login", handler.MockLogin)
+		api.POST("/auth/signup", handler.MockSignup)
+		api.POST("/payment/process", handler.MockPayment)
 
 		// Pricing plans sync (from SaaS Admin Service)
 		api.POST("/pricing/sync", handler.SyncPricingPlans)

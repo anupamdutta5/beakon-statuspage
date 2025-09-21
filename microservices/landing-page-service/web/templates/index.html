@@ -6,35 +6,48 @@
     <title>{{.SiteName}} - {{.SiteDescription}}</title>
     <meta name="description" content="{{.SiteDescription}}">
     <meta name="keywords" content="{{range $i, $keyword := .SiteKeywords}}{{if $i}}, {{end}}{{$keyword}}{{end}}">
-    
+
     <!-- Open Graph -->
     <meta property="og:title" content="{{.SiteName}} - {{.SiteDescription}}">
     <meta property="og:description" content="{{.SiteDescription}}">
     <meta property="og:image" content="{{.OGImage}}">
     <meta property="og:url" content="{{.SiteURL}}">
     <meta property="og:type" content="website">
-    
+
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{.SiteName}} - {{.SiteDescription}}">
     <meta name="twitter:description" content="{{.SiteDescription}}">
     <meta name="twitter:image" content="{{.OGImage}}">
-    
+
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="{{.Favicon}}">
-    
-    <!-- Fonts -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/images/apple-touch-icon.png">
+
+    <!-- Preconnect for performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <!-- Styles -->
     <link rel="stylesheet" href="/static/css/landing.css">
+    <link rel="stylesheet" href="/static/css/animations.css">
     {{if .CustomCSS}}<style>{{.CustomCSS}}</style>{{end}}
-    
+
+    <!-- Theme detection script (inline for immediate execution) -->
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
+
     <!-- Analytics -->
     {{if .AnalyticsID}}
     <script async src="https://www.googletagmanager.com/gtag/js?id={{.AnalyticsID}}"></script>
@@ -47,232 +60,255 @@
     {{end}}
 </head>
 <body>
+    <!-- Skip to main content link for accessibility -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <!-- Scroll progress indicator -->
+    <div class="scroll-progress" aria-hidden="true"></div>
+
     <!-- Navigation -->
-    <nav class="navbar">
+    <nav class="navbar" role="navigation" aria-label="Main navigation">
         <div class="nav-container">
             <div class="nav-brand">
-                <img src="/static/images/logo.svg" alt="{{.SiteName}}" class="nav-logo">
+                <img src="/static/images/logo.svg" alt="{{.SiteName}}" class="nav-logo" width="40" height="40">
                 <span class="nav-title">{{.SiteName}}</span>
             </div>
-            <div class="nav-menu" id="nav-menu">
-                <a href="#features" class="nav-link">Features</a>
-                <a href="#pricing" class="nav-link">Pricing</a>
-                <a href="#testimonials" class="nav-link">Testimonials</a>
-                <a href="#faq" class="nav-link">FAQ</a>
-                <a href="/blog" class="nav-link">Blog</a>
-                <a href="#contact" class="nav-link">Contact</a>
+            <div class="nav-menu" id="nav-menu" role="menu">
+                <a href="#features" class="nav-link" role="menuitem">Features</a>
+                <a href="#pricing" class="nav-link" role="menuitem">Pricing</a>
+                <a href="#testimonials" class="nav-link" role="menuitem">Testimonials</a>
+                <a href="#faq" class="nav-link" role="menuitem">FAQ</a>
+                <a href="/blog" class="nav-link" role="menuitem">Blog</a>
+                <a href="#contact" class="nav-link" role="menuitem">Contact</a>
                 <div class="nav-actions">
                     <a href="/login" class="btn btn-outline">Sign In</a>
-                    <a href="/signup" class="btn btn-primary">Get Started</a>
+                    <a href="/signup" class="btn btn-primary btn-modern">Get Started</a>
                 </div>
             </div>
-            <div class="nav-toggle" id="nav-toggle">
-                <span class="bar"></span>
-                <span class="bar"></span>
-                <span class="bar"></span>
-            </div>
+            <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-menu" aria-label="Toggle navigation menu">
+                <span class="bar" aria-hidden="true"></span>
+                <span class="bar" aria-hidden="true"></span>
+                <span class="bar" aria-hidden="true"></span>
+            </button>
         </div>
     </nav>
 
-    <!-- Hero Section -->
-    <section class="hero">
-        <div class="hero-container">
-            <div class="hero-content">
-                <h1 class="hero-title gradient-text">{{.Hero.Title}}</h1>
-                <p class="hero-subtitle">{{.Hero.Subtitle}}</p>
-                <p class="hero-description">{{.Hero.Description}}</p>
-                <div class="hero-actions">
-                    <a href="{{.Hero.ButtonURL}}" class="btn btn-primary btn-large pulse">{{.Hero.ButtonText}}</a>
-                    <a href="#demo" class="btn btn-outline btn-large">Watch Demo</a>
-                </div>
-                <div class="hero-stats">
-                    <div class="stat">
-                        <span class="stat-number">10,000+</span>
-                        <span class="stat-label">Teams</span>
+    <!-- Main Content -->
+    <main id="main-content">
+        <!-- Hero Section -->
+        <section class="hero particle-bg" aria-labelledby="hero-title">
+            <div class="hero-container">
+                <div class="hero-content animate-on-scroll">
+                    <h1 id="hero-title" class="hero-title gradient-text">{{.Hero.Title}}</h1>
+                    <p class="hero-subtitle animate-on-scroll animate-delay-200">{{.Hero.Subtitle}}</p>
+                    <p class="hero-description animate-on-scroll animate-delay-300">{{.Hero.Description}}</p>
+                    <div class="hero-actions animate-on-scroll animate-delay-400">
+                        <a href="{{.Hero.ButtonURL}}" class="btn btn-primary btn-large btn-modern animate-pulse">{{.Hero.ButtonText}}</a>
+                        <a href="#demo" class="btn btn-outline btn-large btn-modern">
+                            <i class="fas fa-play" aria-hidden="true"></i>
+                            Watch Demo
+                        </a>
                     </div>
-                    <div class="stat">
-                        <span class="stat-number">99.9%</span>
-                        <span class="stat-label">Uptime</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-number">24/7</span>
-                        <span class="stat-label">Support</span>
-                    </div>
-                </div>
-            </div>
-            <div class="hero-visual">
-                {{if .Hero.VideoURL}}
-                <div class="hero-video">
-                    <video autoplay muted loop>
-                        <source src="{{.Hero.VideoURL}}" type="video/mp4">
-                    </video>
-                </div>
-                {{else}}
-                <div class="hero-image">
-                    <img src="{{.Hero.ImageURL}}" alt="StatusPage Pro Dashboard" class="hero-img">
-                </div>
-                {{end}}
-            </div>
-        </div>
-    </section>
-
-    <!-- Features Section -->
-    <section class="features" id="features">
-        <div class="container">
-            <div class="section-header">
-                <h2 class="section-title">Everything you need to keep your team informed</h2>
-                <p class="section-description">Powerful features designed for modern teams who care about transparency and communication.</p>
-            </div>
-            <div class="features-grid">
-                {{range .Features}}
-                <div class="feature-card interactive">
-                    <div class="feature-icon floating">
-                        <i class="{{.Icon}}"></i>
-                    </div>
-                    <h3 class="feature-title">{{.Title}}</h3>
-                    <p class="feature-description">{{.Description}}</p>
-                </div>
-                {{end}}
-            </div>
-        </div>
-    </section>
-
-    <!-- Pricing Section -->
-    <section class="pricing" id="pricing">
-        <div class="container">
-            <div class="section-header">
-                <h2 class="section-title">Simple, transparent pricing</h2>
-                <p class="section-description">Choose the plan that's right for your team. No hidden fees, no surprises.</p>
-            </div>
-            <div class="pricing-toggle">
-                <span class="toggle-label">Monthly</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="pricing-toggle">
-                    <span class="toggle-slider"></span>
-                </label>
-                <span class="toggle-label">Yearly <span class="discount-badge">Save 20%</span></span>
-            </div>
-            <div class="pricing-grid">
-                {{range .PricingPlans}}
-                <div class="pricing-card {{if .IsPopular}}popular{{end}}">
-                    {{if .IsPopular}}
-                    <div class="popular-badge">Most Popular</div>
-                    {{end}}
-                    <div class="pricing-header">
-                        <h3 class="pricing-name">{{.Name}}</h3>
-                        <p class="pricing-description">{{.Description}}</p>
-                        <div class="pricing-price">
-                            <span class="price-currency">{{.Currency}}</span>
-                            <span class="price-amount">{{.Price}}</span>
-                            <span class="price-period">/{{.BillingInterval}}</span>
+                    <div class="hero-stats animate-on-scroll animate-delay-500">
+                        <div class="stat hover-lift">
+                            <span class="stat-number" data-count="10000">0</span>
+                            <span class="stat-label">Teams</span>
+                        </div>
+                        <div class="stat hover-lift">
+                            <span class="stat-number" data-count="99.9">0</span>
+                            <span class="stat-label">% Uptime</span>
+                        </div>
+                        <div class="stat hover-lift">
+                            <span class="stat-number">24/7</span>
+                            <span class="stat-label">Support</span>
                         </div>
                     </div>
-                    <div class="pricing-features">
-                        {{range .FeaturesList}}
-                        <div class="feature-item">
-                            <i class="fas fa-check"></i>
-                            <span>{{.}}</span>
+                </div>
+                <div class="hero-visual animate-on-scroll animate-delay-600">
+                    {{if .Hero.VideoURL}}
+                    <div class="hero-video animate-float">
+                        <video autoplay muted loop preload="metadata" aria-label="Product demonstration video">
+                            <source src="{{.Hero.VideoURL}}" type="video/mp4">
+                            <p>Your browser does not support the video element.</p>
+                        </video>
+                    </div>
+                    {{else}}
+                    <div class="hero-image animate-float">
+                        <img src="{{.Hero.ImageURL}}" alt="StatusPage Pro Dashboard" class="hero-img" loading="eager">
+                    </div>
+                    {{end}}
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section class="features" id="features" aria-labelledby="features-title">
+            <div class="container">
+                <div class="section-header animate-on-scroll">
+                    <h2 id="features-title" class="section-title">Everything you need to keep your team informed</h2>
+                    <p class="section-description">Powerful features designed for modern teams who care about transparency and communication.</p>
+                </div>
+                <div class="features-grid">
+                    {{range $index, $feature := .Features}}
+                    <div class="feature-card interactive hover-lift animate-on-scroll" style="animation-delay: {{mulFloat $index 0.1}}s">
+                        <div class="feature-icon floating">
+                            <i class="{{.Icon}}" aria-hidden="true"></i>
+                        </div>
+                        <h3 class="feature-title">{{.Title}}</h3>
+                        <p class="feature-description">{{.Description}}</p>
+                    </div>
+                    {{end}}
+                </div>
+            </div>
+        </section>
+
+        <!-- Pricing Section -->
+        <section class="pricing" id="pricing" aria-labelledby="pricing-title">
+            <div class="container">
+                <div class="section-header animate-on-scroll">
+                    <h2 id="pricing-title" class="section-title">Simple, transparent pricing</h2>
+                    <p class="section-description">Choose the plan that's right for your team. No hidden fees, no surprises.</p>
+                </div>
+                <div class="pricing-toggle animate-on-scroll animate-delay-200">
+                    <span class="toggle-label">Monthly</span>
+                    <label class="toggle-switch" for="pricing-toggle">
+                        <input type="checkbox" id="pricing-toggle" aria-describedby="pricing-toggle-desc">
+                        <span class="toggle-slider" aria-hidden="true"></span>
+                    </label>
+                    <span class="toggle-label">Yearly <span class="discount-badge">Save 20%</span></span>
+                    <span id="pricing-toggle-desc" class="sr-only">Toggle between monthly and yearly pricing</span>
+                </div>
+                <div class="pricing-grid">
+                    {{range $index, $plan := .PricingPlans}}
+                    <div class="pricing-card {{if .IsPopular}}popular{{end}} glass-card hover-lift animate-on-scroll" style="animation-delay: {{mulFloat $index 0.1}}s">
+                        {{if .IsPopular}}
+                        <div class="popular-badge animate-bounce">
+                            <i class="fas fa-star" aria-hidden="true"></i>
+                            Most Popular
                         </div>
                         {{end}}
-                    </div>
-                    <div class="pricing-action">
-                        <a href="{{.ButtonURL}}" class="btn {{if .IsPopular}}btn-primary{{else}}btn-outline{{end}} btn-full">{{.ButtonText}}</a>
-                    </div>
-                </div>
-                {{end}}
-            </div>
-        </div>
-    </section>
-
-    <!-- Testimonials Section -->
-    <section class="testimonials" id="testimonials">
-        <div class="container">
-            <div class="section-header">
-                <h2 class="section-title">Loved by teams worldwide</h2>
-                <p class="section-description">See what our customers have to say about StatusPage Pro.</p>
-            </div>
-            <div class="testimonials-grid">
-                {{range .Testimonials}}
-                <div class="testimonial-card">
-                    <div class="testimonial-content">
-                        <div class="testimonial-rating">
-                            {{range $i := .Rating}}
-                            <i class="fas fa-star"></i>
+                        <div class="pricing-header">
+                            <h3 class="pricing-name">{{.Name}}</h3>
+                            <p class="pricing-description">{{.Description}}</p>
+                            <div class="pricing-price">
+                                <span class="price-currency">{{.Currency}}</span>
+                                <span class="price-amount" data-monthly="{{.Price}}">{{.Price}}</span>
+                                <span class="price-period">/{{.BillingInterval}}</span>
+                            </div>
+                        </div>
+                        <div class="pricing-features">
+                            {{range .FeaturesList}}
+                            <div class="feature-item">
+                                <i class="fas fa-check" aria-hidden="true"></i>
+                                <span>{{.}}</span>
+                            </div>
                             {{end}}
                         </div>
-                        <p class="testimonial-text">"{{.Content}}"</p>
-                    </div>
-                    <div class="testimonial-author">
-                        <img src="{{.Avatar}}" alt="{{.Name}}" class="author-avatar">
-                        <div class="author-info">
-                            <h4 class="author-name">{{.Name}}</h4>
-                            <p class="author-title">{{.Position}} at {{.Company}}</p>
+                        <div class="pricing-action">
+                            <a href="{{.ButtonURL}}" class="btn {{if .IsPopular}}btn-primary{{else}}btn-outline{{end}} btn-full btn-modern">{{.ButtonText}}</a>
                         </div>
                     </div>
+                    {{end}}
                 </div>
-                {{end}}
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- FAQ Section -->
-    <section class="faq" id="faq">
-        <div class="container">
-            <div class="section-header">
-                <h2 class="section-title">Frequently Asked Questions</h2>
-                <p class="section-description">Everything you need to know about StatusPage Pro.</p>
-            </div>
-            <div class="faq-list">
-                {{range .FAQs}}
-                <div class="faq-item">
-                    <div class="faq-question">
-                        <h3>{{.Question}}</h3>
-                        <i class="fas fa-chevron-down"></i>
-                    </div>
-                    <div class="faq-answer">
-                        <p>{{.Answer}}</p>
-                    </div>
+        <!-- Testimonials Section -->
+        <section class="testimonials" id="testimonials" aria-labelledby="testimonials-title">
+            <div class="container">
+                <div class="section-header animate-on-scroll">
+                    <h2 id="testimonials-title" class="section-title">Loved by teams worldwide</h2>
+                    <p class="section-description">See what our customers have to say about StatusPage Pro.</p>
                 </div>
-                {{end}}
+                <div class="testimonials-grid">
+                    {{range $index, $testimonial := .Testimonials}}
+                    <div class="testimonial-card glass-card hover-lift animate-on-scroll" style="animation-delay: {{mulFloat $index 0.1}}s">
+                        <div class="testimonial-content">
+                            <div class="testimonial-rating" aria-label="{{.Rating}} star rating">
+                                {{range $i := .Rating}}
+                                <i class="fas fa-star" aria-hidden="true"></i>
+                                {{end}}
+                            </div>
+                            <blockquote class="testimonial-text">"{{.Content}}"</blockquote>
+                        </div>
+                        <div class="testimonial-author">
+                            <img src="{{.Avatar}}" alt="" class="author-avatar" loading="lazy">
+                            <div class="author-info">
+                                <h4 class="author-name">{{.Name}}</h4>
+                                <p class="author-title">{{.Position}} at {{.Company}}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {{end}}
+                </div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- CTA Section -->
-    <section class="cta">
-        <div class="container">
-            <div class="cta-content">
-                <h2 class="cta-title">Ready to get started?</h2>
-                <p class="cta-description">Join thousands of teams who trust StatusPage Pro to keep their users informed.</p>
-                <div class="cta-actions">
-                    <a href="/signup" class="btn btn-primary btn-large">Start Free Trial</a>
-                    <a href="#contact" class="btn btn-outline btn-large">Contact Sales</a>
+        <!-- FAQ Section -->
+        <section class="faq" id="faq" aria-labelledby="faq-title">
+            <div class="container">
+                <div class="section-header animate-on-scroll">
+                    <h2 id="faq-title" class="section-title">Frequently Asked Questions</h2>
+                    <p class="section-description">Everything you need to know about StatusPage Pro.</p>
+                </div>
+                <div class="faq-list">
+                    {{range $index, $faq := .FAQs}}
+                    <div class="faq-item animate-on-scroll" style="animation-delay: {{mulFloat $index 0.1}}s">
+                        <button class="faq-question"
+                                aria-expanded="false"
+                                aria-controls="faq-answer-{{$index}}"
+                                id="faq-question-{{$index}}">
+                            <h3>{{.Question}}</h3>
+                            <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                        </button>
+                        <div class="faq-answer"
+                             id="faq-answer-{{$index}}"
+                             aria-labelledby="faq-question-{{$index}}"
+                             role="region">
+                            <p>{{.Answer}}</p>
+                        </div>
+                    </div>
+                    {{end}}
                 </div>
             </div>
-        </div>
-    </section>
+        </section>
+
+        <!-- CTA Section -->
+        <section class="cta particle-bg" aria-labelledby="cta-title">
+            <div class="container">
+                <div class="cta-content animate-on-scroll">
+                    <h2 id="cta-title" class="cta-title gradient-text">Ready to get started?</h2>
+                    <p class="cta-description animate-on-scroll animate-delay-200">Join thousands of teams who trust StatusPage Pro to keep their users informed.</p>
+                    <div class="cta-actions animate-on-scroll animate-delay-300">
+                        <a href="/signup" class="btn btn-primary btn-large btn-modern animate-pulse">Start Free Trial</a>
+                        <a href="#contact" class="btn btn-outline btn-large btn-modern">Contact Sales</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
 
     <!-- Footer -->
-    <footer class="footer">
+    <footer class="footer" role="contentinfo">
         <div class="container">
             <div class="footer-content">
                 <div class="footer-section">
                     <div class="footer-brand">
-                        <img src="/static/images/logo.svg" alt="{{.SiteName}}" class="footer-logo">
+                        <img src="/static/images/logo.svg" alt="{{.SiteName}}" class="footer-logo" width="32" height="32">
                         <span class="footer-title">{{.SiteName}}</span>
                     </div>
                     <p class="footer-description">{{.SiteDescription}}</p>
-                    <div class="social-links">
+                    <div class="social-links" role="list">
                         {{range $key, $value := .SocialLinks}}
-                        <a href="{{$value}}" class="social-link" target="_blank" rel="noopener">
-                            <i class="fab fa-{{$key}}"></i>
+                        <a href="{{$value}}" class="social-link hover-lift" target="_blank" rel="noopener noreferrer" aria-label="{{$key}}">
+                            <i class="fab fa-{{$key}}" aria-hidden="true"></i>
                         </a>
                         {{end}}
                     </div>
                 </div>
                 <div class="footer-section">
                     <h4 class="footer-title">Product</h4>
-                    <ul class="footer-links">
+                    <ul class="footer-links" role="list">
                         <li><a href="#features">Features</a></li>
                         <li><a href="#pricing">Pricing</a></li>
                         <li><a href="/integrations">Integrations</a></li>
@@ -281,7 +317,7 @@
                 </div>
                 <div class="footer-section">
                     <h4 class="footer-title">Company</h4>
-                    <ul class="footer-links">
+                    <ul class="footer-links" role="list">
                         <li><a href="/about">About</a></li>
                         <li><a href="/blog">Blog</a></li>
                         <li><a href="/careers">Careers</a></li>
@@ -290,7 +326,7 @@
                 </div>
                 <div class="footer-section">
                     <h4 class="footer-title">Support</h4>
-                    <ul class="footer-links">
+                    <ul class="footer-links" role="list">
                         <li><a href="/help">Help Center</a></li>
                         <li><a href="/docs">Documentation</a></li>
                         <li><a href="/status">Status</a></li>
@@ -313,7 +349,20 @@
 
     <!-- Scripts -->
     <script src="/static/js/landing.js"></script>
+    <script src="/static/js/enhanced-landing.js"></script>
+    <script src="/static/js/dark-mode.js"></script>
+    <script src="/static/js/keyboard-navigation.js"></script>
     {{if .CustomJS}}<script>{{.CustomJS}}</script>{{end}}
+
+    <!-- Service Worker for PWA capabilities -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/js/service-worker.js')
+                    .then(registration => console.log('SW registered'))
+                    .catch(registrationError => console.log('SW registration failed'));
+            });
+        }
+    </script>
 </body>
 </html>
-

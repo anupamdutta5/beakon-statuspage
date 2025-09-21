@@ -1,9 +1,10 @@
-module github.com/anupamdutta5/statuspage-database-service
+module github.com/anupamdutta5/database-service
 
 go 1.25.0
 
 require (
-	github.com/anupamdutta5/statuspage-shared-resilience v0.0.0
+	github.com/anupamdutta5/shared-resilience v0.0.0
+	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-gonic/gin v1.10.1
 	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.10.0
@@ -22,7 +23,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
-	github.com/gin-contrib/cors v1.7.6 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
@@ -56,4 +56,4 @@ require (
 	google.golang.org/protobuf v1.36.6 // indirect
 )
 
-replace github.com/anupamdutta5/statuspage-shared-resilience => ../shared-resilience
+replace github.com/anupamdutta5/shared-resilience => ../shared-resilience

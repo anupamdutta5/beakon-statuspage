@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	"github.com/anupamdutta5/statuspage-tenant-admin-service/internal/models"
+	"github.com/anupamdutta5/tenant-admin-service/internal/models"
 )
 
 type domainRepository struct {

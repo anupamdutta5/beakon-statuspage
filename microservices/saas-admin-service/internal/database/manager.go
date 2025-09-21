@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm"
 	"go.uber.org/zap"
 
-	"github.com/anupamdutta5/statuspage-shared-resilience"
+	"github.com/anupamdutta5/shared-resilience"
 )
 
 // Manager handles database connections with proper lifecycle management

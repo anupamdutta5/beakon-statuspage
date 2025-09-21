@@ -5,9 +5,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/anupamdutta5/statuspage-database-service/internal/config"
-	"github.com/anupamdutta5/statuspage-database-service/internal/models"
-	"github.com/anupamdutta5/statuspage-database-service/internal/services"
+	"github.com/anupamdutta5/database-service/internal/config"
+	"github.com/anupamdutta5/database-service/internal/models"
+	"github.com/anupamdutta5/database-service/internal/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

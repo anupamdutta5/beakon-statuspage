@@ -5,7 +5,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-database-service/internal/config"
+	"github.com/anupamdutta5/database-service/internal/config"
 	"go.uber.org/zap"
 )
 

@@ -12,9 +12,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-shared-resilience"
-	"github.com/anupamdutta5/statuspage-analytics-service/internal/handlers"
-	"github.com/anupamdutta5/statuspage-analytics-service/internal/services"
+	"github.com/anupamdutta5/shared-resilience"
+	"github.com/anupamdutta5/analytics-service/internal/handlers"
+	"github.com/anupamdutta5/analytics-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -22,26 +22,33 @@ import (
 func main() {
 	// Load configuration from environment variables
 	config := resilience.LoadConfigFromEnv()
-	if err := config.Validate(); err != nil {
-		log.Fatalf("Configuration validation failed: %v", err)
+
+	// Create startup manager for proper error handling
+	startupMgr, err := resilience.NewStartupManager("analytics-service", config)
+	if err != nil {
+		// This is the only acceptable use of fatal - when we can't even initialize logging
+		fmt.Fprintf(os.Stderr, "Failed to create startup manager: %v\n", err)
+		os.Exit(1)
 	}
 
-	// Initialize logger based on environment
-	var logger *zap.Logger
-	var err error
+	// Set up panic recovery
+	defer startupMgr.RecoverFromPanic()
 
+	logger := startupMgr.Logger
+	defer logger.Sync()
+
+	// Validate configuration
+	if err := startupMgr.ValidateConfiguration(); err != nil {
+		startupMgr.HandleStartupError(err)
+		return
+	}
+
+	// Set Gin mode based on environment
 	if config.Environment == "production" {
-		logger, err = zap.NewProduction()
 		gin.SetMode(gin.ReleaseMode)
 	} else {
-		logger, err = zap.NewDevelopment()
 		gin.SetMode(gin.DebugMode)
 	}
-
-	if err != nil {
-		log.Fatalf("Failed to initialize logger: %v", err)
-	}
-	defer logger.Sync()
 
 	logger.Info("Starting Analytics Service",
 		zap.String("service", "analytics-service"),

@@ -7,8 +7,8 @@ import (
 
 	"github.com/gosimple/slug"
 	"github.com/google/uuid"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/models"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/repositories"
+	"github.com/anupamdutta5/saas-admin-service/internal/models"
+	"github.com/anupamdutta5/saas-admin-service/internal/repositories"
 	"gorm.io/gorm"
 )
 

@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/models"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/services"
+	"github.com/anupamdutta5/saas-admin-service/internal/models"
+	"github.com/anupamdutta5/saas-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"

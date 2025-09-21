@@ -6,9 +6,9 @@ import (
 	"log"
 	"os"
 
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/config"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/db/seed"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/storage"
+	"github.com/anupamdutta5/saas-admin-service/internal/config"
+	"github.com/anupamdutta5/saas-admin-service/internal/db/seed"
+	"github.com/anupamdutta5/saas-admin-service/internal/storage"
 )
 
 func main() {

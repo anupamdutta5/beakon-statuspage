@@ -1,9 +1,9 @@
-module github.com/anupamdutta5/statuspage-audit-consumer
+module github.com/anupamdutta5/audit-consumer
 
 go 1.25.0
 
 require (
-	github.com/anupamdutta5/statuspage-shared-resilience v0.0.0
+	github.com/anupamdutta5/shared-resilience v0.0.0
 	github.com/gin-gonic/gin v1.10.1
 	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.10.0
@@ -56,4 +56,4 @@ require (
 	gorm.io/driver/sqlite v1.5.6 // indirect
 )
 
-replace github.com/anupamdutta5/statuspage-shared-resilience => ../shared-resilience
+replace github.com/anupamdutta5/shared-resilience => ../shared-resilience

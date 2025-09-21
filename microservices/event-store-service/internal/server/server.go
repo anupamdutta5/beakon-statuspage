@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-event-store-service/internal/config"
-	"github.com/anupamdutta5/statuspage-event-store-service/internal/handlers"
-	"github.com/anupamdutta5/statuspage-event-store-service/internal/middleware"
-	"github.com/anupamdutta5/statuspage-event-store-service/internal/services"
+	"github.com/anupamdutta5/event-store-service/internal/config"
+	"github.com/anupamdutta5/event-store-service/internal/handlers"
+	"github.com/anupamdutta5/event-store-service/internal/middleware"
+	"github.com/anupamdutta5/event-store-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )

@@ -10,7 +10,7 @@ import (
 	_ "github.com/lib/pq"
 	"go.uber.org/zap"
 
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/config"
+	"github.com/anupamdutta5/saas-admin-service/internal/config"
 )
 
 // InitDatabase initializes the database connection using the provided configuration

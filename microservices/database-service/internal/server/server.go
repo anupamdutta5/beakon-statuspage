@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-database-service/internal/config"
-	"github.com/anupamdutta5/statuspage-database-service/internal/handlers"
-	"github.com/anupamdutta5/statuspage-database-service/internal/services"
+	"github.com/anupamdutta5/database-service/internal/config"
+	"github.com/anupamdutta5/database-service/internal/handlers"
+	"github.com/anupamdutta5/database-service/internal/services"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"

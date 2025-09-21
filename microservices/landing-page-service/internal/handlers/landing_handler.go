@@ -2,12 +2,16 @@
 package handlers
 
 import (
+	"fmt"
 	"html/template"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
+	"time"
 
-	"github.com/anupamdutta5/statuspage-landing-service/internal/models"
-	"github.com/anupamdutta5/statuspage-landing-service/internal/services"
+	"github.com/anupamdutta5/landing-page-service/internal/models"
+	"github.com/anupamdutta5/landing-page-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -25,6 +29,19 @@ func NewLandingHandler(service *services.LandingService, logger *zap.Logger) *La
 	var tmpl *template.Template
 	var err error
 
+	// Create template with custom functions
+	funcMap := template.FuncMap{
+		"mul": func(a, b int) int {
+			return a * b
+		},
+		"add": func(a, b int) int {
+			return a + b
+		},
+		"sub": func(a, b int) int {
+			return a - b
+		},
+	}
+
 	// Try different template paths
 	templatePaths := []string{
 		"web/templates/*.html",
@@ -34,7 +51,7 @@ func NewLandingHandler(service *services.LandingService, logger *zap.Logger) *La
 	}
 
 	for _, path := range templatePaths {
-		tmpl, err = template.ParseGlob(path)
+		tmpl, err = template.New("landing").Funcs(funcMap).ParseGlob(path)
 		if err == nil {
 			logger.Info("Templates loaded successfully", zap.String("path", path))
 			break
@@ -723,4 +740,342 @@ func (h *LandingHandler) DeleteArticle(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Article deleted successfully",
 	})
+}
+
+// ====================== MOCK AUTHENTICATION & PAYMENT ENDPOINTS ======================
+
+// LoginPage displays the login page
+func (h *LandingHandler) LoginPage(c *gin.Context) {
+	data := gin.H{
+		"Title":       "Sign In - StatusPage Pro",
+		"Description": "Sign in to your StatusPage Pro account",
+	}
+
+	if h.template != nil {
+		if err := h.template.ExecuteTemplate(c.Writer, "login.html", data); err != nil {
+			h.logger.Error("Failed to render login template", zap.Error(err))
+			c.HTML(http.StatusOK, "login.html", data)
+		}
+	} else {
+		c.HTML(http.StatusOK, "login.html", data)
+	}
+}
+
+// SignupPage displays the signup page
+func (h *LandingHandler) SignupPage(c *gin.Context) {
+	plan := c.Query("plan")
+	if plan == "" {
+		plan = "free"
+	}
+
+	data := gin.H{
+		"Title":       "Get Started - StatusPage Pro",
+		"Description": "Create your StatusPage Pro account",
+		"Plan":        plan,
+	}
+
+	if h.template != nil {
+		if err := h.template.ExecuteTemplate(c.Writer, "signup.html", data); err != nil {
+			h.logger.Error("Failed to render signup template", zap.Error(err))
+			c.HTML(http.StatusOK, "signup.html", data)
+		}
+	} else {
+		c.HTML(http.StatusOK, "signup.html", data)
+	}
+}
+
+// MockLogin handles login requests (mock)
+func (h *LandingHandler) MockLogin(c *gin.Context) {
+	var loginReq struct {
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required,min=6"`
+	}
+
+	if err := c.ShouldBindJSON(&loginReq); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid login credentials",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	h.logger.Info("Mock login attempt", zap.String("email", loginReq.Email))
+
+	// Mock authentication - in a real system, this would validate credentials
+	if loginReq.Email == "" || loginReq.Password == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Invalid email or password",
+		})
+		return
+	}
+
+	// Generate mock JWT token
+	mockToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Login successful",
+		"user": gin.H{
+			"id":    1,
+			"email": loginReq.Email,
+			"name":  "Demo User",
+		},
+		"token": mockToken,
+		"redirect": "/dashboard",
+	})
+}
+
+// MockSignup handles signup requests (mock)
+func (h *LandingHandler) MockSignup(c *gin.Context) {
+	var signupReq struct {
+		Name     string `json:"name" binding:"required,min=2"`
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required,min=6"`
+		Plan     string `json:"plan"`
+		Company  string `json:"company"`
+	}
+
+	if err := c.ShouldBindJSON(&signupReq); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid signup data",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	if signupReq.Plan == "" {
+		signupReq.Plan = "free"
+	}
+
+	h.logger.Info("Mock signup attempt",
+		zap.String("email", signupReq.Email),
+		zap.String("plan", signupReq.Plan))
+
+	// Mock user creation
+	userID := 1
+
+	// If it's a paid plan, initiate payment flow
+	if signupReq.Plan != "free" {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Account created successfully",
+			"user": gin.H{
+				"id":      userID,
+				"email":   signupReq.Email,
+				"name":    signupReq.Name,
+				"company": signupReq.Company,
+				"plan":    signupReq.Plan,
+			},
+			"payment_required": true,
+			"payment_url":      "/payment",
+			"redirect":         "/payment?plan=" + signupReq.Plan,
+		})
+		return
+	}
+
+	// Free plan - direct activation
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Account created successfully",
+		"user": gin.H{
+			"id":      userID,
+			"email":   signupReq.Email,
+			"name":    signupReq.Name,
+			"company": signupReq.Company,
+			"plan":    signupReq.Plan,
+		},
+		"redirect": "/dashboard",
+	})
+}
+
+// PaymentPage displays the payment page
+func (h *LandingHandler) PaymentPage(c *gin.Context) {
+	plan := c.Query("plan")
+	if plan == "" {
+		plan = "pro"
+	}
+
+	// Mock plan pricing
+	planPricing := map[string]gin.H{
+		"pro": gin.H{
+			"name":  "Pro",
+			"price": 29.99,
+			"features": []string{
+				"Up to 50 services",
+				"Custom domain",
+				"Email support",
+				"Advanced analytics",
+			},
+		},
+		"enterprise": gin.H{
+			"name":  "Enterprise",
+			"price": 99.99,
+			"features": []string{
+				"Unlimited services",
+				"White-label branding",
+				"Priority support",
+				"Advanced integrations",
+				"SLA guarantees",
+			},
+		},
+	}
+
+	planData, exists := planPricing[plan]
+	if !exists {
+		planData = planPricing["pro"]
+	}
+
+	data := gin.H{
+		"Title":       "Complete Payment - StatusPage Pro",
+		"Description": "Complete your subscription payment",
+		"Plan":        planData,
+		"PlanName":    plan,
+	}
+
+	if h.template != nil {
+		if err := h.template.ExecuteTemplate(c.Writer, "payment.html", data); err != nil {
+			h.logger.Error("Failed to render payment template", zap.Error(err))
+			c.HTML(http.StatusOK, "payment.html", data)
+		}
+	} else {
+		c.HTML(http.StatusOK, "payment.html", data)
+	}
+}
+
+// MockPayment handles payment processing (mock)
+func (h *LandingHandler) MockPayment(c *gin.Context) {
+	var paymentReq struct {
+		Plan           string `json:"plan" binding:"required"`
+		PaymentMethod  string `json:"payment_method" binding:"required"`
+		CardNumber     string `json:"card_number"`
+		ExpiryMonth    string `json:"expiry_month"`
+		ExpiryYear     string `json:"expiry_year"`
+		CVV           string `json:"cvv"`
+		BillingEmail   string `json:"billing_email" binding:"required,email"`
+	}
+
+	if err := c.ShouldBindJSON(&paymentReq); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid payment data",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	h.logger.Info("Mock payment processing",
+		zap.String("plan", paymentReq.Plan),
+		zap.String("email", paymentReq.BillingEmail))
+
+	// Mock payment processing delay
+	// time.Sleep(2 * time.Second)
+
+	// Simulate payment success
+	paymentID := "pay_mock_" + strconv.FormatInt(time.Now().Unix(), 10)
+
+	// Extract user name from email for display (temporary solution for demo)
+	emailParts := strings.Split(paymentReq.BillingEmail, "@")
+	userName := emailParts[0]
+	if len(userName) < 2 {
+		userName = "User"
+	}
+	// Capitalize first letter
+	userName = strings.ToUpper(userName[:1]) + userName[1:]
+
+	// Generate company name from email domain if not provided
+	companyName := "Your Company"
+	if len(emailParts) > 1 {
+		domain := emailParts[1]
+		domainParts := strings.Split(domain, ".")
+		if len(domainParts) > 0 {
+			companyName = strings.ToUpper(domainParts[0][:1]) + domainParts[0][1:]
+		}
+	}
+
+	// Generate tenant URL based on company
+	tenantSlug := strings.ToLower(strings.ReplaceAll(companyName, " ", "-"))
+	tenantURL := fmt.Sprintf("https://%s.statuspage.pro", tenantSlug)
+
+	// Build tenant admin redirect URL with user data
+	redirectURL := fmt.Sprintf("http://localhost:8099/admin?user_name=%s&user_email=%s&plan=%s&company=%s&tenant_url=%s",
+		url.QueryEscape(userName), url.QueryEscape(paymentReq.BillingEmail),
+		url.QueryEscape(paymentReq.Plan), url.QueryEscape(companyName), url.QueryEscape(tenantURL))
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Payment processed successfully",
+		"payment": gin.H{
+			"id":     paymentID,
+			"status": "completed",
+			"amount": getPlanPrice(paymentReq.Plan),
+			"plan":   paymentReq.Plan,
+		},
+		"tenant_created": true,
+		"redirect": redirectURL,
+		"access_url": tenantURL,
+	})
+}
+
+// DashboardPage displays the tenant admin dashboard
+func (h *LandingHandler) DashboardPage(c *gin.Context) {
+	// Try to get user data from query parameters (from payment redirect)
+	userName := c.Query("user_name")
+	userEmail := c.Query("user_email")
+	userPlan := c.Query("plan")
+	tenantURL := c.Query("tenant_url")
+	companyName := c.Query("company")
+
+	// Default values if no user data provided
+	if userName == "" {
+		userName = "Welcome User"
+	}
+	if userEmail == "" {
+		userEmail = "user@example.com"
+	}
+	if userPlan == "" {
+		userPlan = "free"
+	}
+	if tenantURL == "" {
+		tenantURL = "https://your-tenant.statuspage.pro"
+	}
+	if companyName == "" {
+		companyName = "Your Company"
+	}
+
+	// Generate tenant-specific URL based on company name
+	tenantSlug := strings.ToLower(strings.ReplaceAll(companyName, " ", "-"))
+	if len(tenantSlug) > 20 {
+		tenantSlug = tenantSlug[:20]
+	}
+	tenantURL = fmt.Sprintf("https://%s.statuspage.pro", tenantSlug)
+
+	data := gin.H{
+		"Title":       "Dashboard - StatusPage Pro",
+		"Description": "Manage your status page",
+		"User": gin.H{
+			"name":  userName,
+			"email": userEmail,
+			"plan":  userPlan,
+		},
+		"Tenant": gin.H{
+			"name": companyName,
+			"url":  tenantURL,
+		},
+	}
+
+	if h.template != nil {
+		if err := h.template.ExecuteTemplate(c.Writer, "dashboard.html", data); err != nil {
+			h.logger.Error("Failed to render dashboard template", zap.Error(err))
+			c.HTML(http.StatusOK, "dashboard.html", data)
+		}
+	} else {
+		c.HTML(http.StatusOK, "dashboard.html", data)
+	}
+}
+
+// Helper function to get plan pricing
+func getPlanPrice(plan string) float64 {
+	switch plan {
+	case "pro":
+		return 29.99
+	case "enterprise":
+		return 99.99
+	default:
+		return 0.0
+	}
 }

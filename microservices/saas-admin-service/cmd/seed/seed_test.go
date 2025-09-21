@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	_ "github.com/lib/pq"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/db/seed"
+	"github.com/anupamdutta5/saas-admin-service/internal/db/seed"
 	"github.com/stretchr/testify/assert"
 )
 

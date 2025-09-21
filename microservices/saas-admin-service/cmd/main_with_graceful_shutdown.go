@@ -6,9 +6,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/config"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/server"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/shutdown"
+	"github.com/anupamdutta5/saas-admin-service/internal/config"
+	"github.com/anupamdutta5/saas-admin-service/internal/server"
+	"github.com/anupamdutta5/saas-admin-service/internal/shutdown"
 	"go.uber.org/zap"
 )
 

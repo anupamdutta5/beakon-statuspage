@@ -12,9 +12,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-shared-resilience"
-	"github.com/anupamdutta5/statuspage-component-service/internal/handlers"
-	"github.com/anupamdutta5/statuspage-component-service/internal/services"
+	"github.com/anupamdutta5/shared-resilience"
+	"github.com/anupamdutta5/component-service/internal/handlers"
+	"github.com/anupamdutta5/component-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )

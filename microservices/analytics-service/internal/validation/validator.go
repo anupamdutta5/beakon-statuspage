@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	resilience "github.com/anupamdutta5/statuspage-shared-resilience"
+	resilience "github.com/anupamdutta5/shared-resilience"
 )
 
 // ValidatorConfig represents validation configuration

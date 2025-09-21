@@ -7,8 +7,8 @@ import (
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/db/seed"
-	"github.com/anupamdutta5/statuspage-saas-admin-service/internal/db/migrations"
+	"github.com/anupamdutta5/saas-admin-service/internal/db/seed"
+	"github.com/anupamdutta5/saas-admin-service/internal/db/migrations"
 	_ "github.com/lib/pq"
 )
 

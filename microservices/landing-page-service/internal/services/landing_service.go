@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-landing-service/internal/config"
-	"github.com/anupamdutta5/statuspage-landing-service/internal/models"
+	"github.com/anupamdutta5/landing-page-service/internal/config"
+	"github.com/anupamdutta5/landing-page-service/internal/models"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -462,6 +462,12 @@ func (s *LandingService) UpdateFAQ(ctx context.Context, faqID uint, updates *mod
 func (s *LandingService) GetArticles(ctx context.Context, limit, offset int) ([]*models.Article, error) {
 	s.logger.Info("Getting articles", zap.Int("limit", limit), zap.Int("offset", offset))
 
+	// Check if database is available
+	if s.db == nil {
+		s.logger.Debug("No database available, returning default articles")
+		return s.getDefaultArticles(), nil
+	}
+
 	var articles []*models.Article
 	query := s.db.Where("status = ?", "published").Order("published_at DESC")
 
@@ -882,6 +888,39 @@ func (s *LandingService) getDefaultFAQs() []*models.FAQ {
 			Answer:   "Free plan includes community support. Pro plan includes priority email support. Enterprise plan includes dedicated support with phone and chat options.",
 			Status:   "active",
 			Order:    4,
+		},
+	}
+}
+
+// getDefaultArticles returns default articles for demonstration.
+func (s *LandingService) getDefaultArticles() []*models.Article {
+	return []*models.Article{
+		{
+			Title:       "Welcome to StatusPage Pro",
+			Slug:        "welcome-to-statuspage-pro",
+			Content:     "We're excited to announce the launch of StatusPage Pro, a modern and reliable status page platform designed for teams who care about transparency and communication.",
+			Excerpt:     "Introducing StatusPage Pro - a modern platform for team communication and transparency.",
+			Status:      "published",
+			Author:      "StatusPage Team",
+			PublishedAt: &[]time.Time{time.Now().AddDate(0, 0, -1)}[0],
+		},
+		{
+			Title:       "Building Reliable Status Pages",
+			Slug:        "building-reliable-status-pages",
+			Content:     "Learn best practices for creating and maintaining status pages that build trust with your users and improve communication during incidents.",
+			Excerpt:     "Best practices for creating status pages that build user trust and improve incident communication.",
+			Status:      "published",
+			Author:      "Engineering Team",
+			PublishedAt: &[]time.Time{time.Now().AddDate(0, 0, -7)}[0],
+		},
+		{
+			Title:       "The Importance of Incident Communication",
+			Slug:        "importance-of-incident-communication",
+			Content:     "Effective incident communication is crucial for maintaining user trust. Here's how to communicate effectively during outages and incidents.",
+			Excerpt:     "How effective incident communication helps maintain user trust during outages.",
+			Status:      "published",
+			Author:      "Product Team",
+			PublishedAt: &[]time.Time{time.Now().AddDate(0, 0, -14)}[0],
 		},
 	}
 }
