@@ -262,3 +262,6 @@ func setupModernizedRoutes(router *gin.Engine, handler *handlers.EventStoreHandl
 		}
 	}
 }
+// TODO: CLEANUP - Update auth middleware usage
+// Replace local auth with: auth.NewMiddleware(authConfig, logger)
+// Import: github.com/anupamdutta5/shared-resilience/auth

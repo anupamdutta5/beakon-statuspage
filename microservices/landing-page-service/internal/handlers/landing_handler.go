@@ -809,18 +809,53 @@ func (h *LandingHandler) MockLogin(c *gin.Context) {
 		return
 	}
 
-	// Generate mock JWT token
-	mockToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+	// Mock tenant assignment based on email domain or predefined mapping
+	var tenantID string
+	var tenantName string
+	var redirectURL string
+
+	// Simulate tenant assignment logic
+	switch {
+	case strings.Contains(loginReq.Email, "demo"):
+		tenantID = "demo-tenant-001"
+		tenantName = "Demo Company"
+	case strings.Contains(loginReq.Email, "acme"):
+		tenantID = "acme-corp-002"
+		tenantName = "Acme Corporation"
+	case strings.Contains(loginReq.Email, "test"):
+		tenantID = "test-org-003"
+		tenantName = "Test Organization"
+	default:
+		// Default tenant for any user
+		tenantID = "default-tenant-001"
+		tenantName = "Default Organization"
+	}
+
+	// Generate redirect URL to tenant admin dashboard with tenant information
+	tenantAdminURL := "http://localhost:8099"
+	redirectURL = fmt.Sprintf("%s/admin?tenant_id=%s&tenant_name=%s", tenantAdminURL, url.QueryEscape(tenantID), url.QueryEscape(tenantName))
+
+	// Generate mock JWT token with tenant information
+	mockToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwidGVuYW50IjoiZGVtby10ZW5hbnQtMDAxIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+
+	h.logger.Info("Login successful, redirecting to tenant admin",
+		zap.String("tenant_id", tenantID),
+		zap.String("tenant_name", tenantName),
+		zap.String("redirect_url", redirectURL))
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Login successful",
 		"user": gin.H{
-			"id":    1,
-			"email": loginReq.Email,
-			"name":  "Demo User",
+			"id":     1,
+			"email":  loginReq.Email,
+			"name":   "Demo User",
+			"tenant": gin.H{
+				"id":   tenantID,
+				"name": tenantName,
+			},
 		},
 		"token": mockToken,
-		"redirect": "/dashboard",
+		"redirect": redirectURL,
 	})
 }
 
@@ -871,7 +906,20 @@ func (h *LandingHandler) MockSignup(c *gin.Context) {
 		return
 	}
 
-	// Free plan - direct activation
+	// Free plan - direct activation with tenant assignment
+	// Generate a new tenant for the user
+	tenantID := fmt.Sprintf("tenant-%s-%d", strings.ToLower(strings.ReplaceAll(signupReq.Company, " ", "-")), userID)
+	if signupReq.Company == "" {
+		tenantID = fmt.Sprintf("user-tenant-%d", userID)
+	}
+
+	tenantAdminURL := "http://localhost:8099"
+	redirectURL := fmt.Sprintf("%s/admin?tenant=%s", tenantAdminURL, tenantID)
+
+	h.logger.Info("Created new tenant for user",
+		zap.String("tenant_id", tenantID),
+		zap.String("user_email", signupReq.Email))
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Account created successfully",
 		"user": gin.H{
@@ -880,8 +928,18 @@ func (h *LandingHandler) MockSignup(c *gin.Context) {
 			"name":    signupReq.Name,
 			"company": signupReq.Company,
 			"plan":    signupReq.Plan,
+			"tenant": gin.H{
+				"id":   tenantID,
+				"name": signupReq.Company,
+			},
 		},
-		"redirect": "/dashboard",
+		"redirect": redirectURL,
+		"tenant_admin_url": tenantAdminURL,
+		"next_steps": []string{
+			"Complete your tenant setup",
+			"Configure your status page",
+			"Add your first service",
+		},
 	})
 }
 
@@ -894,7 +952,7 @@ func (h *LandingHandler) PaymentPage(c *gin.Context) {
 
 	// Mock plan pricing
 	planPricing := map[string]gin.H{
-		"pro": gin.H{
+		"pro": {
 			"name":  "Pro",
 			"price": 29.99,
 			"features": []string{
@@ -904,7 +962,7 @@ func (h *LandingHandler) PaymentPage(c *gin.Context) {
 				"Advanced analytics",
 			},
 		},
-		"enterprise": gin.H{
+		"enterprise": {
 			"name":  "Enterprise",
 			"price": 99.99,
 			"features": []string{
@@ -1009,63 +1067,6 @@ func (h *LandingHandler) MockPayment(c *gin.Context) {
 		"redirect": redirectURL,
 		"access_url": tenantURL,
 	})
-}
-
-// DashboardPage displays the tenant admin dashboard
-func (h *LandingHandler) DashboardPage(c *gin.Context) {
-	// Try to get user data from query parameters (from payment redirect)
-	userName := c.Query("user_name")
-	userEmail := c.Query("user_email")
-	userPlan := c.Query("plan")
-	tenantURL := c.Query("tenant_url")
-	companyName := c.Query("company")
-
-	// Default values if no user data provided
-	if userName == "" {
-		userName = "Welcome User"
-	}
-	if userEmail == "" {
-		userEmail = "user@example.com"
-	}
-	if userPlan == "" {
-		userPlan = "free"
-	}
-	if tenantURL == "" {
-		tenantURL = "https://your-tenant.statuspage.pro"
-	}
-	if companyName == "" {
-		companyName = "Your Company"
-	}
-
-	// Generate tenant-specific URL based on company name
-	tenantSlug := strings.ToLower(strings.ReplaceAll(companyName, " ", "-"))
-	if len(tenantSlug) > 20 {
-		tenantSlug = tenantSlug[:20]
-	}
-	tenantURL = fmt.Sprintf("https://%s.statuspage.pro", tenantSlug)
-
-	data := gin.H{
-		"Title":       "Dashboard - StatusPage Pro",
-		"Description": "Manage your status page",
-		"User": gin.H{
-			"name":  userName,
-			"email": userEmail,
-			"plan":  userPlan,
-		},
-		"Tenant": gin.H{
-			"name": companyName,
-			"url":  tenantURL,
-		},
-	}
-
-	if h.template != nil {
-		if err := h.template.ExecuteTemplate(c.Writer, "dashboard.html", data); err != nil {
-			h.logger.Error("Failed to render dashboard template", zap.Error(err))
-			c.HTML(http.StatusOK, "dashboard.html", data)
-		}
-	} else {
-		c.HTML(http.StatusOK, "dashboard.html", data)
-	}
 }
 
 // Helper function to get plan pricing

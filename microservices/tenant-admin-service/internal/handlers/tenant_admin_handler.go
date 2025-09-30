@@ -2,6 +2,8 @@
 package handlers
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -10,6 +12,7 @@ import (
 	"github.com/anupamdutta5/tenant-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -31,16 +34,110 @@ func NewTenantAdminHandler(service *services.TenantAdminService, statusPageServi
 
 // GetLoginPage renders the login page.
 func (h *TenantAdminHandler) GetLoginPage(c *gin.Context) {
+	// Check if tenant context exists - only allow login for active tenants
+	_, hasID := c.Get("tenant_id")
+	_, hasName := c.Get("tenant_name")
+	_, hasSlug := c.Get("tenant_slug")
+
+	// Extract subdomain to check if user is trying to access a specific tenant
+	host := c.Request.Host
+	subdomain := extractSubdomainFromHost(host)
+
+	// If accessing via subdomain but tenant doesn't exist, show error
+	if subdomain != "" && (!hasID || !hasName || !hasSlug) {
+		h.logger.Warn("Tenant not found - login access denied",
+			zap.String("host", host),
+			zap.String("subdomain", subdomain),
+			zap.String("path", c.Request.URL.Path))
+
+		c.HTML(http.StatusNotFound, "login.html", gin.H{
+			"title": "Tenant Not Found",
+			"error": "Tenant not found",
+		})
+		return
+	}
+
 	c.HTML(http.StatusOK, "login.html", gin.H{
 		"title": "Status Page Admin - Login",
 	})
 }
 
-// GetAdminDashboard renders the admin dashboard.
+// extractSubdomainFromHost extracts subdomain from host (helper function)
+func extractSubdomainFromHost(host string) string {
+	// Remove port if present
+	if colonIdx := len(host) - 1; colonIdx >= 0 {
+		for i := len(host) - 1; i >= 0; i-- {
+			if host[i] == ':' {
+				host = host[:i]
+				break
+			}
+		}
+	}
+
+	// Check if it's a subdomain of localhost
+	baseDomain := "localhost"
+	if host == baseDomain {
+		return ""
+	}
+
+	// Check if host ends with .localhost
+	if len(host) > len(baseDomain)+1 && host[len(host)-len(baseDomain)-1:] == "."+baseDomain {
+		subdomain := host[:len(host)-len(baseDomain)-1]
+		// Handle nested subdomains - only take the first part
+		for i := 0; i < len(subdomain); i++ {
+			if subdomain[i] == '.' {
+				return subdomain[:i]
+			}
+		}
+		return subdomain
+	}
+
+	return ""
+}
+
+// GetAdminDashboard renders the admin dashboard with tenant-specific information.
 func (h *TenantAdminHandler) GetAdminDashboard(c *gin.Context) {
-	c.HTML(http.StatusOK, "admin_dashboard.html", gin.H{
-		"title": "Status Page Admin Dashboard",
-	})
+	// Extract tenant information from context (set by TenantContextMiddleware)
+	tenantID, hasID := c.Get("tenant_id")
+	tenantName, hasName := c.Get("tenant_name")
+	tenantSlug, hasSlug := c.Get("tenant_slug")
+
+	// Require valid tenant context - reject if tenant doesn't exist in database
+	if !hasID || !hasName || !hasSlug {
+		h.logger.Warn("Tenant not found - dashboard access denied",
+			zap.String("host", c.Request.Host),
+			zap.String("path", c.Request.URL.Path))
+
+		c.HTML(http.StatusNotFound, "login.html", gin.H{
+			"title": "Tenant Not Found",
+			"error": "Tenant not found",
+		})
+		return
+	}
+
+	// Convert to strings
+	tenantIDStr := ""
+	if id, ok := tenantID.(string); ok {
+		tenantIDStr = id
+	}
+	tenantNameStr := ""
+	if name, ok := tenantName.(string); ok {
+		tenantNameStr = name
+	}
+	tenantSlugStr := ""
+	if slug, ok := tenantSlug.(string); ok {
+		tenantSlugStr = slug
+	}
+
+	h.logger.Info("Rendering tenant admin dashboard",
+		zap.String("tenant_id", tenantIDStr),
+		zap.String("tenant_slug", tenantSlugStr),
+		zap.String("tenant_name", tenantNameStr))
+
+	// Generate tenant-specific data
+	dashboardData := h.generateTenantDashboardData(tenantIDStr, tenantNameStr)
+
+	c.HTML(http.StatusOK, "admin_dashboard.html", dashboardData)
 }
 
 // HealthCheck handles health check requests.
@@ -70,7 +167,7 @@ func (h *TenantAdminHandler) HealthCheck(c *gin.Context) {
 // ListTenantAdmins handles listing tenant admins.
 func (h *TenantAdminHandler) ListTenantAdmins(c *gin.Context) {
 	tenantIDStr := c.Param("tenant_id")
-	tenantID, err := strconv.ParseUint(tenantIDStr, 10, 32)
+	tenantID, err := uuid.Parse(tenantIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid tenant ID",
@@ -91,9 +188,9 @@ func (h *TenantAdminHandler) ListTenantAdmins(c *gin.Context) {
 		offset = 0
 	}
 
-	h.logger.Info("Listing tenant admins", zap.Uint64("tenant_id", tenantID))
+	h.logger.Info("Listing tenant admins", zap.String("tenant_id", tenantID.String()))
 
-	admins, err := h.service.ListTenantAdmins(c.Request.Context(), uint(tenantID), limit, offset)
+	admins, err := h.service.ListTenantAdmins(c.Request.Context(), tenantID, limit, offset)
 	if err != nil {
 		h.logger.Error("Failed to list tenant admins", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -113,7 +210,7 @@ func (h *TenantAdminHandler) ListTenantAdmins(c *gin.Context) {
 // CreateTenantAdmin handles creating a new tenant admin.
 func (h *TenantAdminHandler) CreateTenantAdmin(c *gin.Context) {
 	tenantIDStr := c.Param("tenant_id")
-	tenantID, err := strconv.ParseUint(tenantIDStr, 10, 32)
+	tenantID, err := uuid.Parse(tenantIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid tenant ID",
@@ -130,9 +227,9 @@ func (h *TenantAdminHandler) CreateTenantAdmin(c *gin.Context) {
 		return
 	}
 
-	admin.TenantID = uint(tenantID)
+	admin.TenantID = tenantID
 
-	h.logger.Info("Creating tenant admin", zap.Uint64("tenant_id", tenantID))
+	h.logger.Info("Creating tenant admin", zap.String("tenant_id", tenantID.String()))
 
 	if err := h.service.CreateTenantAdmin(c.Request.Context(), &admin); err != nil {
 		h.logger.Error("Failed to create tenant admin", zap.Error(err))
@@ -241,7 +338,7 @@ func (h *TenantAdminHandler) DeleteTenantAdmin(c *gin.Context) {
 // GetTenantSettings handles retrieving tenant settings.
 func (h *TenantAdminHandler) GetTenantSettings(c *gin.Context) {
 	tenantIDStr := c.Param("tenant_id")
-	tenantID, err := strconv.ParseUint(tenantIDStr, 10, 32)
+	tenantID, err := uuid.Parse(tenantIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid tenant ID",
@@ -249,9 +346,9 @@ func (h *TenantAdminHandler) GetTenantSettings(c *gin.Context) {
 		return
 	}
 
-	h.logger.Info("Getting tenant settings", zap.Uint64("tenant_id", tenantID))
+	h.logger.Info("Getting tenant settings", zap.String("tenant_id", tenantID.String()))
 
-	settings, err := h.service.GetTenantSettings(c.Request.Context(), uint(tenantID))
+	settings, err := h.service.GetTenantSettings(c.Request.Context(), tenantID)
 	if err != nil {
 		h.logger.Error("Failed to get tenant settings", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -268,7 +365,7 @@ func (h *TenantAdminHandler) GetTenantSettings(c *gin.Context) {
 // UpdateTenantSettings handles updating tenant settings.
 func (h *TenantAdminHandler) UpdateTenantSettings(c *gin.Context) {
 	tenantIDStr := c.Param("tenant_id")
-	tenantID, err := strconv.ParseUint(tenantIDStr, 10, 32)
+	tenantID, err := uuid.Parse(tenantIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid tenant ID",
@@ -285,9 +382,9 @@ func (h *TenantAdminHandler) UpdateTenantSettings(c *gin.Context) {
 		return
 	}
 
-	h.logger.Info("Updating tenant settings", zap.Uint64("tenant_id", tenantID))
+	h.logger.Info("Updating tenant settings", zap.String("tenant_id", tenantID.String()))
 
-	if err := h.service.UpdateTenantSettings(c.Request.Context(), uint(tenantID), &updates); err != nil {
+	if err := h.service.UpdateTenantSettings(c.Request.Context(), tenantID, &updates); err != nil {
 		h.logger.Error("Failed to update tenant settings", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to update tenant settings",
@@ -305,7 +402,7 @@ func (h *TenantAdminHandler) UpdateTenantSettings(c *gin.Context) {
 // ListTenantFeatureFlags handles listing tenant feature flags.
 func (h *TenantAdminHandler) ListTenantFeatureFlags(c *gin.Context) {
 	tenantIDStr := c.Param("tenant_id")
-	tenantID, err := strconv.ParseUint(tenantIDStr, 10, 32)
+	tenantID, err := uuid.Parse(tenantIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid tenant ID",
@@ -326,9 +423,9 @@ func (h *TenantAdminHandler) ListTenantFeatureFlags(c *gin.Context) {
 		offset = 0
 	}
 
-	h.logger.Info("Listing tenant feature flags", zap.Uint64("tenant_id", tenantID))
+	h.logger.Info("Listing tenant feature flags", zap.String("tenant_id", tenantID.String()))
 
-	flags, err := h.service.ListTenantFeatureFlags(c.Request.Context(), uint(tenantID), limit, offset)
+	flags, err := h.service.ListTenantFeatureFlags(c.Request.Context(), tenantID, limit, offset)
 	if err != nil {
 		h.logger.Error("Failed to list tenant feature flags", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -348,7 +445,7 @@ func (h *TenantAdminHandler) ListTenantFeatureFlags(c *gin.Context) {
 // CreateTenantFeatureFlag handles creating a new tenant feature flag.
 func (h *TenantAdminHandler) CreateTenantFeatureFlag(c *gin.Context) {
 	tenantIDStr := c.Param("tenant_id")
-	tenantID, err := strconv.ParseUint(tenantIDStr, 10, 32)
+	tenantID, err := uuid.Parse(tenantIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid tenant ID",
@@ -365,9 +462,9 @@ func (h *TenantAdminHandler) CreateTenantFeatureFlag(c *gin.Context) {
 		return
 	}
 
-	flag.TenantID = uint(tenantID)
+	flag.TenantID = tenantID
 
-	h.logger.Info("Creating tenant feature flag", zap.Uint64("tenant_id", tenantID))
+	h.logger.Info("Creating tenant feature flag", zap.String("tenant_id", tenantID.String()))
 
 	if err := h.service.CreateTenantFeatureFlag(c.Request.Context(), &flag); err != nil {
 		h.logger.Error("Failed to create tenant feature flag", zap.Error(err))
@@ -476,7 +573,7 @@ func (h *TenantAdminHandler) DeleteTenantFeatureFlag(c *gin.Context) {
 // GetTenantUsage handles retrieving tenant usage metrics.
 func (h *TenantAdminHandler) GetTenantUsage(c *gin.Context) {
 	tenantIDStr := c.Param("tenant_id")
-	tenantID, err := strconv.ParseUint(tenantIDStr, 10, 32)
+	tenantID, err := uuid.Parse(tenantIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid tenant ID",
@@ -503,9 +600,9 @@ func (h *TenantAdminHandler) GetTenantUsage(c *gin.Context) {
 		return
 	}
 
-	h.logger.Info("Getting tenant usage", zap.Uint64("tenant_id", tenantID))
+	h.logger.Info("Getting tenant usage", zap.String("tenant_id", tenantID.String()))
 
-	usage, err := h.service.GetTenantUsage(c.Request.Context(), uint(tenantID), startDate, endDate)
+	usage, err := h.service.GetTenantUsage(c.Request.Context(), tenantID, startDate, endDate)
 	if err != nil {
 		h.logger.Error("Failed to get tenant usage", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -523,7 +620,7 @@ func (h *TenantAdminHandler) GetTenantUsage(c *gin.Context) {
 // RecordTenantUsage handles recording tenant usage metrics.
 func (h *TenantAdminHandler) RecordTenantUsage(c *gin.Context) {
 	tenantIDStr := c.Param("tenant_id")
-	tenantID, err := strconv.ParseUint(tenantIDStr, 10, 32)
+	tenantID, err := uuid.Parse(tenantIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid tenant ID",
@@ -540,9 +637,9 @@ func (h *TenantAdminHandler) RecordTenantUsage(c *gin.Context) {
 		return
 	}
 
-	usage.TenantID = uint(tenantID)
+	usage.TenantID = tenantID
 
-	h.logger.Info("Recording tenant usage", zap.Uint64("tenant_id", tenantID))
+	h.logger.Info("Recording tenant usage", zap.String("tenant_id", tenantID.String()))
 
 	if err := h.service.RecordTenantUsage(c.Request.Context(), &usage); err != nil {
 		h.logger.Error("Failed to record tenant usage", zap.Error(err))
@@ -563,7 +660,7 @@ func (h *TenantAdminHandler) RecordTenantUsage(c *gin.Context) {
 // GetTenantStats handles getting tenant statistics.
 func (h *TenantAdminHandler) GetTenantStats(c *gin.Context) {
 	tenantIDStr := c.Param("tenant_id")
-	tenantID, err := strconv.ParseUint(tenantIDStr, 10, 32)
+	tenantID, err := uuid.Parse(tenantIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid tenant ID",
@@ -571,9 +668,9 @@ func (h *TenantAdminHandler) GetTenantStats(c *gin.Context) {
 		return
 	}
 
-	h.logger.Info("Getting tenant statistics", zap.Uint64("tenant_id", tenantID))
+	h.logger.Info("Getting tenant statistics", zap.String("tenant_id", tenantID.String()))
 
-	stats, err := h.service.GetTenantStats(c.Request.Context(), uint(tenantID))
+	stats, err := h.service.GetTenantStats(c.Request.Context(), tenantID)
 	if err != nil {
 		h.logger.Error("Failed to get tenant statistics", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -815,45 +912,57 @@ func (h *TenantAdminHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Implement proper authentication logic
-	// For production, integrate with user-service for authentication
-	// For now, implement basic authentication with proper JWT generation
-
-	// Validate credentials (in production, this would call user-service)
-	if loginRequest.Email == "admin@example.com" && loginRequest.Password == "admin123" {
-		// Generate proper JWT token
-		claims := jwt.MapClaims{
-			"user_id":   1,
-			"email":     loginRequest.Email,
-			"username":  "admin",
-			"role":      "admin",
-			"tenant_id": 1,
-			"exp":       time.Now().Add(time.Hour * 24).Unix(), // 24 hours
-			"iat":       time.Now().Unix(),
-		}
-
-		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-		tokenString, err := token.SignedString([]byte("your-jwt-secret-key")) // Use env variable
-		if err != nil {
-			h.logger.Error("Failed to generate JWT token", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"token": tokenString,
-			"user": gin.H{
-				"id":        1,
-				"email":     loginRequest.Email,
-				"username":  "admin",
-				"role":      "admin",
-				"tenant_id": 1,
-			},
-		})
+	// Get tenant context
+	tenantID, hasTenantID := c.Get("tenant_id")
+	if !hasTenantID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tenant context not found"})
 		return
 	}
 
-	c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+	// Authenticate user with database
+	user, err := h.service.AuthenticateUser(loginRequest.Email, loginRequest.Password)
+	if err != nil {
+		h.logger.Warn("Authentication failed",
+			zap.String("email", loginRequest.Email),
+			zap.Error(err))
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		return
+	}
+
+	// Generate JWT token
+	tokenExpiry := time.Hour * 24 // Default 24 hours
+	if loginRequest.RememberMe {
+		tokenExpiry = time.Hour * 24 * 30 // 30 days if remember me
+	}
+
+	claims := jwt.MapClaims{
+		"user_id":   user.ID,
+		"email":     user.Email,
+		"tenant_id": tenantID,
+		"exp":       time.Now().Add(tokenExpiry).Unix(),
+		"iat":       time.Now().Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte("your-jwt-secret-key")) // TODO: Use env variable
+	if err != nil {
+		h.logger.Error("Failed to generate JWT token", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		return
+	}
+
+	h.logger.Info("User logged in successfully",
+		zap.String("email", user.Email),
+		zap.Uint("user_id", user.ID))
+
+	c.JSON(http.StatusOK, gin.H{
+		"token": tokenString,
+		"user": gin.H{
+			"id":        user.ID,
+			"email":     user.Email,
+			"tenant_id": tenantID,
+		},
+	})
 }
 
 // Logout handles user logout.
@@ -882,27 +991,27 @@ func (h *TenantAdminHandler) VerifyToken(c *gin.Context) {
 }
 
 // getTenantID extracts tenant ID from request.
-func (h *TenantAdminHandler) getTenantID(c *gin.Context) (uint, error) {
+func (h *TenantAdminHandler) getTenantID(c *gin.Context) (uuid.UUID, error) {
 	// Try to get from query parameter first
 	if tenantIDStr := c.Query("tenant_id"); tenantIDStr != "" {
-		tenantID, err := strconv.ParseUint(tenantIDStr, 10, 32)
+		tenantID, err := uuid.Parse(tenantIDStr)
 		if err != nil {
-			return 0, err
+			return uuid.Nil, err
 		}
-		return uint(tenantID), nil
+		return tenantID, nil
 	}
 
 	// Try to get from header
 	if tenantIDStr := c.GetHeader("X-Tenant-ID"); tenantIDStr != "" {
-		tenantID, err := strconv.ParseUint(tenantIDStr, 10, 32)
+		tenantID, err := uuid.Parse(tenantIDStr)
 		if err != nil {
-			return 0, err
+			return uuid.Nil, err
 		}
-		return uint(tenantID), nil
+		return tenantID, nil
 	}
 
-	// Default to tenant ID 1 for development
-	return 1, nil
+	// Return empty UUID for development (should be retrieved from tenant context middleware)
+	return uuid.Nil, fmt.Errorf("tenant ID not found")
 }
 
 // ============================================================================
@@ -934,27 +1043,51 @@ func (h *TenantAdminHandler) GetTenants(c *gin.Context) {
 }
 
 // CreateTenant handles creating a new tenant.
+// CreateTenantRequest represents the request to create a tenant with admin credentials
+type CreateTenantRequest struct {
+	Name          string `json:"name" binding:"required"`
+	Slug          string `json:"slug" binding:"required"`
+	ContactEmail  string `json:"contact_email" binding:"required"`
+	Domain        string `json:"domain"`
+	Subdomain     string `json:"subdomain"`
+	AdminEmail    string `json:"admin_email" binding:"required,email"`
+	AdminPassword string `json:"admin_password" binding:"required,min=8"`
+}
+
 func (h *TenantAdminHandler) CreateTenant(c *gin.Context) {
-	var tenant models.Tenant
-	if err := c.ShouldBindJSON(&tenant); err != nil {
+	var req CreateTenantRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.Error("Failed to bind tenant data", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant data"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant data: " + err.Error()})
 		return
 	}
 
-	// Validate required fields
-	if tenant.Name == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Tenant name is required"})
-		return
-	}
-	if tenant.ContactEmail == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Contact email is required"})
-		return
+	// Create tenant model
+	tenant := &models.Tenant{
+		Name:         req.Name,
+		Slug:         req.Slug,
+		ContactEmail: req.ContactEmail,
+		Domain:       req.Domain,
+		Subdomain:    req.Subdomain,
+		Status:       "active",
+		IsActive:     true,
 	}
 
-	if err := h.service.CreateTenant(&tenant); err != nil {
+	if err := h.service.CreateTenant(tenant); err != nil {
 		h.logger.Error("Failed to create tenant", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create tenant"})
+		return
+	}
+
+	// Create admin user with hashed password
+	if err := h.service.CreateAdminUser(tenant.ID, req.AdminEmail, req.AdminPassword); err != nil {
+		h.logger.Error("Failed to create admin user", zap.Error(err))
+		// Tenant is created but admin user failed - log but don't rollback
+		c.JSON(http.StatusCreated, gin.H{
+			"message": "Tenant created but failed to create admin user",
+			"data":    tenant,
+			"warning": "Admin user creation failed",
+		})
 		return
 	}
 
@@ -1151,4 +1284,96 @@ func (h *TenantAdminHandler) UpdateTenantBranding(c *gin.Context) {
 		"message": "Tenant branding updated successfully",
 		"data":    branding,
 	})
+}
+
+// generateTenantDashboardData creates tenant-specific dashboard data.
+func (h *TenantAdminHandler) generateTenantDashboardData(tenantID, tenantName string) gin.H {
+	// Base dashboard data
+	dashboardData := gin.H{
+		"title":           fmt.Sprintf("%s - Admin Dashboard", tenantName),
+		"tenant_id":       tenantID,
+		"tenant_name":     tenantName,
+		"dashboard_title": fmt.Sprintf("%s Dashboard", tenantName),
+		"last_updated":    time.Now().Format("2006-01-02 15:04:05"),
+	}
+
+	// Fetch real data from database
+	ctx := context.Background()
+
+	// Parse tenant ID to uint for database queries
+	var tenantIDUint uint
+	if id, err := strconv.ParseUint(tenantID, 10, 32); err == nil {
+		tenantIDUint = uint(id)
+	}
+
+	// Count status pages for this tenant
+	var statusPagesCount int64
+	h.service.GetDB().Table("status_pages").
+		Where("tenant_id = ? AND deleted_at IS NULL", tenantIDUint).
+		Count(&statusPagesCount)
+	dashboardData["status_pages_count"] = statusPagesCount
+
+	// Count components for this tenant
+	var componentsCount int64
+	h.service.GetDB().Table("components").
+		Where("tenant_id = ? AND deleted_at IS NULL", tenantIDUint).
+		Count(&componentsCount)
+	dashboardData["components_count"] = componentsCount
+
+	// Count active incidents
+	var activeIncidentsCount int64
+	h.service.GetDB().Table("incidents").
+		Where("tenant_id = ? AND status IN (?) AND deleted_at IS NULL",
+			tenantIDUint,
+			[]string{"investigating", "identified", "monitoring"}).
+		Count(&activeIncidentsCount)
+	dashboardData["active_incidents"] = activeIncidentsCount
+
+	// Count subscribers
+	var subscribersCount int64
+	h.service.GetDB().Table("subscribers").
+		Where("tenant_id = ? AND deleted_at IS NULL", tenantIDUint).
+		Count(&subscribersCount)
+	dashboardData["subscribers_count"] = subscribersCount
+
+	// Determine overall status based on active incidents
+	if activeIncidentsCount > 0 {
+		// Check severity of incidents
+		var criticalCount int64
+		h.service.GetDB().Table("incidents").
+			Where("tenant_id = ? AND severity = ? AND status IN (?) AND deleted_at IS NULL",
+				tenantIDUint,
+				"critical",
+				[]string{"investigating", "identified", "monitoring"}).
+			Count(&criticalCount)
+
+		if criticalCount > 0 {
+			dashboardData["overall_status"] = "Major Service Disruption"
+			dashboardData["overall_status_class"] = "critical"
+			dashboardData["status_icon"] = "fas fa-exclamation-circle"
+			dashboardData["status_color"] = "text-danger"
+		} else {
+			dashboardData["overall_status"] = "Minor Service Disruption"
+			dashboardData["overall_status_class"] = "degraded"
+			dashboardData["status_icon"] = "fas fa-exclamation-triangle"
+			dashboardData["status_color"] = "text-warning"
+		}
+	} else {
+		dashboardData["overall_status"] = "All Systems Operational"
+		dashboardData["overall_status_class"] = "operational"
+		dashboardData["status_icon"] = "fas fa-check-circle"
+		dashboardData["status_color"] = "text-success"
+	}
+
+	h.logger.Debug("Generated dashboard data from database",
+		zap.String("tenant_id", tenantID),
+		zap.Int64("status_pages", statusPagesCount),
+		zap.Int64("components", componentsCount),
+		zap.Int64("incidents", activeIncidentsCount),
+		zap.Int64("subscribers", subscribersCount))
+
+	// Suppress unused variable warning
+	_ = ctx
+
+	return dashboardData
 }

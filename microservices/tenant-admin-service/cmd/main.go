@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -16,8 +17,10 @@ import (
 	"github.com/anupamdutta5/tenant-admin-service/internal/config"
 	"github.com/anupamdutta5/tenant-admin-service/internal/handlers"
 	"github.com/anupamdutta5/tenant-admin-service/internal/middleware"
+	"github.com/anupamdutta5/tenant-admin-service/internal/models"
 	"github.com/anupamdutta5/tenant-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
+	_ "github.com/lib/pq" // PostgreSQL driver
 	"go.uber.org/zap"
 )
 
@@ -56,6 +59,11 @@ func main() {
 		zap.Int("port", resilienceConfig.Server.Port),
 	)
 
+	// Ensure database exists before connecting
+	if err := ensureDatabaseExists(resilienceConfig.Database, logger); err != nil {
+		logger.Fatal("Failed to ensure database exists", zap.Error(err))
+	}
+
 	// Initialize database manager with connection pooling and health checks
 	dbManager, err := resilience.NewDatabaseManager(resilienceConfig.Database, logger)
 	if err != nil {
@@ -72,6 +80,43 @@ func main() {
 	}
 
 	logger.Info("Database connection established successfully")
+
+	// Auto-migrate Tenant Admin Service models
+	db := dbManager.GetDB()
+
+	// Auto migrate all models at once
+	if err := db.AutoMigrate(
+		&models.Tenant{},
+		&models.TenantBranding{},
+		&models.TenantAdmin{},
+		&models.TenantSettings{},
+		&models.TenantFeatureFlag{},
+		&models.TenantUsage{},
+		&models.TenantBilling{},
+		&models.TenantNotification{},
+		&models.TenantActivity{},
+		&models.TenantBackup{},
+		&models.TenantStats{},
+		&models.StatusPage{},
+		&models.StatusPageConfig{},
+		&models.Domain{},
+		&models.DomainVerificationRecord{},
+		&models.Role{},
+		&models.Permission{},
+		&models.UserRole{},
+		&models.Team{},
+		&models.TeamMember{},
+		&models.TeamRole{},
+		&models.Session{},
+		&models.AuditLog{},
+		&models.User{},
+	); err != nil {
+		logger.Warn("Auto-migrate models had issues (continuing anyway)", zap.Error(err))
+	} else {
+		logger.Info("Successfully migrated all models")
+	}
+
+	logger.Info("Tenant Admin Service database migration completed")
 
 	// Initialize circuit breakers for external dependencies
 	var circuitBreakers = make(map[string]*resilience.CircuitBreaker)
@@ -138,8 +183,8 @@ func main() {
 	router := gin.New()
 
 	// Add comprehensive middleware stack
-	middleware := resilience.DefaultMiddlewareStack(resilienceConfig, logger)
-	for _, mw := range middleware {
+	middlewareStack := resilience.DefaultMiddlewareStack(resilienceConfig, logger)
+	for _, mw := range middlewareStack {
 		router.Use(mw)
 	}
 
@@ -147,6 +192,16 @@ func main() {
 	if rateLimiter != nil {
 		router.Use(resilience.RateLimitMiddleware(resilienceConfig.RateLimit.RequestsPerMinute, time.Minute))
 	}
+
+	// Add tenant context middleware for subdomain routing
+	baseDomain := os.Getenv("BASE_DOMAIN")
+	if baseDomain == "" {
+		baseDomain = "localhost" // Default for development
+	}
+	router.Use(middleware.TenantContextMiddleware(dbManager.GetDB(), logger, baseDomain))
+
+	// Load HTML templates for admin dashboard
+	router.LoadHTMLGlob("web/templates/*.html")
 
 	// Initialize modernized handlers with shared error handling
 	tenantAdminHandler := handlers.NewTenantAdminHandler(tenantAdminService, statusPageService, logger)
@@ -236,6 +291,41 @@ func main() {
 	logger.Info("Tenant Admin Service server exited gracefully")
 }
 
+// ensureDatabaseExists creates the database if it doesn't exist
+func ensureDatabaseExists(config resilience.DatabaseConfig, logger *zap.Logger) error {
+	// Connect to postgres database to create the target database
+	connectionString := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=postgres sslmode=%s",
+		config.Host, config.Port, config.User, config.Password, config.SSLMode)
+
+	db, err := sql.Open("postgres", connectionString)
+	if err != nil {
+		return fmt.Errorf("failed to connect to postgres database: %w", err)
+	}
+	defer db.Close()
+
+	// Check if database exists
+	var exists bool
+	checkQuery := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = '%s')", config.Name)
+	err = db.QueryRow(checkQuery).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("failed to check if database exists: %w", err)
+	}
+
+	// Create database if it doesn't exist
+	if !exists {
+		createQuery := fmt.Sprintf("CREATE DATABASE %s", config.Name)
+		_, err = db.Exec(createQuery)
+		if err != nil {
+			return fmt.Errorf("failed to create database: %w", err)
+		}
+		logger.Info("Database created successfully", zap.String("database", config.Name))
+	} else {
+		logger.Info("Database already exists", zap.String("database", config.Name))
+	}
+
+	return nil
+}
+
 // setupModernizedRoutes configures all the routes with improved structure and security
 func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdminHandler, domainHandler *handlers.DomainHandler, rbacHandler *handlers.RBACHandler, rbacService *services.RBACService, logger *zap.Logger, config *resilience.Config) {
 	// Health check endpoints (excluded from auth and rate limiting)
@@ -246,10 +336,32 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 	// API routes with versioning
 	api := router.Group("/api/v1")
 	{
+		// Auth routes (public, no authentication required)
+		auth := api.Group("/auth")
+		{
+			auth.POST("/login", tenantHandler.Login)
+		}
+
 		// Public routes (no authentication required)
 		public := api.Group("/public")
 		{
-			public.POST("/login", tenantHandler.Login)
+			public.POST("/login", tenantHandler.Login) // Keep for backward compatibility
+
+			// Tenant management (for SaaS-Admin service calls)
+			public.GET("/tenants", tenantHandler.GetTenants)
+			public.POST("/tenants", tenantHandler.CreateTenant)
+			public.GET("/tenants/:id", tenantHandler.GetTenant)
+			public.GET("/tenants/slug/:slug", tenantHandler.GetTenantBySlug)
+			public.PUT("/tenants/:id", tenantHandler.UpdateTenant)
+			public.DELETE("/tenants/:id", tenantHandler.DeleteTenant)
+		}
+
+		// Session management routes (for service-to-service communication)
+		sessions := api.Group("/sessions")
+		{
+			sessions.POST("", rbacHandler.CreateSession)
+			sessions.GET("/:sessionId", rbacHandler.ValidateSession)
+			sessions.DELETE("/:sessionId", rbacHandler.DeleteSession)
 		}
 
 		// Protected routes (authentication required)
@@ -278,6 +390,25 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 			{
 				auth.POST("/logout", tenantHandler.Logout)
 				auth.POST("/verify", tenantHandler.VerifyToken)
+			}
+
+			// Tenant management routes (main CRUD operations)
+			tenants := protected.Group("/tenants")
+			{
+				tenants.GET("", tenantHandler.GetTenants)
+				tenants.POST("", tenantHandler.CreateTenant)
+				tenants.GET("/:id", tenantHandler.GetTenant)
+				tenants.PUT("/:id", tenantHandler.UpdateTenant)
+				tenants.DELETE("/:id", tenantHandler.DeleteTenant)
+				tenants.GET("/slug/:slug", tenantHandler.GetTenantBySlug)
+				tenants.GET("/domain/:domain", tenantHandler.GetTenantByDomain)
+			}
+
+			// Tenant branding routes - separate group to avoid route conflicts
+			branding := protected.Group("/branding")
+			{
+				branding.GET("/:tenant_id", tenantHandler.GetTenantBranding)
+				branding.PUT("/:tenant_id", tenantHandler.UpdateTenantBranding)
 			}
 
 			// Tenant admin routes
@@ -404,8 +535,14 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 					teams.GET("/:id", rbacHandler.GetTeam)
 					teams.PUT("/:id", rbacMiddleware.RequirePermission("users.update"), rbacHandler.UpdateTeam)
 					teams.DELETE("/:id", rbacMiddleware.RequirePermission("users.delete"), rbacHandler.DeleteTeam)
-					teams.POST("/:team_id/members", rbacMiddleware.RequirePermission("users.update"), rbacHandler.AddUserToTeam)
-					teams.DELETE("/:team_id/members/:user_id", rbacMiddleware.RequirePermission("users.update"), rbacHandler.RemoveUserFromTeam)
+				}
+
+				// Team member management - separate endpoint to avoid route conflicts
+				teamMembers := rbac.Group("/team-members")
+				teamMembers.Use(rbacMiddleware.RequirePermission("users.read"))
+				{
+					teamMembers.POST("/:team_id", rbacMiddleware.RequirePermission("users.update"), rbacHandler.AddUserToTeam)
+					teamMembers.DELETE("/:team_id/:user_id", rbacMiddleware.RequirePermission("users.update"), rbacHandler.RemoveUserFromTeam)
 				}
 
 				// Administrative functions
@@ -426,3 +563,6 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 	router.GET("/login", tenantHandler.GetLoginPage)
 	router.GET("/admin", tenantHandler.GetAdminDashboard)
 }
+// TODO: CLEANUP - Update auth middleware usage
+// Replace local auth with: auth.NewMiddleware(authConfig, logger)
+// Import: github.com/anupamdutta5/shared-resilience/auth

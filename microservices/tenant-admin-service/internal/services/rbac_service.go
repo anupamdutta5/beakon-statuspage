@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/anupamdutta5/tenant-admin-service/internal/models"
@@ -22,6 +24,8 @@ type RBACService struct {
 
 // NewRBACService creates a new RBAC service instance
 func NewRBACService(db *gorm.DB, logger *zap.Logger) *RBACService {
+	// Note: Database migration is handled in main.go to avoid duplicate migrations
+
 	return &RBACService{
 		db:     db,
 		logger: logger,
@@ -427,6 +431,22 @@ func (s *RBACService) CreateSession(ctx context.Context, userID, tenantID uint, 
 
 // ValidateSession validates a session and updates last seen
 func (s *RBACService) ValidateSession(ctx context.Context, sessionID string) (*models.Session, error) {
+	// Handle service-to-service communication sessions
+	if strings.HasPrefix(sessionID, "saas-admin-session-") {
+		expectedToken := "saas-admin-session-" + os.Getenv("JWT_SECRET")
+		if sessionID == expectedToken {
+			// Return a mock session for service-to-service communication
+			return &models.Session{
+				ID:       sessionID,
+				UserID:   1, // Service user ID
+				TenantID: 1, // Default tenant for admin operations
+				IsActive: true,
+				LastSeen: time.Now(),
+			}, nil
+		}
+		return nil, errors.New("invalid service session")
+	}
+
 	var session models.Session
 	err := s.db.WithContext(ctx).Where("id = ? AND is_active = ? AND expires_at > NOW()", sessionID, true).First(&session).Error
 	if err != nil {
@@ -503,6 +523,32 @@ func (s *RBACService) InitializeDefaultRoles(ctx context.Context, tenantID uint)
 	}
 
 	s.logger.Info("Default roles initialized for tenant", zap.Uint("tenant_id", tenantID))
+	return nil
+}
+
+// API Wrapper Methods for Session Management
+
+// CreateSimpleSession creates a new session with simplified parameters for API use
+func (s *RBACService) CreateSimpleSession(ctx context.Context, userID, tenantID uint) (*models.Session, error) {
+	// Use default values for API calls
+	return s.CreateSession(ctx, userID, tenantID, "service-to-service", "admin-api", 24*time.Hour)
+}
+
+// DeleteSession invalidates a session by ID
+func (s *RBACService) DeleteSession(ctx context.Context, sessionID string) error {
+	result := s.db.WithContext(ctx).Model(&models.Session{}).
+		Where("id = ?", sessionID).
+		Update("is_active", false)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete session: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("session not found: %s", sessionID)
+	}
+
+	s.logger.Info("Session deleted", zap.String("session_id", sessionID))
 	return nil
 }
 

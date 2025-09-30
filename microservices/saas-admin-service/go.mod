@@ -3,9 +3,11 @@ module github.com/anupamdutta5/saas-admin-service
 go 1.25.0
 
 require (
-	github.com/anupamdutta5/shared-resilience v0.0.0
+	github.com/anupamdutta5/shared-resilience v1.0.0
 	github.com/gin-gonic/gin v1.10.1
 	github.com/google/uuid v1.6.0
+	github.com/gorilla/mux v1.8.1
+	github.com/gorilla/websocket v1.5.3
 	github.com/gosimple/slug v1.15.0
 	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.10.0
@@ -13,7 +15,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/postgres v1.5.2
 	gorm.io/driver/sqlite v1.5.6
-	gorm.io/gorm v1.30.5
+	gorm.io/gorm v1.25.12
 )
 
 require (

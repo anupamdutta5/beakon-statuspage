@@ -1,0 +1,33 @@
+# Ignore everything by default
+*
+
+# Allow only the necessary files and directories
+!microservices/saas-admin-service/**
+!microservices/shared-resilience/**
+!go.mod
+!go.sum
+
+# Ignore specific files and directories within allowed directories
+**/.git
+**/node_modules
+**/vendor
+**/bin
+**/dist
+**/build
+**/*.log
+**/*.md
+**/*.sql
+**/*.sh
+**/*.yaml
+**/*.yml
+**/*.json
+**/*.toml
+**/*.lock
+**/*.test
+**/*_test.go
+**/test*
+**/Dockerfile*
+**/docker-compose*
+**/.gitignore
+**/.dockerignore
+**/README*

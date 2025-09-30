@@ -247,3 +247,7 @@ func setupBasicRoutes(router *gin.Engine, brandingHandler *handlers.BrandingHand
 		}
 	}
 }
+
+// TODO: CLEANUP - Update auth middleware usage
+// Replace local auth with: auth.NewMiddleware(authConfig, logger)
+// Import: github.com/anupamdutta5/shared-resilience/auth

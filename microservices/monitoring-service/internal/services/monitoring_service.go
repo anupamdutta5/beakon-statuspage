@@ -30,6 +30,56 @@ type MonitoringService struct {
 
 // NewMonitoringService creates a new monitoring service.
 func NewMonitoringService(db *gorm.DB, logger *zap.Logger) *MonitoringService {
+	// Auto-migrate models for monitoring service
+	if err := db.AutoMigrate(
+		// Core monitoring models
+		&models.MonitoredService{},
+		&models.HealthCheck{},
+		&models.HealthCheckResult{},
+		&models.Alert{},
+		&models.UptimeCheck{},
+		&models.UptimeResult{},
+		&models.PerformanceMetric{},
+		&models.PerformanceDataPoint{},
+		&models.LogEntry{},
+		&models.CustomMetric{},
+		&models.CustomMetricDataPoint{},
+		// Component monitoring models
+		&models.MonitoredComponent{},
+		&models.MonitoredContainer{},
+		&models.ContainerHealthCheck{},
+		&models.ComponentMetric{},
+		// External monitoring models
+		&models.ExternalService{},
+		&models.ExternalServiceHealthCheck{},
+		// Docker monitoring models
+		&models.DockerContainer{},
+		&models.DockerContainerHealthCheck{},
+		// Kubernetes monitoring models
+		&models.KubernetesResource{},
+		&models.KubernetesEvent{},
+		// Maintenance management models
+		&models.MaintenanceWindow{},
+		&models.MaintenanceComponent{},
+		&models.MaintenanceUpdate{},
+		&models.MaintenanceTemplate{},
+		// Status automation models
+		&models.StatusAutomation{},
+		&models.StatusAutomationIntegration{},
+		// Integration models
+		&models.Integration{},
+		&models.ComponentMapping{},
+		&models.IntegrationSyncLog{},
+		// Webhook models
+		&models.WebhookEndpoint{},
+		&models.WebhookDelivery{},
+		&models.WebhookEvent{},
+	); err != nil {
+		logger.Error("Failed to migrate monitoring service database", zap.Error(err))
+	} else {
+		logger.Info("Monitoring service database migration completed successfully")
+	}
+
 	return &MonitoringService{
 		db:                    db,
 		logger:                logger,

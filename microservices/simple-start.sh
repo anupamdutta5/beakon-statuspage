@@ -14,22 +14,52 @@ echo "✅ Go is available"
 # Create logs directory
 mkdir -p logs
 
-# Export development environment
+# Export development environment variables
 export ENVIRONMENT=development
 export LOG_LEVEL=debug
+
+# Required environment variables for all services
+export JWT_SECRET=dev-secret-for-testing-only-change-in-production
+export JWT_EXPIRATION=24h
+export JWT_ISSUER=statuspage-beakon
+
+# Database configuration (use single database for development)
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_USER=postgres
+export DB_PASSWORD=postgres
+export DB_NAME=postgres
+export DB_SSL_MODE=disable
+export DB_MAX_CONNS=100
+export DB_MIN_CONNS=10
+
+# Redis configuration (disabled for now)
+export REDIS_ENABLED=false
+export REDIS_HOST=localhost
+export REDIS_PORT=6379
+
+# Security and CORS
+export CORS_ENABLED=true
+export CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8094
+export CORS_ALLOWED_METHODS=GET,POST,PUT,DELETE,OPTIONS
+export CORS_ALLOWED_HEADERS=Authorization,Content-Type
+export CORS_ALLOW_CREDENTIALS=true
+
+# Rate limiting
+export RATE_LIMIT_ENABLED=true
+export RATE_LIMIT_REQUESTS_PER_SECOND=100
+export RATE_LIMIT_BURST=200
+
+# Timeouts
+export READ_TIMEOUT=30s
+export WRITE_TIMEOUT=30s
+export IDLE_TIMEOUT=120s
+export GRACEFUL_SHUTDOWN_TIMEOUT=30s
 
 echo ""
 echo "Starting services..."
 
-# Start database service first
-if [ -d "database-service" ]; then
-    echo "Starting database-service on port 8095..."
-    cd database-service
-    export PORT=8095
-    nohup go run ./cmd > ../logs/database-service.log 2>&1 &
-    cd ..
-    sleep 3
-fi
+# Skip database service (has compilation issues) and start core services only
 
 # Start user service
 if [ -d "user-service" ]; then

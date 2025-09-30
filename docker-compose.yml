@@ -1,0 +1,629 @@
+services:
+  # === CORE SERVICES ===
+
+  # User Service (Port 8080)
+  user-service:
+    build:
+      context: .
+      dockerfile: microservices/user-service/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - ENVIRONMENT=development
+      - PORT=8080
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=statuspage_user
+      - DB_PASSWORD=statuspage_password
+      - DB_NAME=statuspage_users
+      - JWT_SECRET=dev-jwt-secret-change-in-production
+      - REDIS_ENABLED=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - ./shared-resilience:/app/shared-resilience
+
+  # API Gateway (Port 8081)
+  api-gateway:
+    build:
+      context: ./microservices/api-gateway
+      dockerfile_inline: |
+        FROM golang:1.23-alpine AS builder
+        WORKDIR /app
+        ENV GOTOOLCHAIN=auto
+        COPY go.mod go.sum ./
+        RUN go mod download
+        COPY . .
+        RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/main.go
+        FROM alpine:3.18
+        RUN apk add --no-cache ca-certificates
+        WORKDIR /app
+        COPY --from=builder /app/main .
+        EXPOSE 8081
+        CMD ["./main"]
+    ports:
+      - "8081:8081"
+    environment:
+      - ENVIRONMENT=development
+      - PORT=8081
+      - USER_SERVICE_URL=http://user-service:8080
+      - COMPONENT_SERVICE_URL=http://component-service:8082
+      - ANALYTICS_SERVICE_URL=http://analytics-service:8083
+      - INCIDENT_SERVICE_URL=http://incident-service:8084
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8086
+      - PAYMENT_SERVICE_URL=http://payment-service:8087
+    depends_on:
+      - user-service
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+
+  # Component Service (Port 8082)
+  component-service:
+    build:
+      context: ./microservices/component-service
+      dockerfile_inline: |
+        FROM golang:1.23-alpine AS builder
+        WORKDIR /app
+        ENV GOTOOLCHAIN=auto
+        COPY go.mod go.sum ./
+        RUN go mod download
+        COPY . .
+        RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/main.go
+        FROM alpine:3.18
+        RUN apk add --no-cache ca-certificates
+        WORKDIR /app
+        COPY --from=builder /app/main .
+        EXPOSE 8082
+        CMD ["./main"]
+    ports:
+      - "8082:8082"
+    environment:
+      - ENVIRONMENT=development
+      - PORT=8082
+      - DB_HOST=postgres
+      - DB_PASSWORD=statuspage_password
+      - DB_NAME=statuspage_components
+    depends_on:
+      - postgres
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+
+  # Analytics Service (Port 8083)
+  analytics-service:
+    build:
+      context: ./microservices/analytics-service
+      dockerfile_inline: |
+        FROM golang:1.23-alpine AS builder
+        WORKDIR /app
+        ENV GOTOOLCHAIN=auto
+        COPY go.mod go.sum ./
+        RUN go mod download
+        COPY . .
+        RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/main.go
+        FROM alpine:3.18
+        RUN apk add --no-cache ca-certificates
+        WORKDIR /app
+        COPY --from=builder /app/main .
+        EXPOSE 8083
+        CMD ["./main"]
+    ports:
+      - "8083:8083"
+    environment:
+      - ENVIRONMENT=development
+      - PORT=8083
+      - DB_HOST=postgres
+      - DB_PASSWORD=statuspage_password
+      - DB_NAME=statuspage_analytics
+    depends_on:
+      - postgres
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+
+  # Incident Service (Port 8084)
+  incident-service:
+    build:
+      context: ./microservices/incident-service
+      dockerfile_inline: |
+        FROM golang:1.23-alpine AS builder
+        WORKDIR /app
+        ENV GOTOOLCHAIN=auto
+        COPY go.mod go.sum ./
+        RUN go mod download
+        COPY . .
+        RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/main.go
+        FROM alpine:3.18
+        RUN apk add --no-cache ca-certificates
+        WORKDIR /app
+        COPY --from=builder /app/main .
+        EXPOSE 8084
+        CMD ["./main"]
+    ports:
+      - "8084:8084"
+    environment:
+      - ENVIRONMENT=development
+      - PORT=8084
+      - DB_HOST=postgres
+      - DB_PASSWORD=statuspage_password
+      - DB_NAME=statuspage_incidents
+    depends_on:
+      - postgres
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+
+  # Notification Service (Port 8086)
+  notification-service:
+    build:
+      context: ./microservices/notification-service
+      dockerfile_inline: |
+        FROM golang:1.23-alpine AS builder
+        WORKDIR /app
+        ENV GOTOOLCHAIN=auto
+        COPY go.mod go.sum ./
+        RUN go mod download
+        COPY . .
+        RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/main.go
+        FROM alpine:3.18
+        RUN apk add --no-cache ca-certificates
+        WORKDIR /app
+        COPY --from=builder /app/main .
+        EXPOSE 8086
+        CMD ["./main"]
+    ports:
+      - "8086:8086"
+    environment:
+      - ENVIRONMENT=development
+      - PORT=8086
+      - DB_HOST=postgres
+      - DB_PASSWORD=statuspage_password
+      - DB_NAME=statuspage_notifications
+    depends_on:
+      - postgres
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+
+  # Payment Service (Port 8087)
+  payment-service:
+    build:
+      context: ./microservices/payment-service
+      dockerfile_inline: |
+        FROM golang:1.23-alpine AS builder
+        WORKDIR /app
+        ENV GOTOOLCHAIN=auto
+        COPY go.mod go.sum ./
+        RUN go mod download
+        COPY . .
+        RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/main.go
+        FROM alpine:3.18
+        RUN apk add --no-cache ca-certificates
+        WORKDIR /app
+        COPY --from=builder /app/main .
+        EXPOSE 8087
+        CMD ["./main"]
+    ports:
+      - "8087:8087"
+    environment:
+      - ENVIRONMENT=development
+      - PORT=8087
+      - DB_HOST=postgres
+      - DB_PASSWORD=statuspage_password
+      - DB_NAME=statuspage_payments
+    depends_on:
+      - postgres
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+
+  # === INFRASTRUCTURE SERVICES ===
+
+  # SaaS Admin Service (Port 8089)
+  saas-admin-service:
+    build:
+      context: ./microservices/saas-admin-service
+      dockerfile_inline: |
+        FROM golang:1.23-alpine AS builder
+        WORKDIR /app
+        ENV GOTOOLCHAIN=auto
+        COPY go.mod go.sum ./
+        RUN go mod download
+        COPY . .
+        RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/main.go
+        FROM alpine:3.18
+        RUN apk add --no-cache ca-certificates
+        WORKDIR /app
+        COPY --from=builder /app/main .
+        EXPOSE 8089
+        CMD ["./main"]
+    ports:
+      - "8089:8089"
+    environment:
+      - ENVIRONMENT=development
+      - PORT=8089
+      - DB_HOST=postgres
+      - DB_PASSWORD=statuspage_password
+    depends_on:
+      - postgres
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+
+  # Tenant Admin Service (Port 8090)
+  tenant-admin-service:
+    build:
+      context: ./microservices/tenant-admin-service
+      dockerfile_inline: |
+        FROM golang:1.23-alpine AS builder
+        WORKDIR /app
+        ENV GOTOOLCHAIN=auto
+        COPY go.mod go.sum ./
+        RUN go mod download
+        COPY . .
+        RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/main.go
+        FROM alpine:3.18
+        RUN apk add --no-cache ca-certificates
+        WORKDIR /app
+        COPY --from=builder /app/main .
+        EXPOSE 8090
+        CMD ["./main"]
+    ports:
+      - "8090:8090"
+    environment:
+      - ENVIRONMENT=development
+      - PORT=8090
+      - DB_HOST=postgres
+      - DB_PASSWORD=statuspage_password
+    depends_on:
+      - postgres
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+
+  # Monitoring Service (Port 8091)
+  monitoring-service:
+    build:
+      context: ./microservices/monitoring-service
+      dockerfile_inline: |
+        FROM golang:1.23-alpine AS builder
+        WORKDIR /app
+        ENV GOTOOLCHAIN=auto
+        COPY go.mod go.sum ./
+        RUN go mod download
+        COPY . .
+        RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/main.go
+        FROM alpine:3.18
+        RUN apk add --no-cache ca-certificates
+        WORKDIR /app
+        COPY --from=builder /app/main .
+        EXPOSE 8091
+        CMD ["./main"]
+    ports:
+      - "8091:8091"
+    environment:
+      - ENVIRONMENT=development
+      - PORT=8091
+      - DB_HOST=postgres
+      - DB_PASSWORD=statuspage_password
+    depends_on:
+      - postgres
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+
+  # Event Store Service (Port 8093)
+  event-store-service:
+    build:
+      context: ./microservices/event-store-service
+      dockerfile_inline: |
+        FROM golang:1.23-alpine AS builder
+        WORKDIR /app
+        ENV GOTOOLCHAIN=auto
+        COPY go.mod go.sum ./
+        RUN go mod download
+        COPY . .
+        RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/main.go
+        FROM alpine:3.18
+        RUN apk add --no-cache ca-certificates
+        WORKDIR /app
+        COPY --from=builder /app/main .
+        EXPOSE 8093
+        CMD ["./main"]
+    ports:
+      - "8093:8093"
+    environment:
+      - ENVIRONMENT=development
+      - PORT=8093
+      - DB_HOST=postgres
+      - DB_PASSWORD=statuspage_password
+    depends_on:
+      - postgres
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+
+  # === UI SERVICES ===
+
+  # Branding Service (Port 8092)
+  branding-service:
+    build:
+      context: ./microservices/branding-service
+      dockerfile_inline: |
+        FROM golang:1.23-alpine AS builder
+        WORKDIR /app
+        ENV GOTOOLCHAIN=auto
+        COPY go.mod go.sum ./
+        RUN go mod download
+        COPY . .
+        RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/main.go
+        FROM alpine:3.18
+        RUN apk add --no-cache ca-certificates
+        WORKDIR /app
+        COPY --from=builder /app/main .
+        EXPOSE 8092
+        CMD ["./main"]
+    ports:
+      - "8092:8092"
+    environment:
+      - ENVIRONMENT=development
+      - PORT=8092
+      - DB_HOST=postgres
+      - DB_PASSWORD=statuspage_password
+    depends_on:
+      - postgres
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+
+  # Status UI Service (Port 8094)
+  status-ui-service:
+    build:
+      context: ./microservices/status-ui-service
+      dockerfile_inline: |
+        FROM golang:1.23-alpine AS builder
+        WORKDIR /app
+        ENV GOTOOLCHAIN=auto
+        COPY go.mod go.sum ./
+        RUN go mod download
+        COPY . .
+        RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/main.go
+        FROM alpine:3.18
+        RUN apk add --no-cache ca-certificates
+        WORKDIR /app
+        COPY --from=builder /app/main .
+        EXPOSE 8094
+        CMD ["./main"]
+    ports:
+      - "8094:8094"
+    environment:
+      - ENVIRONMENT=development
+      - PORT=8094
+      - DB_HOST=postgres
+      - DB_PASSWORD=statuspage_password
+    depends_on:
+      - postgres
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+
+  # Database Service (Port 8095)
+  database-service:
+    build:
+      context: ./microservices/database-service
+      dockerfile: Dockerfile
+    ports:
+      - "8095:8095"
+    environment:
+      - ENVIRONMENT=development
+      - PORT=8095
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=statuspage_management
+      - DB_USER=statuspage_user
+      - DB_PASSWORD=statuspage_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+
+  # Landing Page Service (Port 8096)
+  landing-page-service:
+    build:
+      context: ./microservices/landing-page-service
+      dockerfile_inline: |
+        FROM golang:1.23-alpine AS builder
+        WORKDIR /app
+        ENV GOTOOLCHAIN=auto
+        COPY go.mod go.sum ./
+        RUN go mod download
+        COPY . .
+        RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/main.go
+        FROM alpine:3.18
+        RUN apk add --no-cache ca-certificates
+        WORKDIR /app
+        COPY --from=builder /app/main .
+        EXPOSE 8096
+        CMD ["./main"]
+    ports:
+      - "8096:8096"
+    environment:
+      - ENVIRONMENT=development
+      - PORT=8096
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+
+  # === CONSUMER SERVICES ===
+
+  # Analytics Consumer (Port 8097)
+  analytics-consumer:
+    build:
+      context: ./microservices/analytics-consumer
+      dockerfile_inline: |
+        FROM golang:1.23-alpine AS builder
+        WORKDIR /app
+        ENV GOTOOLCHAIN=auto
+        COPY go.mod go.sum ./
+        RUN go mod download
+        COPY . .
+        RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/main.go
+        FROM alpine:3.18
+        RUN apk add --no-cache ca-certificates
+        WORKDIR /app
+        COPY --from=builder /app/main .
+        EXPOSE 8097
+        CMD ["./main"]
+    ports:
+      - "8097:8097"
+    environment:
+      - ENVIRONMENT=development
+      - PORT=8097
+      - DB_HOST=postgres
+      - DB_PASSWORD=statuspage_password
+    depends_on:
+      - postgres
+      - kafka
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+
+  # Audit Consumer (Port 8098)
+  audit-consumer:
+    build:
+      context: ./microservices/audit-consumer
+      dockerfile_inline: |
+        FROM golang:1.23-alpine AS builder
+        WORKDIR /app
+        ENV GOTOOLCHAIN=auto
+        COPY go.mod go.sum ./
+        RUN go mod download
+        COPY . .
+        RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/main.go
+        FROM alpine:3.18
+        RUN apk add --no-cache ca-certificates
+        WORKDIR /app
+        COPY --from=builder /app/main .
+        EXPOSE 8098
+        CMD ["./main"]
+    ports:
+      - "8098:8098"
+    environment:
+      - ENVIRONMENT=development
+      - PORT=8098
+      - DB_HOST=postgres
+      - DB_PASSWORD=statuspage_password
+    depends_on:
+      - postgres
+      - kafka
+        COPY . .
+        RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/main.go
+        FROM alpine:3.18
+        RUN apk add --no-cache ca-certificates
+        WORKDIR /app
+        COPY --from=builder /app/main .
+        EXPOSE 8100
+        CMD ["./main"]
+    ports:
+      - "8100:8100"
+    environment:
+      - ENVIRONMENT=development
+      - PORT=8100
+      - DB_HOST=postgres
+      - DB_PASSWORD=statuspage_password
+    depends_on:
+      - postgres
+      - kafka
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+
+  # === INFRASTRUCTURE ===
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: beakon-postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=statuspage
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/initdb:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d statuspage"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - statuspage-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Kafka for Event Streaming
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - statuspage-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  statuspage-network:
+    driver: bridge

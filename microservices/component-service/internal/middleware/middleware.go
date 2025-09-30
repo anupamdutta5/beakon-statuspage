@@ -125,3 +125,7 @@ func generateRequestID() string {
 	}
 	return correlationID
 }
+
+// TODO: CLEANUP - Review and update to use shared auth middleware
+// Import: github.com/anupamdutta5/shared-resilience/auth
+// Replace local auth implementations with shared.NewMiddleware()

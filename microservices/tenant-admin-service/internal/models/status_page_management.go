@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -14,7 +15,7 @@ type StatusPage struct {
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
-	TenantID    uint           `gorm:"not null;index" json:"tenant_id"`
+	TenantID    uuid.UUID      `gorm:"type:uuid;not null;index" json:"tenant_id"`
 	Name        string         `gorm:"not null" json:"name"`
 	Slug        string         `gorm:"not null;uniqueIndex" json:"slug"`
 	Title       string         `gorm:"not null" json:"title"`
@@ -143,7 +144,7 @@ func (s *StatusPage) Validate() error {
 	if s.Title == "" {
 		return fmt.Errorf("status page title is required")
 	}
-	if s.TenantID == 0 {
+	if s.TenantID == uuid.Nil {
 		return fmt.Errorf("tenant ID is required")
 	}
 	return nil

@@ -1,19 +1,20 @@
 # Build stage
-FROM golang:1.25-alpine AS builder
+FROM golang:1.25 AS builder
 
 WORKDIR /app
 
-# Install dependencies
-RUN apk add --no-cache git
+# Install build dependencies
+RUN apt-get update && \
+    apt-get install -y git
 
-# Copy go mod and sum files
-COPY go.mod go.sum ./
+# Copy the entire project to the container
+COPY . /app/
+
+# Set the working directory to the saas-admin-service
+WORKDIR /app/microservices/saas-admin-service
 
 # Download all dependencies
 RUN go mod download
-
-# Copy the source code
-COPY . .
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -o saas-admin ./cmd/main.go
@@ -27,8 +28,11 @@ WORKDIR /app
 COPY --from=builder /app/saas-admin .
 COPY --from=builder /app/.env .
 
+# Install CA certificates for HTTPS requests
+RUN apk --no-cache add ca-certificates
+
 # Expose port
-EXPOSE 8080
+EXPOSE 8089
 
 # Command to run the executable
 CMD ["./saas-admin"]

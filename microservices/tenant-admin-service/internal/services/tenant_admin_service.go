@@ -9,7 +9,9 @@ import (
 
 	"github.com/anupamdutta5/tenant-admin-service/internal/config"
 	"github.com/anupamdutta5/tenant-admin-service/internal/models"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -52,7 +54,7 @@ func (s *TenantAdminService) GetDB() *gorm.DB {
 // CreateTenantAdmin creates a new tenant admin.
 func (s *TenantAdminService) CreateTenantAdmin(ctx context.Context, admin *models.TenantAdmin) error {
 	s.logger.Info("Creating tenant admin",
-		zap.Uint("tenant_id", admin.TenantID),
+		zap.String("tenant_id", admin.TenantID.String()),
 		zap.Uint("user_id", admin.UserID),
 		zap.String("role", admin.Role))
 
@@ -63,7 +65,7 @@ func (s *TenantAdminService) CreateTenantAdmin(ctx context.Context, admin *model
 
 	s.logger.Info("Tenant admin created successfully",
 		zap.Uint("admin_id", admin.ID),
-		zap.Uint("tenant_id", admin.TenantID))
+		zap.String("tenant_id", admin.TenantID.String()))
 
 	return nil
 }
@@ -85,8 +87,8 @@ func (s *TenantAdminService) GetTenantAdmin(ctx context.Context, adminID uint) (
 }
 
 // ListTenantAdmins lists all admins for a tenant.
-func (s *TenantAdminService) ListTenantAdmins(ctx context.Context, tenantID uint, limit, offset int) ([]*models.TenantAdmin, error) {
-	s.logger.Info("Listing tenant admins", zap.Uint("tenant_id", tenantID), zap.Int("limit", limit), zap.Int("offset", offset))
+func (s *TenantAdminService) ListTenantAdmins(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.TenantAdmin, error) {
+	s.logger.Info("Listing tenant admins", zap.String("tenant_id", tenantID.String()), zap.Int("limit", limit), zap.Int("offset", offset))
 
 	var admins []*models.TenantAdmin
 	query := s.db.Where("tenant_id = ?", tenantID)
@@ -136,8 +138,8 @@ func (s *TenantAdminService) DeleteTenantAdmin(ctx context.Context, adminID uint
 // Tenant Settings Management
 
 // GetTenantSettings retrieves tenant settings.
-func (s *TenantAdminService) GetTenantSettings(ctx context.Context, tenantID uint) (*models.TenantSettings, error) {
-	s.logger.Info("Getting tenant settings", zap.Uint("tenant_id", tenantID))
+func (s *TenantAdminService) GetTenantSettings(ctx context.Context, tenantID uuid.UUID) (*models.TenantSettings, error) {
+	s.logger.Info("Getting tenant settings", zap.String("tenant_id", tenantID.String()))
 
 	if s.db == nil {
 		s.logger.Debug("Database not available, returning default tenant settings")
@@ -188,15 +190,15 @@ func (s *TenantAdminService) GetTenantSettings(ctx context.Context, tenantID uin
 }
 
 // UpdateTenantSettings updates tenant settings.
-func (s *TenantAdminService) UpdateTenantSettings(ctx context.Context, tenantID uint, updates *models.TenantSettings) error {
-	s.logger.Info("Updating tenant settings", zap.Uint("tenant_id", tenantID))
+func (s *TenantAdminService) UpdateTenantSettings(ctx context.Context, tenantID uuid.UUID, updates *models.TenantSettings) error {
+	s.logger.Info("Updating tenant settings", zap.String("tenant_id", tenantID.String()))
 
 	if err := s.db.Model(&models.TenantSettings{}).Where("tenant_id = ?", tenantID).Updates(updates).Error; err != nil {
 		s.logger.Error("Failed to update tenant settings", zap.Error(err))
 		return fmt.Errorf("failed to update tenant settings: %w", err)
 	}
 
-	s.logger.Info("Tenant settings updated successfully", zap.Uint("tenant_id", tenantID))
+	s.logger.Info("Tenant settings updated successfully", zap.String("tenant_id", tenantID.String()))
 	return nil
 }
 
@@ -205,7 +207,7 @@ func (s *TenantAdminService) UpdateTenantSettings(ctx context.Context, tenantID 
 // CreateTenantFeatureFlag creates a new tenant feature flag.
 func (s *TenantAdminService) CreateTenantFeatureFlag(ctx context.Context, flag *models.TenantFeatureFlag) error {
 	s.logger.Info("Creating tenant feature flag",
-		zap.Uint("tenant_id", flag.TenantID),
+		zap.String("tenant_id", flag.TenantID.String()),
 		zap.String("flag_name", flag.Name))
 
 	if err := s.db.Create(flag).Error; err != nil {
@@ -237,8 +239,8 @@ func (s *TenantAdminService) GetTenantFeatureFlag(ctx context.Context, flagID ui
 }
 
 // ListTenantFeatureFlags lists all feature flags for a tenant.
-func (s *TenantAdminService) ListTenantFeatureFlags(ctx context.Context, tenantID uint, limit, offset int) ([]*models.TenantFeatureFlag, error) {
-	s.logger.Info("Listing tenant feature flags", zap.Uint("tenant_id", tenantID), zap.Int("limit", limit), zap.Int("offset", offset))
+func (s *TenantAdminService) ListTenantFeatureFlags(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.TenantFeatureFlag, error) {
+	s.logger.Info("Listing tenant feature flags", zap.String("tenant_id", tenantID.String()), zap.Int("limit", limit), zap.Int("offset", offset))
 
 	var flags []*models.TenantFeatureFlag
 	query := s.db.Where("tenant_id = ?", tenantID)
@@ -288,9 +290,9 @@ func (s *TenantAdminService) DeleteTenantFeatureFlag(ctx context.Context, flagID
 // Usage Management
 
 // GetTenantUsage retrieves tenant usage metrics.
-func (s *TenantAdminService) GetTenantUsage(ctx context.Context, tenantID uint, startDate, endDate time.Time) ([]*models.TenantUsage, error) {
+func (s *TenantAdminService) GetTenantUsage(ctx context.Context, tenantID uuid.UUID, startDate, endDate time.Time) ([]*models.TenantUsage, error) {
 	s.logger.Info("Getting tenant usage",
-		zap.Uint("tenant_id", tenantID),
+		zap.String("tenant_id", tenantID.String()),
 		zap.Time("start_date", startDate),
 		zap.Time("end_date", endDate))
 
@@ -308,7 +310,7 @@ func (s *TenantAdminService) GetTenantUsage(ctx context.Context, tenantID uint, 
 // RecordTenantUsage records tenant usage metrics.
 func (s *TenantAdminService) RecordTenantUsage(ctx context.Context, usage *models.TenantUsage) error {
 	s.logger.Info("Recording tenant usage",
-		zap.Uint("tenant_id", usage.TenantID),
+		zap.String("tenant_id", usage.TenantID.String()),
 		zap.Time("date", usage.Date))
 
 	if err := s.db.Create(usage).Error; err != nil {
@@ -318,7 +320,7 @@ func (s *TenantAdminService) RecordTenantUsage(ctx context.Context, usage *model
 
 	s.logger.Info("Tenant usage recorded successfully",
 		zap.Uint("usage_id", usage.ID),
-		zap.Uint("tenant_id", usage.TenantID))
+		zap.String("tenant_id", usage.TenantID.String()))
 
 	return nil
 }
@@ -326,8 +328,8 @@ func (s *TenantAdminService) RecordTenantUsage(ctx context.Context, usage *model
 // Statistics
 
 // GetTenantStats returns tenant statistics.
-func (s *TenantAdminService) GetTenantStats(ctx context.Context, tenantID uint) (*models.TenantStats, error) {
-	s.logger.Info("Getting tenant statistics", zap.Uint("tenant_id", tenantID))
+func (s *TenantAdminService) GetTenantStats(ctx context.Context, tenantID uuid.UUID) (*models.TenantStats, error) {
+	s.logger.Info("Getting tenant statistics", zap.String("tenant_id", tenantID.String()))
 
 	// For now, we'll return simulated statistics
 	// In production, you would query actual statistics from the database
@@ -393,25 +395,7 @@ func initDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	sqlDB.SetMaxIdleConns(cfg.MaxIdle)
 	sqlDB.SetConnMaxLifetime(time.Duration(cfg.MaxLifetime) * time.Second)
 
-	// Auto-migrate models
-	if err := db.AutoMigrate(
-		&models.Tenant{},
-		&models.TenantBranding{},
-		&models.TenantAdmin{},
-		&models.TenantSettings{},
-		&models.TenantFeatureFlag{},
-		&models.TenantUsage{},
-		&models.TenantBilling{},
-		&models.TenantNotification{},
-		&models.TenantActivity{},
-		&models.TenantBackup{},
-		&models.TenantStats{},
-		// Status page management models
-		&models.StatusPage{},
-		&models.StatusPageConfig{},
-	); err != nil {
-		return nil, fmt.Errorf("failed to migrate database: %w", err)
-	}
+	// Note: Database migration is handled in main.go to avoid duplicate migrations
 
 	return db, nil
 }
@@ -444,9 +428,6 @@ func (s *TenantAdminService) CreateTenant(tenant *models.Tenant) error {
 	}
 
 	// Set default values
-	if tenant.Plan == "" {
-		tenant.Plan = "free"
-	}
 	if tenant.Status == "" {
 		tenant.Status = "active"
 	}
@@ -487,7 +468,7 @@ func (s *TenantAdminService) CreateTenant(tenant *models.Tenant) error {
 	// Create default billing
 	billing := &models.TenantBilling{
 		TenantID:           tenant.ID,
-		PlanName:           tenant.Plan,
+		PlanName:           "free",
 		BillingCycle:       "monthly",
 		Amount:             0.0,
 		Currency:           "USD",
@@ -527,7 +508,7 @@ func (s *TenantAdminService) CreateTenant(tenant *models.Tenant) error {
 		// Don't fail tenant creation if branding creation fails
 	}
 
-	s.logger.Info("Tenant created successfully", zap.Uint("tenant_id", tenant.ID))
+	s.logger.Info("Tenant created successfully", zap.String("tenant_id", tenant.ID.String()))
 	return nil
 }
 
@@ -600,7 +581,7 @@ func (s *TenantAdminService) UpdateTenant(tenant *models.Tenant) error {
 		return fmt.Errorf("failed to update tenant: %w", err)
 	}
 
-	s.logger.Info("Tenant updated successfully", zap.Uint("tenant_id", tenant.ID))
+	s.logger.Info("Tenant updated successfully", zap.String("tenant_id", tenant.ID.String()))
 	return nil
 }
 
@@ -616,7 +597,7 @@ func (s *TenantAdminService) DeleteTenant(id uint) error {
 }
 
 // GetTenantBilling retrieves tenant billing information.
-func (s *TenantAdminService) GetTenantBilling(tenantID uint) (*models.TenantBilling, error) {
+func (s *TenantAdminService) GetTenantBilling(tenantID uuid.UUID) (*models.TenantBilling, error) {
 	var billing models.TenantBilling
 	if err := s.db.Where("tenant_id = ?", tenantID).First(&billing).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -636,12 +617,12 @@ func (s *TenantAdminService) UpdateTenantBilling(billing *models.TenantBilling) 
 		return fmt.Errorf("failed to update tenant billing: %w", err)
 	}
 
-	s.logger.Info("Tenant billing updated successfully", zap.Uint("tenant_id", billing.TenantID))
+	s.logger.Info("Tenant billing updated successfully", zap.String("tenant_id", billing.TenantID.String()))
 	return nil
 }
 
 // GetTenantBranding retrieves tenant branding information.
-func (s *TenantAdminService) GetTenantBranding(tenantID uint) (*models.TenantBranding, error) {
+func (s *TenantAdminService) GetTenantBranding(tenantID uuid.UUID) (*models.TenantBranding, error) {
 	var branding models.TenantBranding
 	if err := s.db.Where("tenant_id = ?", tenantID).First(&branding).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -661,7 +642,7 @@ func (s *TenantAdminService) UpdateTenantBranding(branding *models.TenantBrandin
 		return fmt.Errorf("failed to update tenant branding: %w", err)
 	}
 
-	s.logger.Info("Tenant branding updated successfully", zap.Uint("tenant_id", branding.TenantID))
+	s.logger.Info("Tenant branding updated successfully", zap.String("tenant_id", branding.TenantID.String()))
 	return nil
 }
 
@@ -728,4 +709,78 @@ func (s *TenantAdminService) generateSlug(input string) string {
 	}
 
 	return slug
+}
+
+// CreateAdminUser creates an admin user for a tenant with hashed password
+func (s *TenantAdminService) CreateAdminUser(tenantID uuid.UUID, email, password string) error {
+	if s.db == nil {
+		return fmt.Errorf("database not initialized")
+	}
+
+	// Hash the password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		s.logger.Error("Failed to hash password", zap.Error(err))
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// Create user record
+	user := &models.User{
+		Email:        email,
+		PasswordHash: string(hashedPassword),
+		IsActive:     true,
+	}
+
+	if err := s.db.Create(user).Error; err != nil {
+		s.logger.Error("Failed to create user", zap.Error(err))
+		return fmt.Errorf("failed to create user: %w", err)
+	}
+
+	// Link user to tenant via tenant_admins table
+	tenantAdmin := &models.TenantAdmin{
+		TenantID: tenantID,
+		UserID:   user.ID,
+		Role:     "owner",
+		Status:   "active",
+	}
+
+	if err := s.db.Create(tenantAdmin).Error; err != nil {
+		s.logger.Error("Failed to create tenant admin relationship", zap.Error(err))
+		return fmt.Errorf("failed to create tenant admin: %w", err)
+	}
+
+	s.logger.Info("Admin user created successfully",
+		zap.String("tenant_id", tenantID.String()),
+		zap.String("email", email),
+		zap.Uint("user_id", user.ID))
+
+	return nil
+}
+
+// AuthenticateUser authenticates a user by email and password
+func (s *TenantAdminService) AuthenticateUser(email, password string) (*models.User, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("database not initialized")
+	}
+
+	var user models.User
+	if err := s.db.Where("email = ? AND is_active = ?", email, true).First(&user).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("invalid credentials")
+		}
+		s.logger.Error("Failed to query user", zap.Error(err))
+		return nil, fmt.Errorf("authentication failed: %w", err)
+	}
+
+	// Compare password
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		return nil, fmt.Errorf("invalid credentials")
+	}
+
+	// Update last login time
+	now := time.Now()
+	user.LastLoginAt = &now
+	s.db.Save(&user)
+
+	return &user, nil
 }

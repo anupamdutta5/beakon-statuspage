@@ -20,6 +20,21 @@ type NotificationService struct {
 
 // NewNotificationService creates a new notification service.
 func NewNotificationService(db *gorm.DB, logger *zap.Logger) *NotificationService {
+	// Auto-migrate models for notification service
+	if err := db.AutoMigrate(
+		&models.Notification{},
+		&models.Template{},
+		&models.Channel{},
+		&models.Subscription{},
+		&models.Delivery{},
+		&models.WebhookEvent{},
+		&models.NotificationLog{},
+	); err != nil {
+		logger.Error("Failed to migrate notification service database", zap.Error(err))
+	} else {
+		logger.Info("Notification service database migration completed successfully")
+	}
+
 	return &NotificationService{
 		db:     db,
 		logger: logger,

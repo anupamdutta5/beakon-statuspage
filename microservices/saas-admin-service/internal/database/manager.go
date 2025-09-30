@@ -11,8 +11,6 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"go.uber.org/zap"
-
-	"github.com/anupamdutta5/shared-resilience"
 )
 
 // Manager handles database connections with proper lifecycle management
@@ -103,7 +101,7 @@ func (m *Manager) connect() error {
 		Conn: sqlDB,
 	}), &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-		Logger: NewGormLogger(m.loggerger),
+		Logger: NewGormLogger(m.logger),
 	})
 	if err != nil {
 		sqlDB.Close()

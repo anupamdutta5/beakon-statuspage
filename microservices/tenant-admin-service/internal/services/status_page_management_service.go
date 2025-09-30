@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/anupamdutta5/tenant-admin-service/internal/models"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -30,6 +31,9 @@ type StatusPageConfig struct {
 
 // NewStatusPageManagementService creates a new status page management service.
 func NewStatusPageManagementService(db *gorm.DB, logger *zap.Logger, config *StatusPageConfig) *StatusPageManagementService {
+	// Note: Database migration is handled in main.go to avoid duplicate migrations
+	// StatusPageData is a DTO (Data Transfer Object), not a database model
+
 	return &StatusPageManagementService{
 		db:     db,
 		logger: logger,
@@ -38,7 +42,7 @@ func NewStatusPageManagementService(db *gorm.DB, logger *zap.Logger, config *Sta
 }
 
 // GetStatusPageData retrieves all data needed for rendering the status page.
-func (s *StatusPageManagementService) GetStatusPageData(tenantID uint, slug string) (*models.StatusPageData, error) {
+func (s *StatusPageManagementService) GetStatusPageData(tenantID uuid.UUID, slug string) (*models.StatusPageData, error) {
 	// Get status page configuration
 	statusPage, err := s.getStatusPage(tenantID, slug)
 	if err != nil {
@@ -101,7 +105,7 @@ func (s *StatusPageManagementService) GetStatusPageData(tenantID uint, slug stri
 }
 
 // CreateStatusPage creates a new status page.
-func (s *StatusPageManagementService) CreateStatusPage(tenantID uint, statusPage *models.StatusPage) error {
+func (s *StatusPageManagementService) CreateStatusPage(tenantID uuid.UUID, statusPage *models.StatusPage) error {
 	if err := statusPage.Validate(); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
@@ -134,7 +138,7 @@ func (s *StatusPageManagementService) CreateStatusPage(tenantID uint, statusPage
 	}
 
 	s.logger.Info("Created status page",
-		zap.Uint("tenant_id", tenantID),
+		zap.String("tenant_id", tenantID.String()),
 		zap.Uint("status_page_id", statusPage.ID),
 		zap.String("slug", statusPage.Slug))
 
@@ -142,7 +146,7 @@ func (s *StatusPageManagementService) CreateStatusPage(tenantID uint, statusPage
 }
 
 // UpdateStatusPage updates an existing status page.
-func (s *StatusPageManagementService) UpdateStatusPage(tenantID uint, statusPage *models.StatusPage) error {
+func (s *StatusPageManagementService) UpdateStatusPage(tenantID uuid.UUID, statusPage *models.StatusPage) error {
 	if err := statusPage.Validate(); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
@@ -162,14 +166,14 @@ func (s *StatusPageManagementService) UpdateStatusPage(tenantID uint, statusPage
 	}
 
 	s.logger.Info("Updated status page",
-		zap.Uint("tenant_id", tenantID),
+		zap.String("tenant_id", tenantID.String()),
 		zap.Uint("status_page_id", statusPage.ID))
 
 	return nil
 }
 
 // UpdateStatusPageConfig updates status page configuration.
-func (s *StatusPageManagementService) UpdateStatusPageConfig(tenantID uint, statusPageID uint, config *models.StatusPageConfig) error {
+func (s *StatusPageManagementService) UpdateStatusPageConfig(tenantID uuid.UUID, statusPageID uint, config *models.StatusPageConfig) error {
 	// Check if status page belongs to tenant
 	var statusPage models.StatusPage
 	if err := s.db.Where("id = ? AND tenant_id = ?", statusPageID, tenantID).First(&statusPage).Error; err != nil {
@@ -185,14 +189,14 @@ func (s *StatusPageManagementService) UpdateStatusPageConfig(tenantID uint, stat
 	}
 
 	s.logger.Info("Updated status page config",
-		zap.Uint("tenant_id", tenantID),
+		zap.String("tenant_id", tenantID.String()),
 		zap.Uint("status_page_id", statusPageID))
 
 	return nil
 }
 
 // GetStatusPages retrieves status pages for a tenant.
-func (s *StatusPageManagementService) GetStatusPages(tenantID uint, limit, offset int) ([]*models.StatusPage, int64, error) {
+func (s *StatusPageManagementService) GetStatusPages(tenantID uuid.UUID, limit, offset int) ([]*models.StatusPage, int64, error) {
 	var statusPages []*models.StatusPage
 	var total int64
 
@@ -211,7 +215,7 @@ func (s *StatusPageManagementService) GetStatusPages(tenantID uint, limit, offse
 }
 
 // DeleteStatusPage soft deletes a status page.
-func (s *StatusPageManagementService) DeleteStatusPage(tenantID uint, statusPageID uint) error {
+func (s *StatusPageManagementService) DeleteStatusPage(tenantID uuid.UUID, statusPageID uint) error {
 	// Check if status page belongs to tenant
 	var statusPage models.StatusPage
 	if err := s.db.Where("id = ? AND tenant_id = ?", statusPageID, tenantID).First(&statusPage).Error; err != nil {
@@ -226,14 +230,14 @@ func (s *StatusPageManagementService) DeleteStatusPage(tenantID uint, statusPage
 	}
 
 	s.logger.Info("Deleted status page",
-		zap.Uint("tenant_id", tenantID),
+		zap.String("tenant_id", tenantID.String()),
 		zap.Uint("status_page_id", statusPageID))
 
 	return nil
 }
 
 // getStatusPage retrieves a status page by tenant ID and slug.
-func (s *StatusPageManagementService) getStatusPage(tenantID uint, slug string) (*models.StatusPage, error) {
+func (s *StatusPageManagementService) getStatusPage(tenantID uuid.UUID, slug string) (*models.StatusPage, error) {
 	var statusPage models.StatusPage
 	if err := s.db.Where("tenant_id = ? AND slug = ? AND is_active = ?", tenantID, slug, true).First(&statusPage).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -278,7 +282,7 @@ func (s *StatusPageManagementService) getDefaultConfig(statusPageID uint) *model
 }
 
 // getComponentsStatus retrieves components status from component service.
-func (s *StatusPageManagementService) getComponentsStatus(tenantID uint) ([]models.ComponentStatus, error) {
+func (s *StatusPageManagementService) getComponentsStatus(tenantID uuid.UUID) ([]models.ComponentStatus, error) {
 	// Make HTTP request to component service
 	url := fmt.Sprintf("%s/api/v1/components?tenant_id=%d", s.config.ComponentServiceURL, tenantID)
 	resp, err := http.Get(url)
@@ -321,7 +325,7 @@ func (s *StatusPageManagementService) getComponentsStatus(tenantID uint) ([]mode
 }
 
 // getRecentIncidents retrieves recent incidents from incident service.
-func (s *StatusPageManagementService) getRecentIncidents(tenantID uint) ([]models.IncidentStatus, error) {
+func (s *StatusPageManagementService) getRecentIncidents(tenantID uuid.UUID) ([]models.IncidentStatus, error) {
 	// Make HTTP request to incident service
 	url := fmt.Sprintf("%s/api/v1/incidents?tenant_id=%d&limit=5", s.config.IncidentServiceURL, tenantID)
 	resp, err := http.Get(url)
@@ -382,7 +386,7 @@ func (s *StatusPageManagementService) getRecentIncidents(tenantID uint) ([]model
 }
 
 // getScheduledMaintenance retrieves scheduled maintenance from monitoring service.
-func (s *StatusPageManagementService) getScheduledMaintenance(tenantID uint) ([]models.MaintenanceStatus, error) {
+func (s *StatusPageManagementService) getScheduledMaintenance(tenantID uuid.UUID) ([]models.MaintenanceStatus, error) {
 	// Make HTTP request to monitoring service
 	url := fmt.Sprintf("%s/api/v1/maintenance?tenant_id=%d&status=scheduled", s.config.MonitoringServiceURL, tenantID)
 	resp, err := http.Get(url)

@@ -751,3 +751,80 @@ func (h *RBACHandler) GetActiveSessions(c *gin.Context) {
 		"count":    0,
 	})
 }
+
+// CreateSessionRequest represents the request payload for creating a session
+type CreateSessionRequest struct {
+	UserID   uint `json:"user_id" binding:"required"`
+	TenantID uint `json:"tenant_id" binding:"required"`
+}
+
+// CreateSession handles creating a new session
+func (h *RBACHandler) CreateSession(c *gin.Context) {
+	var req CreateSessionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
+		return
+	}
+
+	// Create session through RBAC service
+	session, err := h.rbacService.CreateSimpleSession(c.Request.Context(), req.UserID, req.TenantID)
+	if err != nil {
+		h.logger.Error("Failed to create session", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"session_id": session.ID,
+		"user_id":    session.UserID,
+		"tenant_id":  session.TenantID,
+		"expires_at": session.ExpiresAt,
+	})
+}
+
+// ValidateSession handles validating an existing session
+func (h *RBACHandler) ValidateSession(c *gin.Context) {
+	sessionID := c.Param("sessionId")
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID required"})
+		return
+	}
+
+	// Validate session through RBAC service
+	session, err := h.rbacService.ValidateSession(c.Request.Context(), sessionID)
+	if err != nil {
+		h.logger.Warn("Session validation failed", zap.String("session_id", sessionID), zap.Error(err))
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired session"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"valid":      true,
+		"session_id": session.ID,
+		"user_id":    session.UserID,
+		"tenant_id":  session.TenantID,
+		"expires_at": session.ExpiresAt,
+	})
+}
+
+// DeleteSession handles deleting/invalidating a session
+func (h *RBACHandler) DeleteSession(c *gin.Context) {
+	sessionID := c.Param("sessionId")
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID required"})
+		return
+	}
+
+	// Delete session through RBAC service
+	err := h.rbacService.DeleteSession(c.Request.Context(), sessionID)
+	if err != nil {
+		h.logger.Error("Failed to delete session", zap.String("session_id", sessionID), zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete session"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Session deleted successfully",
+	})
+}

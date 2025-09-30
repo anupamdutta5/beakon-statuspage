@@ -71,6 +71,14 @@
                         <p class="mb-0 opacity-75">Sign in to your account</p>
                     </div>
                     <div class="login-body">
+                        <!-- Server Error Alert -->
+                        {{if .error}}
+                        <div class="alert alert-danger" role="alert">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>{{.error}}</strong>
+                        </div>
+                        {{end}}
+
                         <!-- Error Alert -->
                         <div id="errorAlert" class="alert alert-danger d-none" role="alert">
                             <i class="fas fa-exclamation-triangle me-2"></i>
@@ -83,6 +91,7 @@
                             <span id="successMessage"></span>
                         </div>
 
+                        {{if not .error}}
                         <form id="loginForm">
                             <div class="mb-3">
                                 <label for="email" class="form-label">
@@ -120,6 +129,7 @@
                                 </span>
                             </button>
                         </form>
+                        {{end}}
 
                         <hr class="my-4">
 

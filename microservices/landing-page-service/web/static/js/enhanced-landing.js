@@ -8,6 +8,8 @@ class ModernLandingPage {
         this.setupTypingEffect();
         this.setupScrollProgress();
         this.setupPerformanceOptimizations();
+        this.setupWebVitalsTracking();
+        this.setupAnalyticsTracking();
     }
 
     init() {
@@ -464,6 +466,235 @@ class ModernLandingPage {
             link.as = resource.endsWith('.css') ? 'style' : 'script';
             link.href = resource;
             document.head.appendChild(link);
+        });
+    }
+
+    setupWebVitalsTracking() {
+        // Track Core Web Vitals
+        this.trackLCP();
+        this.trackFID();
+        this.trackCLS();
+        this.trackFCP();
+        this.trackTTI();
+    }
+
+    trackLCP() {
+        // Largest Contentful Paint
+        const observer = new PerformanceObserver((list) => {
+            const entries = list.getEntries();
+            const lastEntry = entries[entries.length - 1];
+
+            const lcp = lastEntry.startTime;
+            this.sendWebVital('lcp', lcp);
+        });
+
+        observer.observe({ type: 'largest-contentful-paint', buffered: true });
+    }
+
+    trackFID() {
+        // First Input Delay
+        const observer = new PerformanceObserver((list) => {
+            const firstEntry = list.getEntries()[0];
+            const fid = firstEntry.processingStart - firstEntry.startTime;
+            this.sendWebVital('fid', fid);
+        });
+
+        observer.observe({ type: 'first-input', buffered: true });
+    }
+
+    trackCLS() {
+        // Cumulative Layout Shift
+        let clsValue = 0;
+        let clsEntries = [];
+        let sessionValue = 0;
+        let sessionEntries = [];
+
+        const observer = new PerformanceObserver((list) => {
+            for (const entry of list.getEntries()) {
+                if (!entry.hadRecentInput) {
+                    const firstSessionEntry = sessionEntries[0];
+                    const lastSessionEntry = sessionEntries[sessionEntries.length - 1];
+
+                    if (sessionValue &&
+                        entry.startTime - lastSessionEntry.startTime < 1000 &&
+                        entry.startTime - firstSessionEntry.startTime < 5000) {
+                        sessionValue += entry.value;
+                        sessionEntries.push(entry);
+                    } else {
+                        sessionValue = entry.value;
+                        sessionEntries = [entry];
+                    }
+
+                    if (sessionValue > clsValue) {
+                        clsValue = sessionValue;
+                        clsEntries = [...sessionEntries];
+                        this.sendWebVital('cls', clsValue);
+                    }
+                }
+            }
+        });
+
+        observer.observe({ type: 'layout-shift', buffered: true });
+    }
+
+    trackFCP() {
+        // First Contentful Paint
+        const observer = new PerformanceObserver((list) => {
+            const firstEntry = list.getEntries()[0];
+            const fcp = firstEntry.startTime;
+            this.sendWebVital('fcp', fcp);
+        });
+
+        observer.observe({ type: 'paint', buffered: true });
+    }
+
+    trackTTI() {
+        // Time to Interactive (simplified implementation)
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const navigation = performance.getEntriesByType('navigation')[0];
+                const tti = navigation.loadEventEnd;
+                this.sendWebVital('tti', tti);
+            }, 0);
+        });
+    }
+
+    sendWebVital(name, value) {
+        // Send Web Vital data to SEO endpoint
+        fetch('/api/v1/seo/web-vitals', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                [name]: value,
+                url: window.location.href,
+                timestamp: new Date().toISOString()
+            })
+        }).catch(error => {
+            console.warn('Failed to track Web Vital:', name, error);
+        });
+    }
+
+    setupAnalyticsTracking() {
+        // Track page views
+        this.trackPageView();
+
+        // Track scroll depth
+        this.trackScrollDepth();
+
+        // Track click events
+        this.trackClicks();
+
+        // Track form interactions
+        this.trackFormInteractions();
+    }
+
+    trackPageView() {
+        // Send page view analytics
+        fetch('/api/v1/seo/analytics/pageview', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                url: window.location.href,
+                title: document.title,
+                timestamp: new Date().toISOString(),
+                referrer: document.referrer,
+                userAgent: navigator.userAgent
+            })
+        }).catch(error => {
+            console.warn('Failed to track page view:', error);
+        });
+    }
+
+    trackScrollDepth() {
+        let maxScroll = 0;
+        let scrollMilestones = [25, 50, 75, 100];
+        let trackedMilestones = new Set();
+
+        window.addEventListener('scroll', () => {
+            const scrollTop = window.pageYOffset;
+            const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+            const scrollPercent = Math.round((scrollTop / docHeight) * 100);
+
+            maxScroll = Math.max(maxScroll, scrollPercent);
+
+            scrollMilestones.forEach(milestone => {
+                if (scrollPercent >= milestone && !trackedMilestones.has(milestone)) {
+                    trackedMilestones.add(milestone);
+                    this.trackEvent('scroll_depth', {
+                        depth: milestone,
+                        url: window.location.href
+                    });
+                }
+            });
+        }, { passive: true });
+    }
+
+    trackClicks() {
+        // Track CTA clicks
+        document.addEventListener('click', (e) => {
+            const target = e.target.closest('a, button');
+            if (!target) return;
+
+            const isExternalLink = target.href && !target.href.startsWith(window.location.origin);
+            const isCtaButton = target.classList.contains('btn-primary') ||
+                              target.classList.contains('cta-button') ||
+                              target.closest('.pricing-card');
+
+            if (isCtaButton || isExternalLink) {
+                this.trackEvent('click', {
+                    element: target.tagName.toLowerCase(),
+                    text: target.textContent.trim(),
+                    href: target.href || '',
+                    classes: target.className,
+                    external: isExternalLink,
+                    cta: isCtaButton
+                });
+            }
+        });
+    }
+
+    trackFormInteractions() {
+        // Track form submissions
+        document.addEventListener('submit', (e) => {
+            const form = e.target;
+            if (form.tagName === 'FORM') {
+                this.trackEvent('form_submit', {
+                    form_id: form.id || 'unknown',
+                    form_action: form.action || window.location.href,
+                    fields_count: form.elements.length
+                });
+            }
+        });
+
+        // Track form field focus
+        document.addEventListener('focus', (e) => {
+            if (e.target.matches('input, textarea, select')) {
+                this.trackEvent('form_field_focus', {
+                    field_type: e.target.type || e.target.tagName.toLowerCase(),
+                    field_name: e.target.name || e.target.id || 'unknown'
+                });
+            }
+        }, true);
+    }
+
+    trackEvent(eventName, data) {
+        fetch('/api/v1/seo/analytics/event', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                event: eventName,
+                data: data,
+                timestamp: new Date().toISOString(),
+                url: window.location.href
+            })
+        }).catch(error => {
+            console.warn('Failed to track event:', eventName, error);
         });
     }
 }

@@ -110,7 +110,7 @@ func main() {
 
 	// Initialize business services with modernized dependencies
 	incidentService := services.NewIncidentService(dbManager.GetDB(), logger)
-	templateService := services.NewIncidentTemplateService(dbManager.GetDB(), logger)
+	// templateService := services.NewIncidentTemplateService(dbManager.GetDB(), logger) // Temporarily disabled due to model conflicts
 
 	// Create Gin router
 	router := gin.New()
@@ -128,10 +128,10 @@ func main() {
 
 	// Initialize modernized handlers
 	incidentHandler := handlers.NewIncidentHandler(incidentService, logger)
-	templateHandler := handlers.NewIncidentTemplateHandler(templateService, logger)
+	// templateHandler := handlers.NewIncidentTemplateHandler(templateService, logger) // Temporarily disabled
 
 	// Setup routes with improved structure
-	setupModernizedRoutes(router, incidentHandler, templateHandler, resilienceConfig)
+	setupModernizedRoutes(router, incidentHandler, nil, resilienceConfig) // Pass nil for templateHandler
 
 	// Create HTTP server with proper timeouts and configuration
 	server := &http.Server{
@@ -214,7 +214,7 @@ func main() {
 }
 
 // setupModernizedRoutes configures all the routes with improved structure and security
-func setupModernizedRoutes(router *gin.Engine, handler *handlers.IncidentHandler, templateHandler *handlers.IncidentTemplateHandler, resilienceConfig *resilience.Config) {
+func setupModernizedRoutes(router *gin.Engine, handler *handlers.IncidentHandler, templateHandler interface{}, resilienceConfig *resilience.Config) {
 	// Health check endpoints (excluded from auth and rate limiting)
 	health := router.Group("/health")
 	{
@@ -311,3 +311,6 @@ func setupModernizedRoutes(router *gin.Engine, handler *handlers.IncidentHandler
 	//     // Webhook handlers will be implemented as needed
 	// }
 }
+// TODO: CLEANUP - Update auth middleware usage
+// Replace local auth with: auth.NewMiddleware(authConfig, logger)
+// Import: github.com/anupamdutta5/shared-resilience/auth

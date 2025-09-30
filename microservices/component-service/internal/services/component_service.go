@@ -20,6 +20,21 @@ type ComponentService struct {
 
 // NewComponentService creates a new component service.
 func NewComponentService(db *gorm.DB, logger *zap.Logger) *ComponentService {
+	// Auto-migrate models for component service
+	if err := db.AutoMigrate(
+		&models.Component{},
+		&models.ComponentGroup{},
+		&models.ComponentStatus{},
+		&models.ComponentHistory{},
+		&models.ComponentMetric{},
+		&models.ComponentAlert{},
+		&models.ComponentWebhook{},
+	); err != nil {
+		logger.Error("Failed to migrate component service database", zap.Error(err))
+	} else {
+		logger.Info("Component service database migration completed successfully")
+	}
+
 	return &ComponentService{
 		db:     db,
 		logger: logger,

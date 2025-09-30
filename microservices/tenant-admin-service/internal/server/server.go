@@ -12,6 +12,7 @@ import (
 	"github.com/anupamdutta5/tenant-admin-service/internal/handlers"
 	"github.com/anupamdutta5/tenant-admin-service/internal/middleware"
 	"github.com/anupamdutta5/tenant-admin-service/internal/services"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -59,6 +60,9 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 	router.Use(middleware.Recovery(logger))
 	router.Use(cors.Default())
 	router.Use(gin.Logger())
+
+	// Add tenant context middleware for subdomain routing
+	router.Use(middleware.TenantContextMiddleware(service.GetDB(), logger, "localhost"))
 
 	// Initialize handlers
 	handler := handlers.NewTenantAdminHandler(service, statusPageService, logger)
@@ -133,6 +137,17 @@ func setupRoutes(router *gin.Engine, handler *handlers.TenantAdminHandler, authM
 	router.POST("/api/v1/auth/login", handler.Login)
 	router.POST("/api/v1/auth/logout", handler.Logout)
 	router.GET("/api/v1/auth/verify", handler.VerifyToken)
+
+	// Public API routes for service-to-service communication
+	publicAPI := router.Group("/api/v1/public")
+	{
+		// Tenant management (for SaaS-Admin service calls)
+		publicAPI.GET("/tenants", handler.GetTenants)
+		publicAPI.POST("/tenants", handler.CreateTenant)
+		publicAPI.GET("/tenants/:id", handler.GetTenant)
+		publicAPI.PUT("/tenants/:id", handler.UpdateTenant)
+		publicAPI.DELETE("/tenants/:id", handler.DeleteTenant)
+	}
 
 	// Admin dashboard (protected)
 	router.GET("/admin", authMiddleware.RequireAuth(), handler.GetAdminDashboard)

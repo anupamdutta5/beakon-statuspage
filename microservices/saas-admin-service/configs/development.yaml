@@ -18,12 +18,12 @@ server:
   write_timeout: 30
   idle_timeout: 120
 
-database: test_db
+database:
   host: ${DB_HOST:localhost}
   port: ${DB_PORT:5432}
   user: ${DB_USER:statuspage_user}
   password: ${DB_PASSWORD}
-  name: ${DB_NAME:statuspage_saas_admin
+  name: ${DB_NAME:statuspage_saas_admin}
   ssl_mode: disable
   max_conns: 25
   min_conns: 5

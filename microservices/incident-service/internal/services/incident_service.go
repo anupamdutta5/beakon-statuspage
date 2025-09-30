@@ -20,6 +20,20 @@ type IncidentService struct {
 
 // NewIncidentService creates a new incident service.
 func NewIncidentService(db *gorm.DB, logger *zap.Logger) *IncidentService {
+	// Auto-migrate models for incident service
+	if err := db.AutoMigrate(
+		&models.Incident{},
+		&models.IncidentComponent{},
+		&models.IncidentUpdate{},
+		&models.IncidentTemplate{},
+		&models.IncidentNotification{},
+		&models.IncidentMetric{},
+	); err != nil {
+		logger.Error("Failed to migrate incident service database", zap.Error(err))
+	} else {
+		logger.Info("Incident service database migration completed successfully")
+	}
+
 	return &IncidentService{
 		db:     db,
 		logger: logger,

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/anupamdutta5/landing-page-service/internal/config"
@@ -18,11 +19,12 @@ import (
 
 // Server represents the Landing Page Service server.
 type Server struct {
-	config  *config.Config
-	logger  *zap.Logger
-	router  *gin.Engine
-	server  *http.Server
-	service *services.LandingService
+	config     *config.Config
+	logger     *zap.Logger
+	router     *gin.Engine
+	server     *http.Server
+	service    *services.LandingService
+	seoService *services.SEOService
 }
 
 // New creates a new Landing Page Service server.
@@ -32,6 +34,20 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize landing service: %w", err)
 	}
+
+	// Initialize SEO service
+	seoConfig := &services.SEOConfig{
+		SiteURL:     cfg.Landing.SiteURL,
+		SiteName:    cfg.Landing.SiteName,
+		DefaultLang: "en",
+		Analytics: services.AnalyticsConfig{
+			GoogleAnalyticsID: cfg.Landing.AnalyticsID,
+			GoogleTagManager:  "",
+			FacebookPixelID:   "",
+			LinkedInPartnerID: "",
+		},
+	}
+	seoService := services.NewSEOService(logger, seoConfig)
 
 	// Set Gin mode
 	if cfg.Environment == "production" {
@@ -55,6 +71,18 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 		"mulFloat": func(a int, b float64) float64 {
 			return float64(a) * b
 		},
+		"default": func(defaultValue, value interface{}) interface{} {
+			if value == nil || value == "" {
+				return defaultValue
+			}
+			return value
+		},
+		"noescape": func(str string) template.HTML {
+			return template.HTML(str)
+		},
+		"replace": func(old, new, str string) string {
+			return strings.Replace(str, old, new, -1)
+		},
 	}
 
 	// Load templates
@@ -69,9 +97,10 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 
 	// Initialize handlers
 	handler := handlers.NewLandingHandler(service, logger)
+	seoHandler := handlers.NewSEOHandler(seoService, logger)
 
 	// Setup routes
-	setupRoutes(router, handler)
+	setupRoutes(router, handler, seoHandler)
 
 	// Create HTTP server
 	server := &http.Server{
@@ -83,11 +112,12 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 	}
 
 	return &Server{
-		config:  cfg,
-		logger:  logger,
-		router:  router,
-		server:  server,
-		service: service,
+		config:     cfg,
+		logger:     logger,
+		router:     router,
+		server:     server,
+		service:    service,
+		seoService: seoService,
 	}, nil
 }
 
@@ -123,12 +153,16 @@ func (s *Server) Start(ctx context.Context) error {
 }
 
 // setupRoutes sets up the API routes.
-func setupRoutes(router *gin.Engine, handler *handlers.LandingHandler) {
+func setupRoutes(router *gin.Engine, handler *handlers.LandingHandler, seoHandler *handlers.SEOHandler) {
 	// Health check
 	router.GET("/health", handler.HealthCheck)
 
 	// Static files
 	router.Static("/static", "./web/static")
+
+	// SEO routes
+	router.GET("/sitemap.xml", seoHandler.GetSitemap)
+	router.GET("/robots.txt", seoHandler.GetRobotsTxt)
 
 	// Public routes
 	router.GET("/", handler.LandingPage)
@@ -142,7 +176,6 @@ func setupRoutes(router *gin.Engine, handler *handlers.LandingHandler) {
 	router.GET("/login", handler.LoginPage)
 	router.GET("/signup", handler.SignupPage)
 	router.GET("/payment", handler.PaymentPage)
-	router.GET("/dashboard", handler.DashboardPage)
 
 	// API routes
 	api := router.Group("/api/v1")
@@ -182,5 +215,16 @@ func setupRoutes(router *gin.Engine, handler *handlers.LandingHandler) {
 		api.POST("/articles", handler.CreateArticle)
 		api.PUT("/articles/:id", handler.UpdateArticle)
 		api.DELETE("/articles/:id", handler.DeleteArticle)
+
+		// SEO API routes
+		seo := api.Group("/seo")
+		{
+			seo.POST("/meta-tags", seoHandler.GenerateMetaTags)
+			seo.POST("/structured-data", seoHandler.GetStructuredData)
+			seo.GET("/analyze", seoHandler.AnalyzeSEO)
+			seo.GET("/recommendations", seoHandler.GetSEORecommendations)
+			seo.POST("/web-vitals", seoHandler.TrackWebVitals)
+			seo.POST("/preview", seoHandler.PreviewSEO)
+		}
 	}
 }

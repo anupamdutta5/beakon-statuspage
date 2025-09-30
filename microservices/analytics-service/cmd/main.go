@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -339,3 +338,6 @@ func setupModernizedRoutes(router *gin.Engine, handler *handlers.AnalyticsHandle
 		}
 	}
 }
+// TODO: CLEANUP - Update auth middleware usage
+// Replace local auth with: auth.NewMiddleware(authConfig, logger)
+// Import: github.com/anupamdutta5/shared-resilience/auth

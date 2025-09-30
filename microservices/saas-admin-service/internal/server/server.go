@@ -10,7 +10,6 @@ import (
 	"github.com/anupamdutta5/saas-admin-service/internal/config"
 	"github.com/anupamdutta5/saas-admin-service/internal/database"
 	"github.com/anupamdutta5/saas-admin-service/internal/handlers"
-	"github.com/anupamdutta5/saas-admin-service/internal/middleware"
 	"github.com/anupamdutta5/saas-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
@@ -41,10 +40,10 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 	router := gin.New()
 
 	// Add middleware
-	router.Use(middleware.Logger(logger))
-	router.Use(middleware.Recovery(logger))
-	router.Use(cors.Default())
+	// router.Use(middleware.Logger(logger))
+	// router.Use(middleware.Recovery(logger))
 	router.Use(gin.Logger())
+	router.Use(gin.Recovery())
 
 	// Initialize database connection
 	sqlDB, err := database.InitDatabase(cfg, logger)
@@ -54,7 +53,6 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 
 	// Defer closing the database connection
 	// Database connection will be managed by the Manager lifecycle
-		}
 
 	// Create GORM database connection
 	db, err := gorm.Open(postgres.New(postgres.Config{
@@ -70,8 +68,13 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 		return nil, fmt.Errorf("failed to initialize service: %w", err)
 	}
 
-	// Initialize handlers
-	adminHandler := handlers.NewSaaSAdminHandler(service, logger)
+	// Initialize handlers with service URLs
+	serviceURLs := config.ServiceURLs{
+		TenantAdminService: fmt.Sprintf("http://localhost:%d", 8099),
+		ComponentService:   fmt.Sprintf("http://localhost:%d", 8084),
+		IncidentService:    fmt.Sprintf("http://localhost:%d", 8086),
+	}
+	adminHandler := handlers.NewSaaSAdminHandler(service, serviceURLs, logger)
 
 	// Create server address from host and port
 	serverAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
@@ -249,6 +252,16 @@ func (s *Server) setupRoutes(router *gin.Engine, adminHandler *handlers.SaaSAdmi
 		pricingSync := v1.Group("/pricing")
 		{
 			pricingSync.POST("/sync", adminHandler.SyncPricingToLandingPage)
+		}
+
+		// Tenant management
+		tenants := v1.Group("/tenants")
+		{
+			tenants.GET("", adminHandler.GetTenants)
+			tenants.POST("", adminHandler.CreateTenant)
+			tenants.GET("/:id", adminHandler.GetTenant)
+			tenants.PUT("/:id", adminHandler.UpdateTenant)
+			tenants.DELETE("/:id", adminHandler.DeleteTenant)
 		}
 	}
 }

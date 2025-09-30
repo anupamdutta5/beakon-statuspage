@@ -24,10 +24,7 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
-	// Run migrations
-	if err := db.AutoMigrate(); err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
-	}
+	// Migrations are handled by the seed function
 
 	// Seed the database
 	if err := seed.Seed(db.DB); err != nil {
