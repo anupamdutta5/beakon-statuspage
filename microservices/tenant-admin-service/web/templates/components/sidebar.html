@@ -1,0 +1,79 @@
+{{define "sidebar"}}
+<div class="sidebar">
+    <div class="sidebar-toggle" onclick="toggleSidebar()">
+        <i class="fas fa-chevron-left"></i>
+    </div>
+    <div class="sidebar-header">
+        <div class="sidebar-logo">
+            <div class="logo-icon">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <div class="logo-text">
+                <h1>{{.tenant_name}}</h1>
+                <p>Status Admin</p>
+            </div>
+        </div>
+    </div>
+
+    <nav class="sidebar-nav">
+        <div class="nav-section">
+            <div class="nav-section-title">Main</div>
+            <div class="nav-item">
+                <a href="#dashboard" class="nav-link active" onclick="showSection('dashboard')" data-title="Dashboard">
+                    <i class="fas fa-home"></i>
+                    <span>Dashboard</span>
+                </a>
+            </div>
+            <div class="nav-item">
+                <a href="#status-pages" class="nav-link" onclick="showSection('status-pages')" data-title="Status Pages">
+                    <i class="fas fa-globe"></i>
+                    <span>Status Pages</span>
+                </a>
+            </div>
+            <div class="nav-item">
+                <a href="#components" class="nav-link" onclick="showSection('components')" data-title="Components">
+                    <i class="fas fa-cubes"></i>
+                    <span>Components</span>
+                </a>
+            </div>
+            <div class="nav-item">
+                <a href="#incidents" class="nav-link" onclick="showSection('incidents')" data-title="Incidents">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>Incidents</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-section-title">Manage</div>
+            <div class="nav-item">
+                <a href="#users" class="nav-link" onclick="showSection('users')" data-title="Users">
+                    <i class="fas fa-user-friends"></i>
+                    <span>Users</span>
+                </a>
+            </div>
+            <div class="nav-item">
+                <a href="#subscribers" class="nav-link" onclick="showSection('subscribers')" data-title="Subscribers">
+                    <i class="fas fa-users"></i>
+                    <span>Subscribers</span>
+                </a>
+            </div>
+            <div class="nav-item">
+                <a href="#settings" class="nav-link" onclick="showSection('settings')" data-title="Settings">
+                    <i class="fas fa-cog"></i>
+                    <span>Settings</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="nav-divider"></div>
+
+        <div class="nav-item">
+            <a href="#" class="nav-link logout-link" onclick="logout(); return false;" data-title="Logout">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Logout</span>
+            </a>
+        </div>
+    </nav>
+</div>
+{{end}}

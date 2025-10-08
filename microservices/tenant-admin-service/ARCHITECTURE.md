@@ -210,6 +210,79 @@ CREATE UNIQUE INDEX idx_tenant_user ON tenant_admins(tenant_id, user_id) WHERE d
 
 ---
 
+## Tenant Creation Flow
+
+### Overview
+When a tenant is created, the system automatically:
+1. Creates the tenant record in the database
+2. Generates a unique slug (if not provided)
+3. Creates default settings, billing, and branding records
+4. **Creates the first admin user with owner role**
+
+### Complete Tenant Creation Process
+
+```
+POST /api/v1/public/tenants
+{
+  "name": "Acme Corp",
+  "slug": "acme",
+  "contact_email": "admin@acme.com",
+  "admin_email": "admin@acme.com",
+  "admin_password": "SecurePassword123!"
+}
+```
+
+**Flow**:
+```
+┌────────────────────┐
+│ CreateTenant       │
+│ Handler            │
+└─────────┬──────────┘
+          │
+          ▼
+┌────────────────────┐
+│ service.           │
+│ CreateTenant()     │
+│                    │
+│ 1. Generate slug   │
+│ 2. Create tenant   │
+│ 3. Create settings │
+│ 4. Create billing  │
+│ 5. Create branding │
+└─────────┬──────────┘
+          │
+          ▼
+┌────────────────────┐
+│ service.           │
+│ CreateAdminUser()  │
+│                    │
+│ 1. Validate limit  │
+│ 2. Hash password   │
+│ 3. Create user     │
+│    (with tenant_id)│
+│ 4. Create          │
+│    tenant_admin    │
+│    link (owner)    │
+└────────────────────┘
+```
+
+**Implementation Location**:
+- Handler: `internal/handlers/tenant_admin_handler.go:710`
+- Service CreateTenant: `internal/services/tenant_admin_service.go:417`
+- Service CreateAdminUser: `internal/services/tenant_admin_service.go:754`
+
+**Critical Details**:
+- The admin user is created with `tenant_id` set (line 779)
+- The admin user has `role: "owner"` by default (line 780)
+- A `tenant_admins` record is also created to link the user to the tenant (line 788-793)
+- This creates a dual relationship:
+  - Direct: `users.tenant_id` → `tenants.id`
+  - Link table: `tenant_admins` (user_id, tenant_id, role)
+
+**Important**: Both the `users` table's `tenant_id` field AND the `tenant_admins` junction table are populated. This supports both direct tenant queries and role-based access control.
+
+---
+
 ## User Management System
 
 ### User Creation Flow

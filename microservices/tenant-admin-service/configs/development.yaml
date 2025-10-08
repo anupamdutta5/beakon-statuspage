@@ -12,8 +12,8 @@ service:
     maintainer: devops@company.com
 
 server:
-  host: localhost
-  port: 5432
+  host: ${SERVER_HOST:localhost}
+  port: ${SERVER_PORT:8099}
   read_timeout: 30
   write_timeout: 30
   idle_timeout: 120
@@ -21,10 +21,10 @@ server:
 database:
   host: ${DB_HOST:localhost}
   port: ${DB_PORT:5432}
-  user: ${DB_USER:statuspage_user}
+  user: ${DB_USER:postgres}
   password: ${DB_PASSWORD}
-  name: ${DB_NAME:statuspage_tenant_admin}
-  ssl_mode: ${DB_SSL_MODE:disable}
+  name: ${DB_NAME:tenant_admin_db}
+  ssl_mode: ${DB_SSLMODE:disable}
   max_conns: ${DB_MAX_OPEN_CONNS:25}
   min_conns: ${DB_MAX_IDLE_CONNS:5}
   max_idle: ${DB_MAX_IDLE_CONNS:10}
@@ -34,7 +34,7 @@ cache:
   provider: redis
   host: ${REDIS_HOST:localhost}
   port: ${REDIS_PORT:6379}
-  password: ${REDIS_PASSWORD}
+  password: ${REDIS_PASSWORD:}
   db: ${REDIS_DB:0}
   ttl: 300
   key_prefix: "statuspage:tenant-admin-service"
@@ -51,6 +51,9 @@ jwt:
 
 monitoring:
   enabled: true
-  metrics_port: 5432
-  health_port: 5432
-  log_level: debug
+  metrics_port: ${METRICS_PORT:9099}
+  health_port: ${SERVER_PORT:8099}
+  log_level: ${LOG_LEVEL:debug}
+
+features:
+  use_database_service: ${FEATURE_USE_DATABASE_SERVICE:false}

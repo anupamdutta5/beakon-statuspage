@@ -80,8 +80,41 @@ func setupRoutes(router *gin.Engine, adminHandler *handlers.SaaSAdminHandler) {
 		c.Redirect(301, "/api/v1/health")
 	})
 
-	// Admin dashboard
+	// Admin dashboard - with server-side authentication check
 	router.GET("/admin", func(c *gin.Context) {
+		// Check if user has a valid session cookie
+		sessionID, err := c.Cookie("session_id")
+		if err != nil || sessionID == "" {
+			// No session cookie, show login page only
+			c.HTML(200, "login.html", gin.H{
+				"title": "SaaS Admin Login",
+			})
+			return
+		}
+
+		// Validate session with tenant-admin service (with shorter timeout for better UX)
+		req, err := http.NewRequest("GET", os.Getenv("TENANT_ADMIN_SERVICE_URL")+"/api/v1/sessions/"+sessionID, nil)
+		if err != nil {
+			// Session validation failed, show login page
+			c.HTML(200, "login.html", gin.H{
+				"title": "SaaS Admin Login",
+			})
+			return
+		}
+
+		// Use shorter timeout for faster response
+		client := &http.Client{Timeout: 2 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil || resp.StatusCode != http.StatusOK {
+			// Session invalid or expired, show login page
+			c.HTML(200, "login.html", gin.H{
+				"title": "SaaS Admin Login",
+			})
+			return
+		}
+		resp.Body.Close()
+
+		// Valid session, show dashboard
 		c.HTML(200, "admin.html", gin.H{
 			"title": "SaaS Admin Dashboard",
 		})

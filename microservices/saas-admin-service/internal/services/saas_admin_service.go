@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
+	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/anupamdutta5/saas-admin-service/internal/config"
 	"github.com/anupamdutta5/saas-admin-service/internal/models"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -23,6 +26,8 @@ type SaaSAdminService struct {
 	logger          *zap.Logger
 	db              *gorm.DB
 	analyticsClient *clients.AnalyticsClient
+	httpClient      *http.Client
+	serviceURLs     config.ServiceURLs
 }
 
 // NewSaaSAdminService creates a new SaaS admin service.
@@ -30,11 +35,16 @@ func NewSaaSAdminService(cfg *config.Config, logger *zap.Logger, db *gorm.DB) (*
 	// Initialize analytics client with default URL
 	analyticsClient := clients.NewAnalyticsClient("http://localhost:8081", logger)
 
+	// Get service URLs from environment or defaults
+	serviceURLs := config.GetServiceURLsFromEnv()
+
 	return &SaaSAdminService{
 		config:          cfg,
 		logger:          logger,
 		db:              db,
 		analyticsClient: analyticsClient,
+		httpClient:      &http.Client{Timeout: 10 * time.Second},
+		serviceURLs:     serviceURLs,
 	}, nil
 }
 
@@ -105,6 +115,35 @@ func (s *SaaSAdminService) Health(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// ValidateAdminCredentials validates admin user credentials against the database
+func (s *SaaSAdminService) ValidateAdminCredentials(ctx context.Context, username, password string) (*models.SaaSAdminUser, error) {
+	s.logger.Info("Validating admin credentials", zap.String("username", username))
+
+	if s.db == nil {
+		return nil, fmt.Errorf("database connection not available")
+	}
+
+	var user models.SaaSAdminUser
+	if err := s.db.Where("username = ? AND status = ?", username, "active").First(&user).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			s.logger.Warn("User not found or inactive", zap.String("username", username))
+			return nil, fmt.Errorf("invalid credentials")
+		}
+		s.logger.Error("Database error during credential validation", zap.Error(err))
+		return nil, fmt.Errorf("database error: %w", err)
+	}
+
+	// Use bcrypt to compare password (password is hashed in database)
+	// Import: "golang.org/x/crypto/bcrypt"
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+		s.logger.Warn("Invalid password", zap.String("username", username))
+		return nil, fmt.Errorf("invalid credentials")
+	}
+
+	s.logger.Info("Admin credentials validated successfully", zap.String("username", username))
+	return &user, nil
 }
 
 // Plan Management
@@ -1079,18 +1118,43 @@ func (s *SaaSAdminService) getMockMetrics(tenantID string) []clients.MetricData 
 
 // Tenant Management Methods
 
-// ListTenants returns a list of all tenants.
+// ListTenants returns a list of all tenants by calling tenant-admin-service API.
 func (s *SaaSAdminService) ListTenants(ctx context.Context) ([]*models.SaaSTenant, error) {
-	s.logger.Info("Listing tenants")
+	s.logger.Info("Listing tenants from tenant-admin-service")
 
-	var tenants []*models.SaaSTenant
-	if err := s.db.Preload("Plan").Find(&tenants).Error; err != nil {
-		s.logger.Error("Failed to list tenants", zap.Error(err))
-		return nil, fmt.Errorf("failed to list tenants: %w", err)
+	// Call tenant-admin-service public API
+	url := fmt.Sprintf("%s/api/v1/public/tenants", s.serviceURLs.TenantAdminService)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		s.logger.Error("Failed to create request", zap.Error(err))
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	s.logger.Info("Tenants listed successfully", zap.Int("count", len(tenants)))
-	return tenants, nil
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		s.logger.Error("Failed to call tenant-admin-service", zap.Error(err), zap.String("url", url))
+		return nil, fmt.Errorf("failed to call tenant-admin-service: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		s.logger.Error("Tenant-admin-service returned error",
+			zap.Int("status", resp.StatusCode),
+			zap.String("body", string(body)))
+		return nil, fmt.Errorf("tenant-admin-service returned status %d", resp.StatusCode)
+	}
+
+	var apiResponse struct {
+		Data []*models.SaaSTenant `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&apiResponse); err != nil {
+		s.logger.Error("Failed to decode response", zap.Error(err))
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	s.logger.Info("Tenants listed successfully from tenant-admin-service", zap.Int("count", len(apiResponse.Data)))
+	return apiResponse.Data, nil
 }
 
 // GetTenant retrieves a tenant by ID.

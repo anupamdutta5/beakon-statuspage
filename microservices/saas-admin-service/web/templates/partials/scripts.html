@@ -3,118 +3,29 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js" onload="initializeChartsWhenReady()"></script>
     <script>
-        // Authentication System
-        let isAuthenticated = false;
-
-        async function checkAuthentication() {
-            try {
-                const response = await fetch('/api/v1/auth/check', {
-                    credentials: 'include'
-                });
-                isAuthenticated = response.ok;
-                return isAuthenticated;
-            } catch (error) {
-                console.error('Auth check failed:', error);
-                isAuthenticated = false;
-                return false;
-            }
-        }
-
-        async function login(username, password) {
-            try {
-                const response = await fetch('/api/v1/auth/login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    credentials: 'include',
-                    body: JSON.stringify({ username, password })
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    isAuthenticated = true;
-                    showNotification('Login successful!', 'success');
-                    closeLoginModal();
-                    return true;
-                } else {
-                    showNotification(data.error || 'Login failed', 'error');
-                    return false;
-                }
-            } catch (error) {
-                console.error('Login failed:', error);
-                showNotification('Login failed: Network error', 'error');
-                return false;
-            }
-        }
-
+        // Logout functionality for authenticated users
         async function logout() {
             try {
-                await fetch('/api/v1/auth/logout', {
+                const response = await fetch('/api/v1/auth/logout', {
                     method: 'POST',
                     credentials: 'include'
                 });
-                isAuthenticated = false;
-                showNotification('Logged out successfully', 'info');
-                showLoginModal();
+
+                if (response.ok) {
+                    showNotification('Logged out successfully', 'info', 2000);
+                    setTimeout(() => {
+                        window.location.href = '/admin';
+                    }, 1000);
+                } else {
+                    // Force redirect even on error
+                    window.location.href = '/admin';
+                }
             } catch (error) {
-                console.error('Logout failed:', error);
-                isAuthenticated = false;
-                showLoginModal();
+                console.error('Logout error:', error);
+                // Force redirect even on error
+                window.location.href = '/admin';
             }
         }
-
-        function showLoginModal() {
-            const modal = document.createElement('div');
-            modal.id = 'loginModal';
-            modal.innerHTML = `
-                <div class="modal fade show" style="display: block; background: rgba(0,0,0,0.8);">
-                    <div class="modal-dialog modal-dialog-centered">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">Admin Login</h5>
-                            </div>
-                            <div class="modal-body">
-                                <form id="loginForm" onsubmit="handleLogin(event)">
-                                    <div class="mb-3">
-                                        <label for="username" class="form-label">Username</label>
-                                        <input type="text" class="form-control" id="username" value="admin" required>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label for="password" class="form-label">Password</label>
-                                        <input type="password" class="form-control" id="password" value="admin123" required>
-                                    </div>
-                                    <button type="submit" class="btn btn-primary w-100">Login</button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>`;
-            document.body.appendChild(modal);
-        }
-
-        function closeLoginModal() {
-            const modal = document.getElementById('loginModal');
-            if (modal) {
-                modal.remove();
-            }
-        }
-
-        async function handleLogin(event) {
-            event.preventDefault();
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            await login(username, password);
-        }
-
-        // Initialize authentication on page load
-        document.addEventListener('DOMContentLoaded', async () => {
-            const authenticated = await checkAuthentication();
-            if (!authenticated) {
-                showLoginModal();
-            }
-        });
 
         // Beautiful notification system
         function showNotification(message, type = 'success', duration = 5000) {
@@ -524,6 +435,8 @@
                             background: white;
                             border-radius: 14px;
                             padding: 32px;
+                            max-height: 85vh;
+                            overflow-y: auto;
                         ">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
                                 <div style="display: flex; align-items: center;">
@@ -657,7 +570,7 @@
                                     </small>
                                 </div>
 
-                                <div style="margin-bottom: 24px;">
+                                <div style="margin-bottom: 20px;">
                                     <label style="display: block; color: #2d3748; font-weight: 600; margin-bottom: 8px; font-size: 14px;">
                                         <i class="fas fa-layer-group" style="margin-right: 8px; color: #667eea;"></i>Subscription Plan
                                     </label>
@@ -676,6 +589,26 @@
                                         <option value="pro">Pro Plan - $29/month</option>
                                         <option value="enterprise">Enterprise Plan - $99/month</option>
                                     </select>
+                                </div>
+
+                                <div style="margin-bottom: 24px;">
+                                    <label style="display: block; color: #2d3748; font-weight: 600; margin-bottom: 8px; font-size: 14px;">
+                                        <i class="fas fa-users" style="margin-right: 8px; color: #667eea;"></i>Maximum Users
+                                    </label>
+                                    <input type="number" id="tenantMaxUsers" min="1" style="
+                                        width: 100%;
+                                        padding: 12px 16px;
+                                        border: 2px solid #e2e8f0;
+                                        border-radius: 8px;
+                                        font-size: 16px;
+                                        transition: all 0.2s;
+                                        box-sizing: border-box;
+                                    " placeholder="e.g., 10 (leave empty for unlimited)"
+                                    onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102, 126, 234, 0.1)';"
+                                    onblur="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none';">
+                                    <small style="color: #718096; font-size: 12px; margin-top: 4px; display: block;">
+                                        Leave empty for unlimited users. Set a number to limit users for this tenant.
+                                    </small>
                                 </div>
 
                                 <div style="display: flex; gap: 12px; justify-content: flex-end;">
@@ -747,6 +680,7 @@
             const adminEmail = document.getElementById('tenantEmail').value.trim();
             const adminPassword = document.getElementById('tenantPassword').value;
             const plan = document.getElementById('tenantPlan').value;
+            const maxUsersInput = document.getElementById('tenantMaxUsers').value.trim();
 
             if (!name || !domain || !contactEmail || !adminEmail || !adminPassword) {
                 showNotification('Please fill in all required fields.', 'warning', 4000);
@@ -756,6 +690,16 @@
             if (adminPassword.length < 8) {
                 showNotification('Admin password must be at least 8 characters.', 'warning', 4000);
                 return;
+            }
+
+            // Validate max_users if provided
+            let maxUsers = null;
+            if (maxUsersInput && maxUsersInput !== '') {
+                maxUsers = parseInt(maxUsersInput);
+                if (isNaN(maxUsers) || maxUsers < 1) {
+                    showNotification('Maximum users must be a positive number.', 'warning', 4000);
+                    return;
+                }
             }
 
             // Generate subdomain from domain (sanitize and ensure uniqueness)
@@ -768,7 +712,8 @@
                 contact_email: contactEmail,
                 admin_email: adminEmail,
                 admin_password: adminPassword,
-                plan: plan
+                plan: plan,
+                max_users: maxUsers  // null for unlimited, number for limit
             };
 
             fetch('/api/v1/tenants', {
@@ -1563,7 +1508,8 @@ Priority support</textarea>
         // Enhanced tab switching with proper event handling
         document.addEventListener('DOMContentLoaded', function() {
             // Load real dashboard data on page load
-            setTimeout(loadDashboardData, 1000); // Load after charts are initialized
+            // Temporarily disabled - analytics endpoints not yet implemented
+            // setTimeout(loadDashboardData, 1000); // Load after charts are initialized
             // Initialize integration form handling
             const integrationType = document.getElementById('integrationType');
             if (integrationType) {

@@ -1622,8 +1622,15 @@ func (h *SaaSAdminHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// For demo purposes - in production, validate against user database
-	if req.Username == "admin" && req.Password == "admin123" {
+	// Validate credentials against database
+	user, err := h.service.ValidateAdminCredentials(c.Request.Context(), req.Username, req.Password)
+	if err != nil {
+		h.logger.Warn("Login failed", zap.String("username", req.Username), zap.Error(err))
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		return
+	}
+
+	if user != nil {
 		// Create session via tenant-admin-service
 		sessionReq := map[string]interface{}{
 			"user_id":   1,

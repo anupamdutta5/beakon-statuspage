@@ -12,8 +12,8 @@ service:
     maintainer: devops@company.com
 
 server:
-  host: ${DB_HOST:localhost}
-  port: ${DB_PORT:5432}
+  host: ${SERVER_HOST:localhost}
+  port: ${SERVER_PORT:8098}
   read_timeout: 30
   write_timeout: 30
   idle_timeout: 120
@@ -21,20 +21,33 @@ server:
 database:
   host: ${DB_HOST:localhost}
   port: ${DB_PORT:5432}
-  user: ${DB_USER:statuspage_user}
+  user: ${DB_USER:postgres}
   password: ${DB_PASSWORD}
-  name: ${DB_NAME:statuspage_saas_admin}
-  ssl_mode: disable
+  name: ${DB_NAME:tenant_admin_db}
+  ssl_mode: ${DB_SSLMODE:disable}
   max_conns: 25
   min_conns: 5
   max_idle: 10
   max_lifetime: 3600
 
+# API Gateway configuration - all service calls should route through gateway
+api_gateway:
+  url: ${API_GATEWAY_URL:http://localhost:8080}
+
+# Service URLs (all route through API Gateway)
+services:
+  tenant_admin: ${TENANT_ADMIN_SERVICE_URL:http://localhost:8099}
+  component: ${COMPONENT_SERVICE_URL:http://localhost:8080}
+  incident: ${INCIDENT_SERVICE_URL:http://localhost:8080}
+  monitoring: ${MONITORING_SERVICE_URL:http://localhost:8080}
+  analytics: ${ANALYTICS_SERVICE_URL:http://localhost:8080}
+  notification: ${NOTIFICATION_SERVICE_URL:http://localhost:8080}
+
 cache:
   provider: redis
-  host: ${DB_HOST:localhost}
-  port: 6379
-  password: ""
+  host: ${REDIS_HOST:localhost}
+  port: ${REDIS_PORT:6379}
+  password: ${REDIS_PASSWORD:}
   db: 0
   ttl: 300
   key_prefix: "statuspage:saas-admin-service"
@@ -51,6 +64,9 @@ jwt:
 
 monitoring:
   enabled: true
-  metrics_port: ${DB_PORT:5432}
-  health_port: ${DB_PORT:5432}
+  metrics_port: ${METRICS_PORT:9098}
+  health_port: ${SERVER_PORT:8098}
   log_level: ${LOG_LEVEL:debug}
+
+features:
+  use_database_service: ${FEATURE_USE_DATABASE_SERVICE:false}

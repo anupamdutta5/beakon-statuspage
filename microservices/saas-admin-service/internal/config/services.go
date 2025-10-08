@@ -16,24 +16,27 @@ type ServiceURLs struct {
 // GetDefaultServiceURLs returns default service URLs for development.
 func GetDefaultServiceURLs() ServiceURLs {
 	return ServiceURLs{
-		TenantAdminService:  "http://127.0.0.1:8093",
-		ComponentService:    "http://127.0.0.1:8093",
-		IncidentService:     "http://127.0.0.1:8094",
-		MonitoringService:   "http://127.0.0.1:8095",
-		AnalyticsService:    "http://127.0.0.1:8096",
-		NotificationService: "http://127.0.0.1:8097",
+		TenantAdminService:  "http://127.0.0.1:8099",
+		ComponentService:    "http://127.0.0.1:8084",
+		IncidentService:     "http://127.0.0.1:8086",
+		MonitoringService:   "http://127.0.0.1:8092",
+		AnalyticsService:    "http://127.0.0.1:8090",
+		NotificationService: "http://127.0.0.1:8085",
 	}
 }
 
 // GetServiceURLsFromEnv returns service URLs from environment variables.
+// All services should route through API Gateway unless overridden
 func GetServiceURLsFromEnv() ServiceURLs {
+	defaults := GetDefaultServiceURLs()
+
 	return ServiceURLs{
-		TenantAdminService:  getEnvOrDefault("TENANT_ADMIN_SERVICE_URL", "http://localhost:8099"),
-		ComponentService:    getEnvOrDefault("COMPONENT_SERVICE_URL", "http://localhost:8093"),
-		IncidentService:     getEnvOrDefault("INCIDENT_SERVICE_URL", "http://localhost:8094"),
-		MonitoringService:   getEnvOrDefault("MONITORING_SERVICE_URL", "http://localhost:8095"),
-		AnalyticsService:    getEnvOrDefault("ANALYTICS_SERVICE_URL", "http://localhost:8096"),
-		NotificationService: getEnvOrDefault("NOTIFICATION_SERVICE_URL", "http://localhost:8097"),
+		TenantAdminService:  getEnvOrDefault("TENANT_ADMIN_SERVICE_URL", defaults.TenantAdminService),
+		ComponentService:    getEnvOrDefault("COMPONENT_SERVICE_URL", defaults.ComponentService),
+		IncidentService:     getEnvOrDefault("INCIDENT_SERVICE_URL", defaults.IncidentService),
+		MonitoringService:   getEnvOrDefault("MONITORING_SERVICE_URL", defaults.MonitoringService),
+		AnalyticsService:    getEnvOrDefault("ANALYTICS_SERVICE_URL", defaults.AnalyticsService),
+		NotificationService: getEnvOrDefault("NOTIFICATION_SERVICE_URL", defaults.NotificationService),
 	}
 }
 

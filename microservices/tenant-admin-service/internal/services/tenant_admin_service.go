@@ -3,6 +3,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -21,6 +22,14 @@ type TenantAdminService struct {
 	config *config.Config
 	logger *zap.Logger
 	db     *gorm.DB
+}
+
+// TenantUserStats represents user count statistics for a tenant.
+type TenantUserStats struct {
+	CurrentUsers   int64  `json:"current_users"`
+	MaxUsers       *int   `json:"max_users,omitempty"`       // null means unlimited
+	IsUnlimited    bool   `json:"is_unlimited"`
+	RemainingSlots *int64 `json:"remaining_slots,omitempty"` // null if unlimited
 }
 
 // NewTenantAdminService creates a new tenant admin service.
@@ -711,10 +720,49 @@ func (s *TenantAdminService) generateSlug(input string) string {
 	return slug
 }
 
-// CreateAdminUser creates an admin user for a tenant with hashed password
-func (s *TenantAdminService) CreateAdminUser(tenantID uuid.UUID, email, password string) error {
+func (s *TenantAdminService) CanCreateUser(ctx context.Context, tenantID uuid.UUID) error {
 	if s.db == nil {
 		return fmt.Errorf("database not initialized")
+	}
+
+	// Verify tenant exists
+	var tenant models.Tenant
+	if err := s.db.WithContext(ctx).First(&tenant, "id = ?", tenantID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			s.logger.Error("Tenant not found for user creation check",
+				zap.String("tenant_id", tenantID.String()))
+			return fmt.Errorf("tenant not found")
+		}
+		s.logger.Error("Failed to retrieve tenant for validation",
+			zap.String("tenant_id", tenantID.String()),
+			zap.Error(err))
+		return fmt.Errorf("failed to retrieve tenant: %w", err)
+	}
+
+	// Check if tenant is active
+	if !tenant.IsActive {
+		s.logger.Warn("Tenant is not active",
+			zap.String("tenant_id", tenantID.String()),
+			zap.String("tenant_name", tenant.Name))
+		return fmt.Errorf("tenant is not active")
+	}
+
+	return nil
+}
+
+// CreateAdminUser creates an admin user for a tenant with hashed password
+func (s *TenantAdminService) CreateAdminUser(ctx context.Context, tenantID uuid.UUID, email, password string) error {
+	if s.db == nil {
+		return fmt.Errorf("database not initialized")
+	}
+
+	// Validate if tenant can create a new user (check max_users limit)
+	if err := s.CanCreateUser(ctx, tenantID); err != nil {
+		s.logger.Warn("Cannot create user due to limit restriction",
+			zap.String("tenant_id", tenantID.String()),
+			zap.String("email", email),
+			zap.Error(err))
+		return err
 	}
 
 	// Hash the password
@@ -728,10 +776,12 @@ func (s *TenantAdminService) CreateAdminUser(tenantID uuid.UUID, email, password
 	user := &models.User{
 		Email:        email,
 		PasswordHash: string(hashedPassword),
+		TenantID:     &tenantID,
+		Role:         "owner",
 		IsActive:     true,
 	}
 
-	if err := s.db.Create(user).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(user).Error; err != nil {
 		s.logger.Error("Failed to create user", zap.Error(err))
 		return fmt.Errorf("failed to create user: %w", err)
 	}
@@ -744,7 +794,7 @@ func (s *TenantAdminService) CreateAdminUser(tenantID uuid.UUID, email, password
 		Status:   "active",
 	}
 
-	if err := s.db.Create(tenantAdmin).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(tenantAdmin).Error; err != nil {
 		s.logger.Error("Failed to create tenant admin relationship", zap.Error(err))
 		return fmt.Errorf("failed to create tenant admin: %w", err)
 	}
@@ -758,29 +808,286 @@ func (s *TenantAdminService) CreateAdminUser(tenantID uuid.UUID, email, password
 }
 
 // AuthenticateUser authenticates a user by email and password
-func (s *TenantAdminService) AuthenticateUser(email, password string) (*models.User, error) {
+func (s *TenantAdminService) AuthenticateUser(ctx context.Context, email, password string) (*models.User, error) {
 	if s.db == nil {
-		return nil, fmt.Errorf("database not initialized")
+		return nil, ErrDatabaseError
 	}
 
 	var user models.User
-	if err := s.db.Where("email = ? AND is_active = ?", email, true).First(&user).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("invalid credentials")
+	if err := s.db.WithContext(ctx).Where("email = ? AND is_active = ?", email, true).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrUnauthorized
 		}
 		s.logger.Error("Failed to query user", zap.Error(err))
-		return nil, fmt.Errorf("authentication failed: %w", err)
+		return nil, WrapDatabaseError("authenticate user", err)
 	}
 
 	// Compare password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return nil, fmt.Errorf("invalid credentials")
+		return nil, ErrUnauthorized
 	}
 
 	// Update last login time
 	now := time.Now()
 	user.LastLoginAt = &now
-	s.db.Save(&user)
+	s.db.WithContext(ctx).Save(&user)
 
 	return &user, nil
+}
+
+// GetUsers retrieves all users for a tenant with pagination
+func (s *TenantAdminService) GetUsers(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.User, int64, error) {
+	if s.db == nil {
+		return nil, 0, ErrDatabaseError
+	}
+
+	var users []*models.User
+	var total int64
+
+	// Query users directly by tenant_id
+	query := s.db.WithContext(ctx).
+		Where("tenant_id = ?", tenantID.String())
+
+	// Get total count
+	if err := query.Model(&models.User{}).Count(&total).Error; err != nil {
+		s.logger.Error("Failed to count users",
+			zap.String("tenant_id", tenantID.String()),
+			zap.Error(err))
+		return nil, 0, WrapDatabaseError("count users", err)
+	}
+
+	// Get paginated results
+	if err := query.Limit(limit).Offset(offset).Order("created_at DESC").Find(&users).Error; err != nil {
+		s.logger.Error("Failed to fetch users",
+			zap.String("tenant_id", tenantID.String()),
+			zap.Error(err))
+		return nil, 0, WrapDatabaseError("fetch users", err)
+	}
+
+	s.logger.Debug("Users fetched successfully",
+		zap.String("tenant_id", tenantID.String()),
+		zap.Int("count", len(users)),
+		zap.Int64("total", total))
+
+	return users, total, nil
+}
+
+// GetUserByID retrieves a single user by ID for a specific tenant
+func (s *TenantAdminService) GetUserByID(ctx context.Context, tenantID uuid.UUID, userID uint) (*models.User, error) {
+	if s.db == nil {
+		return nil, ErrDatabaseError
+	}
+
+	var user models.User
+
+	// Verify user belongs to tenant directly
+	err := s.db.WithContext(ctx).
+		Where("tenant_id = ? AND id = ?", tenantID.String(), userID).
+		First(&user).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNotFound
+		}
+		s.logger.Error("Failed to fetch user",
+			zap.String("tenant_id", tenantID.String()),
+			zap.Uint("user_id", userID),
+			zap.Error(err))
+		return nil, WrapDatabaseError("fetch user", err)
+	}
+
+	return &user, nil
+}
+
+// CreateUser creates a new user for a tenant with max_users enforcement
+func (s *TenantAdminService) CreateUser(ctx context.Context, tenantID uuid.UUID, email, password, firstName, lastName, role string) (*models.User, error) {
+	if s.db == nil {
+		return nil, ErrDatabaseError
+	}
+
+	// Validate max_users limit
+	if err := s.CanCreateUser(ctx, tenantID); err != nil {
+		s.logger.Warn("Cannot create user due to limit restriction",
+			zap.String("tenant_id", tenantID.String()),
+			zap.String("email", email),
+			zap.Error(err))
+		return nil, err
+	}
+
+	// Hash password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		s.logger.Error("Failed to hash password", zap.Error(err))
+		return nil, fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// Create user with tenant_id for tenant isolation
+	user := &models.User{
+		Email:        email,
+		PasswordHash: string(hashedPassword),
+		FirstName:    firstName,
+		LastName:     lastName,
+		TenantID:     &tenantID,
+		Role:         role,
+		IsActive:     true,
+	}
+
+	// Start transaction
+	tx := s.db.WithContext(ctx).Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Create user record
+	if err := tx.Create(user).Error; err != nil {
+		tx.Rollback()
+		s.logger.Error("Failed to create user", zap.Error(err))
+		return nil, WrapDatabaseError("create user", err)
+	}
+
+	// Link to tenant via tenant_admins
+	if role == "" {
+		role = "user" // Default role
+	}
+
+	tenantAdmin := &models.TenantAdmin{
+		TenantID: tenantID,
+		UserID:   user.ID,
+		Role:     role,
+		Status:   "active",
+	}
+
+	if err := tx.Create(tenantAdmin).Error; err != nil {
+		tx.Rollback()
+		s.logger.Error("Failed to create tenant admin relationship", zap.Error(err))
+		return nil, WrapDatabaseError("create tenant admin", err)
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		s.logger.Error("Failed to commit transaction", zap.Error(err))
+		return nil, WrapDatabaseError("commit transaction", err)
+	}
+
+	s.logger.Info("User created successfully",
+		zap.String("tenant_id", tenantID.String()),
+		zap.String("email", email),
+		zap.Uint("user_id", user.ID))
+
+	return user, nil
+}
+
+// UpdateUser updates user information
+func (s *TenantAdminService) UpdateUser(ctx context.Context, tenantID uuid.UUID, userID uint, updates map[string]interface{}) error {
+	if s.db == nil {
+		return ErrDatabaseError
+	}
+
+	// Verify user belongs to tenant and update
+	result := s.db.WithContext(ctx).
+		Model(&models.User{}).
+		Where("tenant_id = ? AND id = ?", tenantID.String(), userID).
+		Updates(updates)
+
+	if result.Error != nil {
+		s.logger.Error("Failed to update user",
+			zap.String("tenant_id", tenantID.String()),
+			zap.Uint("user_id", userID),
+			zap.Error(result.Error))
+		return WrapDatabaseError("update user", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+
+	s.logger.Info("User updated successfully",
+		zap.String("tenant_id", tenantID.String()),
+		zap.Uint("user_id", userID))
+
+	return nil
+}
+
+// DeleteUser soft-deletes a user
+func (s *TenantAdminService) DeleteUser(ctx context.Context, tenantID uuid.UUID, userID uint) error {
+	if s.db == nil {
+		return ErrDatabaseError
+	}
+
+	// Soft delete user with tenant_id validation
+	result := s.db.WithContext(ctx).
+		Where("tenant_id = ? AND id = ?", tenantID.String(), userID).
+		Delete(&models.User{})
+
+	if result.Error != nil {
+		s.logger.Error("Failed to delete user",
+			zap.String("tenant_id", tenantID.String()),
+			zap.Uint("user_id", userID),
+			zap.Error(result.Error))
+		return WrapDatabaseError("delete user", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+
+	// Also soft delete tenant_admin relationship
+	if err := s.db.WithContext(ctx).
+		Where("tenant_id = ? AND user_id = ?", tenantID, userID).
+		Delete(&models.TenantAdmin{}).Error; err != nil {
+		s.logger.Warn("Failed to delete tenant admin relationship",
+			zap.String("tenant_id", tenantID.String()),
+			zap.Uint("user_id", userID),
+			zap.Error(err))
+	}
+
+	s.logger.Info("User deleted successfully",
+		zap.String("tenant_id", tenantID.String()),
+		zap.Uint("user_id", userID))
+
+	return nil
+}
+
+// GetTenantUserStats retrieves current user count and limit information for a tenant.
+// This is useful for dashboards and monitoring.
+func (s *TenantAdminService) GetTenantUserStats(ctx context.Context, tenantID uuid.UUID) (*TenantUserStats, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("database not initialized")
+	}
+
+	// Retrieve tenant
+	var tenant models.Tenant
+	if err := s.db.WithContext(ctx).First(&tenant, "id = ?", tenantID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("tenant not found")
+		}
+		return nil, fmt.Errorf("failed to retrieve tenant: %w", err)
+	}
+
+	// Count current active users directly by tenant_id
+	var currentUserCount int64
+	if err := s.db.WithContext(ctx).Model(&models.User{}).
+		Where("tenant_id = ?", tenantID.String()).
+		Count(&currentUserCount).Error; err != nil {
+		return nil, fmt.Errorf("failed to count users: %w", err)
+	}
+
+	stats := &TenantUserStats{
+		CurrentUsers: currentUserCount,
+		MaxUsers:     tenant.MaxUsers,
+		IsUnlimited:  tenant.MaxUsers == nil,
+	}
+
+	// Calculate remaining slots if limit is set
+	if tenant.MaxUsers != nil {
+		remaining := int64(*tenant.MaxUsers) - currentUserCount
+		if remaining < 0 {
+			remaining = 0
+		}
+		stats.RemainingSlots = &remaining
+	}
+
+	return stats, nil
 }

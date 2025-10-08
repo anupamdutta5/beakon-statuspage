@@ -22,9 +22,10 @@ type Tenant struct {
 	BillingEmail string         `json:"billing_email"`
 	Status       string         `gorm:"default:active" json:"status"`
 	IsActive     bool           `gorm:"default:true" json:"is_active"`
+	MaxUsers     *int           `json:"max_users,omitempty"` // Maximum users allowed, null = unlimited
 	Settings     string         `gorm:"type:text" json:"settings"` // JSON string
-	Branding     string         `gorm:"type:text" json:"branding"` // JSON string
-	Features     string         `gorm:"type:text" json:"features"` // JSON string
+	Branding     string         `gorm:"type:text" json:"branding"`                                           // JSON string
+	Features     string         `gorm:"type:text" json:"features"`                                           // JSON string
 }
 
 // TenantBranding represents tenant branding information.
@@ -231,6 +232,24 @@ func (Tenant) TableName() string {
 	return "tenants"
 }
 
+// BeforeCreate validates the tenant before creation.
+func (t *Tenant) BeforeCreate(tx *gorm.DB) error {
+	return t.Validate()
+}
+
+// BeforeUpdate validates the tenant before update.
+func (t *Tenant) BeforeUpdate(tx *gorm.DB) error {
+	return t.Validate()
+}
+
+// Validate performs validation on the Tenant model.
+func (t *Tenant) Validate() error {
+	if t.MaxUsers != nil && *t.MaxUsers <= 0 {
+		return gorm.ErrInvalidValue
+	}
+	return nil
+}
+
 // TableName returns the table name for TenantBranding.
 func (TenantBranding) TableName() string {
 	return "tenant_branding"
@@ -291,6 +310,8 @@ type User struct {
 	PasswordHash string         `gorm:"not null" json:"-"`
 	FirstName    string         `json:"first_name"`
 	LastName     string         `json:"last_name"`
+	TenantID     *uuid.UUID     `gorm:"index" json:"tenant_id,omitempty"`
+	Role         string         `gorm:"type:varchar(50);default:admin" json:"role"`
 	IsActive     bool           `gorm:"default:true" json:"is_active"`
 	LastLoginAt  *time.Time     `json:"last_login_at"`
 }

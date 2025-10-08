@@ -12,29 +12,33 @@ service:
     maintainer: devops@company.com
 
 server:
-  host: ${DB_HOST:localhost}
-  port: ${DB_PORT:5432}
+  host: ${SERVER_HOST:localhost}
+  port: ${SERVER_PORT:8088}
   read_timeout: 30
   write_timeout: 30
   idle_timeout: 120
 
-database: test_db
+database:
   host: ${DB_HOST:localhost}
   port: ${DB_PORT:5432}
   user: ${DB_USER:statuspage_user}
   password: ${DB_PASSWORD}
-  name: ${DB_NAME:statuspage_payment
+  name: ${DB_NAME:statuspage_payment}
   ssl_mode: disable
   max_conns: 25
   min_conns: 5
   max_idle: 10
   max_lifetime: 3600
 
+# API Gateway configuration - all inter-service calls should route through gateway
+api_gateway:
+  url: ${API_GATEWAY_URL:http://localhost:8080}
+
 cache:
   provider: redis
-  host: ${DB_HOST:localhost}
-  port: 6379
-  password: ""
+  host: ${REDIS_HOST:localhost}
+  port: ${REDIS_PORT:6379}
+  password: ${REDIS_PASSWORD:}
   db: 0
   ttl: 300
   key_prefix: "statuspage:payment-service"
@@ -51,15 +55,18 @@ jwt:
 
 monitoring:
   enabled: true
-  metrics_port: ${DB_PORT:5432}
-  health_port: ${DB_PORT:5432}
+  metrics_port: ${METRICS_PORT:9098}
+  health_port: ${HEALTH_PORT:8089}
   log_level: ${LOG_LEVEL:debug}
 
 payments:
   stripe:
-    secret_key: sk_test_your-stripe-secret-key
-    webhook_secret: whsec_your-webhook-secret
+    secret_key: ${STRIPE_SECRET_KEY:sk_test_your-stripe-secret-key}
+    webhook_secret: ${STRIPE_WEBHOOK_SECRET:whsec_your-webhook-secret}
   paypal:
-    client_id: your-paypal-client-id
-    client_secret: your-paypal-client-secret
-    mode: sandbox
+    client_id: ${PAYPAL_CLIENT_ID:your-paypal-client-id}
+    client_secret: ${PAYPAL_CLIENT_SECRET:your-paypal-client-secret}
+    mode: ${PAYPAL_MODE:sandbox}
+
+features:
+  use_database_service: ${FEATURE_USE_DATABASE_SERVICE:false}
