@@ -754,8 +754,8 @@ func (h *RBACHandler) GetActiveSessions(c *gin.Context) {
 
 // CreateSessionRequest represents the request payload for creating a session
 type CreateSessionRequest struct {
-	UserID   uint `json:"user_id" binding:"required"`
-	TenantID uint `json:"tenant_id" binding:"required"`
+	UserID   uint   `json:"user_id" binding:"required"`
+	TenantID string `json:"tenant_id" binding:"required"` // Changed to string to support UUID
 }
 
 // CreateSession handles creating a new session

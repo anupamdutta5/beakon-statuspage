@@ -10,6 +10,7 @@ import (
 	"github.com/anupamdutta5/tenant-admin-service/internal/models"
 	"github.com/anupamdutta5/tenant-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -698,6 +699,7 @@ func (h *TenantAdminHandler) GetTenants(c *gin.Context) {
 // CreateTenant handles creating a new tenant.
 // CreateTenantRequest represents the request to create a tenant with admin credentials
 type CreateTenantRequest struct {
+	ID            string `json:"id"` // Optional: Use provided UUID from SaaS Admin
 	Name          string `json:"name" binding:"required"`
 	Slug          string `json:"slug" binding:"required"`
 	ContactEmail  string `json:"contact_email" binding:"required"`
@@ -724,6 +726,17 @@ func (h *TenantAdminHandler) CreateTenant(c *gin.Context) {
 		Subdomain:    req.Subdomain,
 		Status:       "active",
 		IsActive:     true,
+	}
+
+	// If ID is provided (from SaaS Admin), use it to maintain UUID consistency
+	if req.ID != "" {
+		tenantUUID, err := uuid.Parse(req.ID)
+		if err != nil {
+			h.logger.Error("Invalid tenant ID provided", zap.Error(err), zap.String("id", req.ID))
+			RespondWithError(c, http.StatusBadRequest, "Invalid tenant ID format")
+			return
+		}
+		tenant.ID = tenantUUID
 	}
 
 	h.logger.Info("Creating tenant",
@@ -859,17 +872,18 @@ func (h *TenantAdminHandler) UpdateTenant(c *gin.Context) {
 
 // DeleteTenant handles deleting a tenant.
 func (h *TenantAdminHandler) DeleteTenant(c *gin.Context) {
-	id, ok := ParseUintParam(c, "id")
+	tenantID, ok := ParseUUIDParam(c, "id")
 	if !ok {
 		return
 	}
 
-	if err := h.service.DeleteTenant(id); err != nil {
-		h.logger.Error("Failed to delete tenant", zap.Error(err))
+	if err := h.service.DeleteTenantByUUID(c.Request.Context(), tenantID); err != nil {
+		h.logger.Error("Failed to delete tenant", zap.Error(err), zap.String("tenant_id", tenantID.String()))
 		RespondWithError(c, http.StatusInternalServerError, "Failed to delete tenant")
 		return
 	}
 
+	h.logger.Info("Tenant deleted successfully", zap.String("tenant_id", tenantID.String()))
 	c.JSON(http.StatusOK, gin.H{"message": "Tenant deleted successfully"})
 }
 

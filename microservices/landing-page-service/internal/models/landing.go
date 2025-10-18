@@ -18,9 +18,22 @@ type LandingPage struct {
 	Title       string         `gorm:"not null" json:"title"`
 	Description string         `gorm:"type:text" json:"description"`
 	Content     string         `gorm:"type:text" json:"content"`     // HTML content
-	Status      string         `gorm:"default:active" json:"status"` // active, inactive, draft
+	Status      string         `gorm:"default:'active'" json:"status"` // active, inactive, draft
 	IsDefault   bool           `gorm:"default:false" json:"is_default"`
-	Metadata    string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
+
+	// SEO Fields (Enhanced)
+	MetaTitle       string `json:"meta_title"`
+	MetaDescription string `gorm:"type:text" json:"meta_description"`
+	MetaKeywords    string `gorm:"type:text" json:"meta_keywords"`
+	CanonicalURL    string `json:"canonical_url"`
+	MetaRobots      string `json:"meta_robots"` // index,follow / noindex,nofollow
+	OGTitle         string `json:"og_title"`
+	OGDescription   string `gorm:"type:text" json:"og_description"`
+	OGImage         string `json:"og_image"`
+	TwitterCard     string `json:"twitter_card"` // summary, summary_large_image
+	SchemaMarkup    string `gorm:"type:text" json:"schema_markup"` // JSON-LD structured data
+
+	Metadata        string `gorm:"type:text" json:"metadata"` // JSON string for additional data
 }
 
 // HeroSection represents the hero section configuration.
@@ -38,9 +51,14 @@ type HeroSection struct {
 	VideoURL        string         `json:"video_url"`
 	BackgroundColor string         `json:"background_color"`
 	TextColor       string         `json:"text_color"`
-	Status          string         `gorm:"default:active" json:"status"` // active, inactive
-	Order           int            `gorm:"default:0" json:"order"`
-	Metadata        string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
+	Status          string         `gorm:"default:'active'" json:"status"` // active, inactive
+	SortOrder       int            `gorm:"column:sort_order;default:0" json:"sort_order"`
+
+	// A/B Testing Support (Enhanced)
+	ABTestID *uint  `gorm:"index" json:"ab_test_id"` // Reference to LandingPageABTest
+	Variant  string `json:"variant"`                 // 'A', 'B', 'control'
+
+	Metadata string `gorm:"type:text" json:"metadata"` // JSON string for additional data
 }
 
 // FeatureSection represents a feature section.
@@ -53,8 +71,8 @@ type FeatureSection struct {
 	Description string         `gorm:"type:text" json:"description"`
 	Icon        string         `json:"icon"`
 	ImageURL    string         `json:"image_url"`
-	Status      string         `gorm:"default:active" json:"status"` // active, inactive
-	Order       int            `gorm:"default:0" json:"order"`
+	Status      string         `gorm:"default:'active'" json:"status"` // active, inactive
+	SortOrder   int            `gorm:"column:sort_order;default:0" json:"sort_order"`
 	Metadata    string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
 }
 
@@ -64,57 +82,58 @@ type PricingPlan struct {
 	CreatedAt       time.Time      `json:"created_at"`
 	UpdatedAt       time.Time      `json:"updated_at"`
 	DeletedAt       gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
-	PlanID          uint           `gorm:"not null;uniqueIndex" json:"plan_id"` // Reference to SaaS Admin Service
+	PlanID          string         `gorm:"not null;uniqueIndex" json:"plan_id"` // Reference to SaaS Admin Service (UUID string)
 	Name            string         `gorm:"not null" json:"name"`
 	Slug            string         `gorm:"not null;uniqueIndex" json:"slug"`
 	Description     string         `gorm:"type:text" json:"description"`
 	Price           float64        `gorm:"not null" json:"price"`
-	Currency        string         `gorm:"default:USD" json:"currency"`
-	BillingInterval string         `gorm:"default:monthly" json:"billing_interval"` // monthly, yearly
+	Currency        string         `gorm:"default:'USD'" json:"currency"`
+	BillingInterval string         `gorm:"default:'monthly'" json:"billing_interval"` // monthly, yearly
 	Features        string         `gorm:"type:text" json:"features"`               // JSON array of features
 	IsPopular       bool           `gorm:"default:false" json:"is_popular"`
 	IsActive        bool           `gorm:"default:true" json:"is_active"`
 	ButtonText      string         `json:"button_text"`
 	ButtonURL       string         `json:"button_url"`
-	Status          string         `gorm:"default:active" json:"status"` // active, inactive
-	Order           int            `gorm:"default:0" json:"order"`
+	Status          string         `gorm:"default:'active'" json:"status"` // active, inactive
+	SortOrder       int            `gorm:"column:sort_order;default:0" json:"sort_order"`
 	Metadata        string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
 }
 
 // SaaSPlan represents a SaaS plan from the SaaS Admin Service (for API communication).
+// Note: This is a DTO (Data Transfer Object) for receiving data from the API, not a database model.
 type SaaSPlan struct {
-	ID              uint           `gorm:"primarykey" json:"id"`
+	ID              string         `json:"id"` // UUID string from SaaS Admin Service
 	CreatedAt       time.Time      `json:"created_at"`
 	UpdatedAt       time.Time      `json:"updated_at"`
-	DeletedAt       gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
-	Name            string         `gorm:"not null;uniqueIndex" json:"name"`
-	Slug            string         `gorm:"not null;uniqueIndex" json:"slug"`
-	Description     string         `gorm:"type:text" json:"description"`
-	Price           float64        `gorm:"not null" json:"price"`
-	Currency        string         `gorm:"default:USD" json:"currency"`
-	BillingInterval string         `gorm:"default:monthly" json:"billing_interval"` // monthly, yearly
-	MaxTenants      int            `gorm:"default:1" json:"max_tenants"`
-	MaxUsers        int            `gorm:"default:5" json:"max_users"`
-	MaxServices     int            `gorm:"default:10" json:"max_services"`
-	MaxMonitors     int            `gorm:"default:50" json:"max_monitors"`
-	MaxSubscribers  int            `gorm:"default:1000" json:"max_subscribers"`
-	MaxIncidents    int            `gorm:"default:100" json:"max_incidents"`
-	MaxMaintenance  int            `gorm:"default:50" json:"max_maintenance"`
-	CustomDomain    bool           `gorm:"default:false" json:"custom_domain"`
-	WhiteLabel      bool           `gorm:"default:false" json:"white_label"`
-	API             bool           `gorm:"default:false" json:"api"`
-	Integrations    bool           `gorm:"default:false" json:"integrations"`
-	Analytics       bool           `gorm:"default:false" json:"analytics"`
-	Support         string         `gorm:"default:email" json:"support"` // email, chat, phone
-	IsActive        bool           `gorm:"default:true" json:"is_active"`
-	IsPublic        bool           `gorm:"default:true" json:"is_public"`
-	IsPopular       bool           `gorm:"default:false" json:"is_popular"` // For frontend display
-	ButtonText      string         `gorm:"default:Get Started" json:"button_text"`
-	ButtonURL       string         `gorm:"default:/signup" json:"button_url"`
-	Order           int            `gorm:"default:0" json:"order"`    // Display order
-	Features        string         `gorm:"type:text" json:"features"` // JSON array of features
-	Limits          string         `gorm:"type:text" json:"limits"`   // JSON object of limits
-	Metadata        string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
+	DeletedAt       *time.Time     `json:"deleted_at,omitempty"`
+	Name            string         `json:"name"`
+	Slug            string         `json:"slug"`
+	Description     string         `json:"description"`
+	Price           float64        `json:"price"`
+	Currency        string         `json:"currency"`
+	BillingInterval string         `json:"billing_interval"` // monthly, yearly
+	MaxTenants      int            `json:"max_tenants"`
+	MaxUsers        int            `json:"max_users"`
+	MaxServices     int            `json:"max_services"`
+	MaxMonitors     int            `json:"max_monitors"`
+	MaxSubscribers  int            `json:"max_subscribers"`
+	MaxIncidents    int            `json:"max_incidents"`
+	MaxMaintenance  int            `json:"max_maintenance"`
+	CustomDomain    bool           `json:"custom_domain"`
+	WhiteLabel      bool           `json:"white_label"`
+	API             bool           `json:"api"`
+	Integrations    bool           `json:"integrations"`
+	Analytics       bool           `json:"analytics"`
+	Support         string         `json:"support"` // email, chat, phone
+	IsActive        bool           `json:"is_active"`
+	IsPublic        bool           `json:"is_public"`
+	IsPopular       bool           `json:"is_popular"` // For frontend display
+	ButtonText      string         `json:"button_text"`
+	ButtonURL       string         `json:"button_url"`
+	SortOrder       int            `json:"sort_order"`    // Display order
+	Features        string         `json:"features"` // JSON array of features
+	Limits          string         `json:"limits"`   // JSON object of limits
+	Metadata        string         `json:"metadata"` // JSON string for additional data
 }
 
 // Testimonial represents a customer testimonial.
@@ -129,8 +148,8 @@ type Testimonial struct {
 	Avatar    string         `json:"avatar"`
 	Content   string         `gorm:"type:text;not null" json:"content"`
 	Rating    int            `gorm:"default:5" json:"rating"`      // 1-5 stars
-	Status    string         `gorm:"default:active" json:"status"` // active, inactive
-	Order     int            `gorm:"default:0" json:"order"`
+	Status    string         `gorm:"default:'active'" json:"status"` // active, inactive
+	SortOrder int            `gorm:"column:sort_order;default:0" json:"sort_order"`
 	Metadata  string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
 }
 
@@ -150,11 +169,19 @@ type Article struct {
 	FeaturedImage string         `json:"featured_image"`
 	Category      string         `gorm:"index" json:"category"`
 	Tags          string         `gorm:"type:text" json:"tags"`       // JSON array of tags
-	Status        string         `gorm:"default:draft" json:"status"` // draft, published, archived
+	Status        string         `gorm:"default:'draft'" json:"status"` // draft, published, archived
 	IsFeatured    bool           `gorm:"default:false" json:"is_featured"`
 	ViewCount     int            `gorm:"default:0" json:"view_count"`
 	PublishedAt   *time.Time     `json:"published_at"`
-	Metadata      string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
+
+	// SEO Fields for Articles (Enhanced)
+	MetaTitle        string `json:"meta_title"`
+	MetaDescription  string `gorm:"type:text" json:"meta_description"`
+	CanonicalURL     string `json:"canonical_url"`
+	SchemaMarkup     string `gorm:"type:text" json:"schema_markup"` // Article schema
+	ReadingTimeMinutes int  `json:"reading_time_minutes"`         // calculated
+
+	Metadata      string `gorm:"type:text" json:"metadata"` // JSON string for additional data
 }
 
 // FAQ represents a frequently asked question.
@@ -166,8 +193,8 @@ type FAQ struct {
 	Question  string         `gorm:"not null" json:"question"`
 	Answer    string         `gorm:"type:text;not null" json:"answer"`
 	Category  string         `gorm:"index" json:"category"`
-	Status    string         `gorm:"default:active" json:"status"` // active, inactive
-	Order     int            `gorm:"default:0" json:"order"`
+	Status    string         `gorm:"default:'active'" json:"status"` // active, inactive
+	SortOrder int            `gorm:"column:sort_order;default:0" json:"sort_order"`
 	Metadata  string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
 }
 
@@ -182,7 +209,7 @@ type ContactForm struct {
 	Company   string         `json:"company"`
 	Subject   string         `json:"subject"`
 	Message   string         `gorm:"type:text;not null" json:"message"`
-	Status    string         `gorm:"default:pending" json:"status"` // pending, read, replied, archived
+	Status    string         `gorm:"default:'pending'" json:"status"` // pending, read, replied, archived
 	IPAddress string         `json:"ip_address"`
 	UserAgent string         `gorm:"type:text" json:"user_agent"`
 	Metadata  string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
@@ -196,7 +223,7 @@ type Newsletter struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 	Email     string         `gorm:"not null;uniqueIndex" json:"email"`
 	Name      string         `json:"name"`
-	Status    string         `gorm:"default:active" json:"status"` // active, unsubscribed, bounced
+	Status    string         `gorm:"default:'active'" json:"status"` // active, unsubscribed, bounced
 	Source    string         `json:"source"`                       // landing page, footer, popup, etc.
 	IPAddress string         `json:"ip_address"`
 	UserAgent string         `gorm:"type:text" json:"user_agent"`

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Landing Page Admin Dashboard - Beakon</title>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="/static/css/admin.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Chart.js for analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+</head>
+<body>
+    <div class="admin-wrapper">
+        <!-- Sidebar -->
+        <aside class="admin-sidebar">
+            <div class="sidebar-header">
+                <img src="/static/images/logo.svg" alt="Beakon" class="admin-logo">
+                <h2>Admin Panel</h2>
+            </div>
+
+            <nav class="sidebar-nav">
+                <ul>
+                    <li class="nav-item active">
+                        <a href="#dashboard" data-section="dashboard">
+                            <i class="fas fa-tachometer-alt"></i>
+                            <span>Dashboard</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#content" data-section="content">
+                            <i class="fas fa-file-alt"></i>
+                            <span>Content</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#media" data-section="media">
+                            <i class="fas fa-images"></i>
+                            <span>Media Library</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#ab-tests" data-section="ab-tests">
+                            <i class="fas fa-flask"></i>
+                            <span>A/B Tests</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#seo" data-section="seo">
+                            <i class="fas fa-search"></i>
+                            <span>SEO</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#analytics" data-section="analytics">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Analytics</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#settings" data-section="settings">
+                            <i class="fas fa-cog"></i>
+                            <span>Settings</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="sidebar-footer">
+                <a href="/admin/logout" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="admin-main">
+            <!-- Top Bar -->
+            <header class="admin-header">
+                <button class="sidebar-toggle" id="sidebarToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+
+                <div class="header-search">
+                    <input type="text" placeholder="Search..." class="search-input">
+                    <i class="fas fa-search search-icon"></i>
+                </div>
+
+                <div class="header-actions">
+                    <button class="btn-preview" onclick="window.open('/', '_blank')">
+                        <i class="fas fa-eye"></i>
+                        Preview Site
+                    </button>
+                    <button class="btn-publish" id="publishChanges">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        Publish Changes
+                    </button>
+                </div>
+            </header>
+
+            <!-- Content Sections -->
+            <div class="admin-content">
+                <!-- Dashboard Section -->
+                <section id="dashboard-section" class="content-section active">
+                    <h1 class="section-title">Dashboard Overview</h1>
+
+                    <!-- Stats Cards -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon bg-primary">
+                                <i class="fas fa-eye"></i>
+                            </div>
+                            <div class="stat-details">
+                                <h3>Page Views</h3>
+                                <p class="stat-value">45,232</p>
+                                <span class="stat-change positive">+12.5%</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon bg-success">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="stat-details">
+                                <h3>Unique Visitors</h3>
+                                <p class="stat-value">12,543</p>
+                                <span class="stat-change positive">+8.2%</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon bg-warning">
+                                <i class="fas fa-flask"></i>
+                            </div>
+                            <div class="stat-details">
+                                <h3>Active A/B Tests</h3>
+                                <p class="stat-value">3</p>
+                                <span class="stat-change">Running</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon bg-info">
+                                <i class="fas fa-percentage"></i>
+                            </div>
+                            <div class="stat-details">
+                                <h3>Conversion Rate</h3>
+                                <p class="stat-value">3.8%</p>
+                                <span class="stat-change positive">+0.5%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Row -->
+                    <div class="charts-row">
+                        <div class="chart-container">
+                            <h3>Traffic Overview</h3>
+                            <canvas id="trafficChart"></canvas>
+                        </div>
+
+                        <div class="chart-container">
+                            <h3>Conversion Funnel</h3>
+                            <canvas id="funnelChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity -->
+                    <div class="activity-section">
+                        <h3>Recent Activity</h3>
+                        <div class="activity-list">
+                            <div class="activity-item">
+                                <div class="activity-icon">
+                                    <i class="fas fa-edit"></i>
+                                </div>
+                                <div class="activity-details">
+                                    <p><strong>Hero section updated</strong></p>
+                                    <span class="activity-time">2 hours ago</span>
+                                </div>
+                            </div>
+                            <div class="activity-item">
+                                <div class="activity-icon">
+                                    <i class="fas fa-flask"></i>
+                                </div>
+                                <div class="activity-details">
+                                    <p><strong>A/B test "CTA Button" started</strong></p>
+                                    <span class="activity-time">5 hours ago</span>
+                                </div>
+                            </div>
+                            <div class="activity-item">
+                                <div class="activity-icon">
+                                    <i class="fas fa-image"></i>
+                                </div>
+                                <div class="activity-details">
+                                    <p><strong>3 images uploaded</strong></p>
+                                    <span class="activity-time">1 day ago</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Content Management Section -->
+                <section id="content-section" class="content-section">
+                    <h1 class="section-title">Content Management</h1>
+
+                    <!-- Content Tabs -->
+                    <div class="content-tabs">
+                        <button class="tab-btn active" data-tab="hero">Hero Section</button>
+                        <button class="tab-btn" data-tab="features">Features</button>
+                        <button class="tab-btn" data-tab="testimonials">Testimonials</button>
+                        <button class="tab-btn" data-tab="faqs">FAQs</button>
+                        <button class="tab-btn" data-tab="blog">Blog Articles</button>
+                        <button class="tab-btn" data-tab="custom">Custom Sections</button>
+                    </div>
+
+                    <!-- Hero Tab Content -->
+                    <div class="tab-content active" id="hero-tab">
+                        <div class="content-header">
+                            <h3>Hero Section</h3>
+                            <button class="btn btn-primary" onclick="editHero()">
+                                <i class="fas fa-edit"></i> Edit Hero
+                            </button>
+                        </div>
+
+                        <div class="hero-preview">
+                            <div class="preview-card">
+                                <h2 id="hero-title">Keep your users informed</h2>
+                                <p id="hero-subtitle">Professional status page platform for modern teams</p>
+                                <button class="preview-cta">Get Started</button>
+                            </div>
+                        </div>
+
+                        <!-- Hero Edit Form (hidden by default) -->
+                        <div id="hero-edit-form" class="edit-form" style="display: none;">
+                            <form id="heroForm">
+                                <div class="form-group">
+                                    <label for="heroTitle">Title</label>
+                                    <input type="text" id="heroTitle" name="title" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label for="heroSubtitle">Subtitle</label>
+                                    <textarea id="heroSubtitle" name="subtitle" class="form-control"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label for="heroCTA">CTA Text</label>
+                                    <input type="text" id="heroCTA" name="cta_text" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label for="heroCTALink">CTA Link</label>
+                                    <input type="text" id="heroCTALink" name="cta_link" class="form-control">
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                                    <button type="button" class="btn btn-secondary" onclick="cancelHeroEdit()">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Features Tab Content -->
+                    <div class="tab-content" id="features-tab">
+                        <div class="content-header">
+                            <h3>Features</h3>
+                            <button class="btn btn-primary" onclick="addFeature()">
+                                <i class="fas fa-plus"></i> Add Feature
+                            </button>
+                        </div>
+
+                        <div class="features-list" id="featuresList">
+                            <!-- Features will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Other tab contents will be similar -->
+                </section>
+
+                <!-- Media Library Section -->
+                <section id="media-section" class="content-section">
+                    <h1 class="section-title">Media Library</h1>
+
+                    <div class="media-header">
+                        <div class="media-filters">
+                            <select class="filter-select">
+                                <option value="all">All Files</option>
+                                <option value="images">Images</option>
+                                <option value="videos">Videos</option>
+                                <option value="documents">Documents</option>
+                            </select>
+                        </div>
+
+                        <button class="btn btn-primary" onclick="openUploadModal()">
+                            <i class="fas fa-upload"></i> Upload Files
+                        </button>
+                    </div>
+
+                    <div class="media-grid" id="mediaGrid">
+                        <!-- Media items will be loaded here -->
+                    </div>
+                </section>
+
+                <!-- A/B Tests Section -->
+                <section id="ab-tests-section" class="content-section">
+                    <h1 class="section-title">A/B Testing</h1>
+
+                    <div class="ab-tests-header">
+                        <div class="test-stats">
+                            <span class="stat">
+                                <strong>3</strong> Active Tests
+                            </span>
+                            <span class="stat">
+                                <strong>2</strong> Completed
+                            </span>
+                            <span class="stat">
+                                <strong>1</strong> Draft
+                            </span>
+                        </div>
+
+                        <button class="btn btn-primary" onclick="createABTest()">
+                            <i class="fas fa-plus"></i> Create Test
+                        </button>
+                    </div>
+
+                    <div class="tests-list" id="testsList">
+                        <!-- A/B tests will be loaded here -->
+                    </div>
+                </section>
+
+                <!-- SEO Section -->
+                <section id="seo-section" class="content-section">
+                    <h1 class="section-title">SEO Configuration</h1>
+
+                    <div class="seo-tabs">
+                        <button class="tab-btn active" data-seo-tab="general">General</button>
+                        <button class="tab-btn" data-seo-tab="meta">Meta Tags</button>
+                        <button class="tab-btn" data-seo-tab="sitemap">Sitemap</button>
+                        <button class="tab-btn" data-seo-tab="robots">Robots.txt</button>
+                        <button class="tab-btn" data-seo-tab="schema">Schema Markup</button>
+                    </div>
+
+                    <div class="seo-content">
+                        <!-- SEO configuration forms -->
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <!-- Upload Modal -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Upload Media</h3>
+                <button class="modal-close" onclick="closeUploadModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="upload-area" id="uploadArea">
+                    <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                    <p>Drag and drop files here or click to browse</p>
+                    <input type="file" id="fileInput" multiple accept="image/*,video/*,.pdf,.doc,.docx">
+                </div>
+                <div class="upload-queue" id="uploadQueue">
+                    <!-- Upload progress will be shown here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/admin.js"></script>
+</body>
+</html>

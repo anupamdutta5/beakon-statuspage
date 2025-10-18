@@ -1,0 +1,1 @@
+# DEPRECATED: Use init-all-databases.sh or per-service init-db.sh instead

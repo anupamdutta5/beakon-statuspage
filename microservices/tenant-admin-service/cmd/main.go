@@ -20,6 +20,7 @@ import (
 	"github.com/anupamdutta5/tenant-admin-service/internal/handlers"
 	"github.com/anupamdutta5/tenant-admin-service/internal/middleware"
 	"github.com/anupamdutta5/tenant-admin-service/internal/models"
+	"github.com/anupamdutta5/tenant-admin-service/internal/sessions"
 	"github.com/anupamdutta5/tenant-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq" // PostgreSQL driver
@@ -197,6 +198,39 @@ func main() {
 		logger.Info("Rate limiter initialized")
 	}
 
+	// Initialize session storage with Redis as primary and database as fallback
+	var sessionManager *sessions.SessionManager
+	var primarySessionStore sessions.SessionStore
+	var fallbackSessionStore sessions.SessionStore
+
+	// Try to initialize Redis session store as primary
+	// Disabled for now - Redis connection issues causing session validation failures
+	// TODO: Re-enable when Redis is properly configured
+	if false && resilienceConfig.Redis.Host != "" {
+		redisStore, err := sessions.NewRedisSessionStore(resilienceConfig.Redis, logger)
+		if err != nil {
+			logger.Warn("Failed to initialize Redis session store, using database only",
+				zap.Error(err))
+		} else {
+			primarySessionStore = redisStore
+			logger.Info("Redis session store initialized as primary")
+		}
+	}
+
+	// Always initialize database session store as fallback
+	dbSessionStore := sessions.NewDBSessionStore(dbManager.GetDB(), logger)
+
+	if primarySessionStore != nil {
+		// Redis as primary, DB as fallback
+		fallbackSessionStore = dbSessionStore
+		sessionManager = sessions.NewSessionManager(primarySessionStore, fallbackSessionStore, logger)
+		logger.Info("Session manager initialized with Redis primary and database fallback")
+	} else {
+		// DB as primary, no fallback
+		sessionManager = sessions.NewSessionManager(dbSessionStore, nil, logger)
+		logger.Info("Session manager initialized with database only")
+	}
+
 	// Initialize business services with modernized dependencies
 	tenantAdminService, err := services.NewTenantAdminService(localConfig, logger)
 	if err != nil {
@@ -205,8 +239,8 @@ func main() {
 
 	domainService := services.NewDomainService(logger)
 
-	// Initialize RBAC service
-	rbacService := services.NewRBACService(dbManager.GetDB(), logger)
+	// Initialize RBAC service with session manager
+	rbacService := services.NewRBACService(dbManager.GetDB(), logger, sessionManager)
 
 	// Initialize status page service
 	statusPageService := services.NewStatusPageManagementService(dbManager.GetDB(), logger, &services.StatusPageConfig{
@@ -242,7 +276,7 @@ func main() {
 	router.SetHTMLTemplate(loadTemplates())
 
 	// Initialize modernized handlers with shared error handling
-	tenantAdminHandler := handlers.NewTenantAdminHandler(tenantAdminService, statusPageService, logger)
+	tenantAdminHandler := handlers.NewTenantAdminHandler(tenantAdminService, statusPageService, rbacService, logger)
 	domainHandler := handlers.NewDomainHandler(domainService, logger)
 	rbacHandler := handlers.NewRBACHandler(rbacService, logger)
 	userHandler := handlers.NewUserHandler(tenantAdminService, logger)
@@ -294,6 +328,24 @@ func main() {
 				}
 			}
 		}()
+	}
+
+	// Start periodic session cleanup
+	if sessionManager != nil {
+		go func() {
+			ticker := time.NewTicker(30 * time.Minute) // Run cleanup every 30 minutes
+			defer ticker.Stop()
+
+			for range ticker.C {
+				ctx := context.Background()
+				if err := sessionManager.CleanupExpiredSessions(ctx); err != nil {
+					logger.Error("Failed to cleanup expired sessions", zap.Error(err))
+				} else {
+					logger.Debug("Expired sessions cleanup completed")
+				}
+			}
+		}()
+		logger.Info("Started periodic session cleanup")
 	}
 
 	// Wait for interrupt signal to gracefully shutdown the server

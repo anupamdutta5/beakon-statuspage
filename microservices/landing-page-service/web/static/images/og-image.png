@@ -1,0 +1,14 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="ogBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea" />
+      <stop offset="100%" style="stop-color:#764ba2" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#ogBg)"/>
+  <circle cx="900" cy="315" r="200" fill="white" opacity="0.1"/>
+  <circle cx="300" cy="150" r="150" fill="white" opacity="0.1"/>
+  <text x="600" y="280" font-family="system-ui, -apple-system" font-size="72" font-weight="800" fill="white" text-anchor="middle">Beakon</text>
+  <text x="600" y="350" font-family="system-ui, -apple-system" font-size="36" font-weight="500" fill="white" text-anchor="middle" opacity="0.9">Real-Time Status Pages</text>
+  <text x="600" y="410" font-family="system-ui, -apple-system" font-size="24" fill="white" text-anchor="middle" opacity="0.8">Keep Your Users Informed</text>
+</svg>

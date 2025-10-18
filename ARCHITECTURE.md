@@ -20,6 +20,84 @@ Beakon is a comprehensive, enterprise-grade status page platform built using mic
 - **Authentication**: JWT-based authentication and authorization
 - **Resilience**: Circuit breakers, rate limiting, and retry mechanisms
 
+## Service Interaction Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              External Clients                                │
+│                    (Web Browsers, Mobile Apps, APIs)                         │
+└────────────────────────────┬────────────────────────────────────────────────┘
+                             │
+                             ▼
+              ┌──────────────────────────────┐
+              │      API Gateway (8080)       │
+              │  - JWT Auth                   │
+              │  - Rate Limiting              │
+              │  - Request Routing            │
+              └──────────┬───────────────────┘
+                         │
+      ┌──────────────────┼──────────────────┬──────────────────┬──────────────┐
+      │                  │                   │                  │              │
+      ▼                  ▼                   ▼                  ▼              ▼
+┌───────────┐      ┌───────────┐      ┌───────────┐     ┌──────────┐   ┌──────────┐
+│   User    │      │  Tenant   │      │   SaaS    │     │Component │   │Incident  │
+│  Service  │      │   Admin   │      │  Admin    │     │ Service  │   │ Service  │
+│  (8081)   │      │  (8099)   │      │  (8098)   │     │  (8084)  │   │  (8086)  │
+│           │      │           │      │           │     │          │   │          │
+│ Auth &    │      │ Tenant    │      │ Platform  │     │ Status   │   │ Incident │
+│ Users     │      │ Mgmt RBAC │      │ Admin     │     │ Tracking │   │ Mgmt     │
+└─────┬─────┘      └─────┬─────┘      └─────┬─────┘     └────┬─────┘   └────┬─────┘
+      │                  │                  │                  │              │
+      │                  └──────────────────┴──────────────────┘              │
+      │                           │                                           │
+      │                           ▼                                           │
+      │                  ┌────────────────┐                                   │
+      │                  │  tenant_admin  │                                   │
+      │                  │      _db       │                                   │
+      │                  │                │                                   │
+      │                  │ (Shared by 2   │                                   │
+      │                  │   services)    │                                   │
+      │                  └────────────────┘                                   │
+      │                                                                        │
+      ▼                                                                        ▼
+┌───────────────┐                                                    ┌──────────────┐
+│ statuspage_   │                                                    │statuspage_   │
+│    user       │                                                    │  incident    │
+└───────────────┘                                                    └──────────────┘
+
+                           Other HTTP Services
+      ┌─────────────┬─────────────┬──────────────┬──────────────┐
+      │             │             │              │              │
+      ▼             ▼             ▼              ▼              ▼
+┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐
+│ Notif    │  │ Payment  │  │Analytics │  │Monitoring│  │ Branding │
+│ Service  │  │ Service  │  │ Service  │  │ Service  │  │ Service  │
+│ (8085)   │  │ (8088)   │  │ (8090)   │  │ (8092)   │  │ (8097)   │
+└──────────┘  └──────────┘  └──────────┘  └──────────┘  └──────────┘
+
+                         Event Consumers (Kafka)
+              ┌──────────────────────────────────────┐
+              │                                       │
+         ┌────▼────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐
+         │Analytics│  │   Audit   │  │  Billing  │  │   Notif   │
+         │Consumer │  │  Consumer │  │  Consumer │  │  Consumer │
+         └─────────┘  └───────────┘  └───────────┘  └───────────┘
+```
+
+**Legend**:
+- **Solid lines (│─)**: HTTP/REST API calls
+- **Arrows (▼)**: Request/data flow direction
+- **Numbers in ()**: Service port numbers
+
+**Key Relationships**:
+1. **API Gateway** is the single entry point for all client requests
+2. **User Service** handles authentication, other services validate JWT tokens
+3. **Tenant Admin & SaaS Admin** share the same database but serve different roles
+4. Each HTTP service has its own dedicated PostgreSQL database
+5. **Event Consumers** process asynchronous events from Kafka (no HTTP ports)
+
+---
+
 ## System Components
 
 ### Core Services
@@ -170,9 +248,12 @@ Beakon is a comprehensive, enterprise-grade status page platform built using mic
 
 ### Specialized Services
 
-#### 17. Database Service (`database-service`)
+#### 17. Database Service (`database-service`) ⚠️ **DEPRECATED**
 **Role**: Database management and utilities
-- **Purpose**: Centralized database operations and utilities
+- **Port**: 8095
+- **Status**: **DEPRECATED** - Not actively used by any service
+- **Purpose**: Originally intended for centralized database operations
+- **Note**: Each service now manages its own database connections via shared-resilience
 
 #### 18. Event Store Service (`event-store-service`)
 **Role**: Event sourcing and CQRS
@@ -226,26 +307,35 @@ Beakon is a comprehensive, enterprise-grade status page platform built using mic
 - **Load Balancing**: API Gateway with circuit breakers
 
 ### Port Allocation
+
+**HTTP Services:**
 - **API Gateway**: 8080
-- **User Service**: 8090
-- **Tenant Admin Service**: 8091
-- **SaaS Admin Service**: 8092
-- **Component Service**: 8093
-- **Incident Service**: 8094
-- **Monitoring Service**: 8095
-- **Analytics Service**: 8096
-- **Notification Service**: 8097
-- **Landing Page Service**: 8098
-- **Payment Service**: 8099
-- **Branding Service**: 8100
-- **Database Service**: 8101
-- **Event Store Service**: 8102
-- **Status UI Service**: 8103
-- **Analytics Consumer**: 8104
-- **Notification Consumer**: 8105
-- **Audit Consumer**: 8106
-- **Billing Consumer**: 8107
-- **Shared Resilience**: Library (no port)
+- **User Service**: 8081
+- **Component Service**: 8084
+- **Notification Service**: 8085
+- **Incident Service**: 8086
+- **Payment Service**: 8088
+- **Analytics Service**: 8090
+- **Monitoring Service**: 8092
+- **Status UI Service**: 8093
+- **Database Service**: 8095 ⚠️ **DEPRECATED** - Not actively used
+- **Event Store Service**: 8096
+- **Branding Service**: 8097
+- **SaaS Admin Service**: 8098
+- **Tenant Admin Service**: 8099
+- **Landing Page Service**: 8100
+
+**Consumer Services (Event-Driven, no HTTP port):**
+- **Analytics Consumer**: Background processor
+- **Notification Consumer**: Background processor
+- **Audit Consumer**: Background processor
+- **Billing Consumer**: Background processor
+
+**Metrics Ports (Prometheus):**
+- Services expose metrics on ports 9090-9102 (service port + 1010)
+
+**Shared Libraries:**
+- **Shared Resilience**: Go module library (no dedicated port)
 
 ### Data Storage Strategy
 - **Multi-tenant Database**: Single database with tenant-scoped data

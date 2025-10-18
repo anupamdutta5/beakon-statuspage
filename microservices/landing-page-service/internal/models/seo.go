@@ -238,3 +238,266 @@ type SEORedirect struct {
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
+
+// ============================================================================
+// Database-Backed Models for Landing Page Enhancement
+// ============================================================================
+
+// LandingPageSEOConfig represents global SEO configuration (singleton).
+type LandingPageSEOConfig struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+
+	// Global SEO settings
+	SiteName                string `gorm:"not null" json:"site_name"`
+	SiteURL                 string `gorm:"not null" json:"site_url"`
+	DefaultMetaDescription  string `gorm:"type:text" json:"default_meta_description"`
+	DefaultOGImage          string `json:"default_og_image"`
+	GoogleAnalyticsID       string `json:"google_analytics_id"`
+	GoogleTagManagerID      string `json:"google_tag_manager_id"`
+	FacebookPixelID         string `json:"facebook_pixel_id"`
+	PlausibleDomain         string `json:"plausible_domain"`
+
+	// Schema.org Organization
+	OrganizationName        string `json:"organization_name"`
+	OrganizationLogo        string `json:"organization_logo"`
+	OrganizationURL         string `json:"organization_url"`
+	OrganizationDescription string `gorm:"type:text" json:"organization_description"`
+	OrganizationEmail       string `json:"organization_email"`
+	OrganizationPhone       string `json:"organization_phone"`
+	OrganizationAddress     string `gorm:"type:text" json:"organization_address"`     // JSON: {street, city, state, zip, country}
+	OrganizationSocialLinks string `gorm:"type:text" json:"organization_social_links"` // JSON: {twitter, linkedin, facebook, ...}
+
+	// Sitemap settings
+	SitemapEnabled    bool    `gorm:"default:true" json:"sitemap_enabled"`
+	SitemapChangeFreq string  `gorm:"default:'daily'" json:"sitemap_change_freq"` // always, hourly, daily, weekly, monthly, yearly, never
+	SitemapPriority   float32 `gorm:"default:0.8" json:"sitemap_priority"`
+
+	// Robots.txt
+	RobotsTxt     string `gorm:"type:text" json:"robots_txt"`
+	RobotsEnabled bool   `gorm:"default:true" json:"robots_enabled"`
+
+	// Schema
+	SchemaEnabled bool `gorm:"default:true" json:"schema_enabled"`
+
+	// Twitter Card
+	TwitterCard string `json:"twitter_card"`
+
+	// Default SEO values
+	DefaultTitle         string `json:"default_title"`
+	DefaultKeywords      string `gorm:"type:text" json:"default_keywords"`
+	OGDefaultTitle       string `json:"og_default_title"`
+	OGDefaultDescription string `gorm:"type:text" json:"og_default_description"`
+
+	// Verification codes
+	GoogleSiteVerification string `json:"google_site_verification"`
+	BingSiteVerification   string `json:"bing_site_verification"`
+
+	Metadata string `gorm:"type:text" json:"metadata"` // JSON string for additional data
+}
+
+// TableName returns the table name for LandingPageSEOConfig.
+func (LandingPageSEOConfig) TableName() string {
+	return "landing_page_seo_config"
+}
+
+// LandingPageMedia represents uploaded media files.
+type LandingPageMedia struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	DeletedAt *time.Time `gorm:"index" json:"deleted_at,omitempty"`
+
+	Filename         string `gorm:"not null" json:"filename"`
+	OriginalFilename string `gorm:"not null" json:"original_filename"`
+	MimeType         string `gorm:"not null" json:"mime_type"`
+	SizeBytes        int64  `gorm:"not null" json:"size_bytes"`
+	Width            int    `json:"width"`
+	Height           int    `json:"height"`
+
+	// Storage
+	StoragePath string `gorm:"not null" json:"storage_path"` // /static/uploads/2025/10/...
+	CDNURL      string `json:"cdn_url"`                      // CDN URL if using CDN
+
+	// Optimization
+	IsOptimized   bool   `gorm:"default:false" json:"is_optimized"`
+	WebPPath      string `json:"webp_path"`      // WebP version
+	AVIFPath      string `json:"avif_path"`      // AVIF version
+	ThumbnailPath string `json:"thumbnail_path"` // Thumbnail
+
+	// Metadata
+	AltText  string `gorm:"type:text" json:"alt_text"`
+	Caption  string `gorm:"type:text" json:"caption"`
+	Title    string `json:"title"`
+	Category string `gorm:"index" json:"category"` // hero, feature, testimonial, blog, general
+
+	// Usage tracking
+	UsageCount int        `gorm:"default:0" json:"usage_count"`
+	LastUsedAt *time.Time `json:"last_used_at"`
+
+	Metadata string `gorm:"type:text" json:"metadata"` // JSON string for additional data
+}
+
+// TableName returns the table name for LandingPageMedia.
+func (LandingPageMedia) TableName() string {
+	return "landing_page_media"
+}
+
+// LandingPageABTest represents A/B testing configuration.
+type LandingPageABTest struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	DeletedAt *time.Time `gorm:"index" json:"deleted_at,omitempty"`
+
+	Name        string `gorm:"not null" json:"name"`
+	Description string `gorm:"type:text" json:"description"`
+	ElementType string `gorm:"not null;index" json:"element_type"` // hero_title, cta_button, pricing_layout, etc.
+	ElementID   *uint  `gorm:"index" json:"element_id"`            // ID of the element being tested
+
+	Status    string     `gorm:"default:'draft';index" json:"status"` // draft, running, paused, completed
+	StartDate *time.Time `json:"start_date"`
+	EndDate   *time.Time `json:"end_date"`
+
+	// Variants
+	VariantAConfig string `gorm:"type:text" json:"variant_a_config"` // JSON configuration
+	VariantBConfig string `gorm:"type:text" json:"variant_b_config"` // JSON configuration
+	TrafficSplit   int    `gorm:"default:50" json:"traffic_split"`   // 0-100 percentage to variant B
+
+	// Results
+	VariantAViews       int     `gorm:"default:0" json:"variant_a_views"`
+	VariantAConversions int     `gorm:"default:0" json:"variant_a_conversions"`
+	VariantBViews       int     `gorm:"default:0" json:"variant_b_views"`
+	VariantBConversions int     `gorm:"default:0" json:"variant_b_conversions"`
+	Winner              string  `json:"winner"`           // 'A', 'B', or NULL
+	ConfidenceLevel     float32 `json:"confidence_level"` // 0-100
+
+	Metadata string `gorm:"type:text" json:"metadata"` // JSON string for additional data
+}
+
+// TableName returns the table name for LandingPageABTest.
+func (LandingPageABTest) TableName() string {
+	return "landing_page_ab_tests"
+}
+
+// ConversionRateA calculates the conversion rate for variant A.
+func (t *LandingPageABTest) ConversionRateA() float64 {
+	if t.VariantAViews == 0 {
+		return 0
+	}
+	return float64(t.VariantAConversions) / float64(t.VariantAViews) * 100
+}
+
+// ConversionRateB calculates the conversion rate for variant B.
+func (t *LandingPageABTest) ConversionRateB() float64 {
+	if t.VariantBViews == 0 {
+		return 0
+	}
+	return float64(t.VariantBConversions) / float64(t.VariantBViews) * 100
+}
+
+// LandingPageCTAButton represents reusable CTA buttons.
+type LandingPageCTAButton struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	DeletedAt *time.Time `gorm:"index" json:"deleted_at,omitempty"`
+
+	Name string `gorm:"not null" json:"name"` // Internal name
+	Text string `gorm:"not null" json:"text"`
+	URL  string `gorm:"not null" json:"url"`
+
+	// Styling
+	Style string `gorm:"default:'primary'" json:"style"` // primary, secondary, outline, ghost
+	Size  string `gorm:"default:'medium'" json:"size"`   // small, medium, large
+	Icon  string `json:"icon"`                         // Font Awesome class
+
+	// Tracking
+	ClickCount      int `gorm:"default:0" json:"click_count"`
+	ConversionCount int `gorm:"default:0" json:"conversion_count"`
+
+	// Usage
+	Locations string `gorm:"type:text" json:"locations"` // JSON array: ['hero', 'pricing', 'footer']
+	IsActive  bool   `gorm:"default:true" json:"is_active"`
+
+	Metadata string `gorm:"type:text" json:"metadata"` // JSON string for additional data
+}
+
+// TableName returns the table name for LandingPageCTAButton.
+func (LandingPageCTAButton) TableName() string {
+	return "landing_page_cta_buttons"
+}
+
+// LandingPageSection represents custom page sections.
+type LandingPageSection struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	DeletedAt *time.Time `gorm:"index" json:"deleted_at,omitempty"`
+
+	Name        string `gorm:"not null" json:"name"`
+	SectionType string `gorm:"not null;index" json:"section_type"` // custom_html, stats, logos, cta, video, etc.
+	Title       string `json:"title"`
+	Content     string `gorm:"type:text" json:"content"` // HTML or JSON config
+
+	// Display
+	Position        string `gorm:"index" json:"position"` // after_hero, after_features, after_pricing, etc.
+	Order           int    `gorm:"default:0" json:"order"`
+	BackgroundColor string `json:"background_color"`
+	Status          string `gorm:"default:'active'" json:"status"` // active, inactive
+
+	// Layout
+	Layout string `json:"layout"` // full_width, contained, split
+
+	Metadata string `gorm:"type:text" json:"metadata"` // JSON string for additional data
+}
+
+// TableName returns the table name for LandingPageSection.
+func (LandingPageSection) TableName() string {
+	return "landing_page_sections"
+}
+
+// LandingPageIntegration represents third-party integrations.
+type LandingPageIntegration struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+
+	IntegrationType string `gorm:"not null;uniqueIndex:idx_integration_type_provider" json:"integration_type"` // analytics, chat, email, crm, etc.
+	Provider        string `gorm:"not null;uniqueIndex:idx_integration_type_provider" json:"provider"`         // google_analytics, intercom, mailchimp, etc.
+
+	// Configuration
+	IsEnabled bool   `gorm:"default:false" json:"is_enabled"`
+	Config    string `gorm:"type:text" json:"config"`  // JSON configuration
+	APIKey    string `gorm:"type:text" json:"api_key"` // Encrypted
+
+	// Tracking
+	LastSyncAt   *time.Time `json:"last_sync_at"`
+	SyncStatus   string     `json:"sync_status"`
+	ErrorMessage string     `gorm:"type:text" json:"error_message"`
+
+	Metadata string `gorm:"type:text" json:"metadata"` // JSON string for additional data
+}
+
+// TableName returns the table name for LandingPageIntegration.
+func (LandingPageIntegration) TableName() string {
+	return "landing_page_integrations"
+}
+
+// ABTestAssignment tracks user assignments to A/B test variants.
+type ABTestAssignment struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+
+	TestID    uint   `gorm:"not null;index:idx_test_session" json:"test_id"`
+	SessionID string `gorm:"not null;index:idx_test_session" json:"session_id"`
+	Variant   string `gorm:"not null" json:"variant"` // 'A' or 'B'
+	UserID    string `gorm:"index" json:"user_id"`    // If authenticated
+	Converted bool   `gorm:"default:false" json:"converted"`
+}
+
+// TableName returns the table name for ABTestAssignment.
+func (ABTestAssignment) TableName() string {
+	return "ab_test_assignments"
+}

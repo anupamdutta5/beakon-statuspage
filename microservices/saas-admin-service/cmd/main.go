@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 
 	resilience "github.com/anupamdutta5/shared-resilience"
+	"github.com/anupamdutta5/saas-admin-service/internal/auth"
 	"github.com/anupamdutta5/saas-admin-service/internal/config"
 	"github.com/anupamdutta5/saas-admin-service/internal/handlers"
 	"github.com/anupamdutta5/saas-admin-service/internal/models"
@@ -63,7 +64,7 @@ func loadTemplates() *template.Template {
 }
 
 // setupRoutes configures all the routes for the server
-func setupRoutes(router *gin.Engine, adminHandler *handlers.SaaSAdminHandler) {
+func setupRoutes(router *gin.Engine, adminHandler *handlers.SaaSAdminHandler, jwtManager *auth.JWTManager) {
 	// Load HTML templates including partials
 	router.SetHTMLTemplate(loadTemplates())
 
@@ -80,41 +81,35 @@ func setupRoutes(router *gin.Engine, adminHandler *handlers.SaaSAdminHandler) {
 		c.Redirect(301, "/api/v1/health")
 	})
 
-	// Admin dashboard - with server-side authentication check
+	// Admin dashboard - with server-side JWT authentication check
 	router.GET("/admin", func(c *gin.Context) {
-		// Check if user has a valid session cookie
-		sessionID, err := c.Cookie("session_id")
-		if err != nil || sessionID == "" {
-			// No session cookie, show login page only
+		// Check for access token in cookie
+		accessToken, err := c.Cookie("access_token")
+		if err != nil || accessToken == "" {
+			// No access token, show login page
 			c.HTML(200, "login.html", gin.H{
 				"title": "SaaS Admin Login",
 			})
 			return
 		}
 
-		// Validate session with tenant-admin service (with shorter timeout for better UX)
-		req, err := http.NewRequest("GET", os.Getenv("TENANT_ADMIN_SERVICE_URL")+"/api/v1/sessions/"+sessionID, nil)
+		// Validate JWT access token
+		_, err = jwtManager.ValidateAccessToken(accessToken)
 		if err != nil {
-			// Session validation failed, show login page
+			// Invalid or expired token, show login page
+			// Note: Frontend should handle token refresh automatically
 			c.HTML(200, "login.html", gin.H{
 				"title": "SaaS Admin Login",
 			})
 			return
 		}
 
-		// Use shorter timeout for faster response
-		client := &http.Client{Timeout: 2 * time.Second}
-		resp, err := client.Do(req)
-		if err != nil || resp.StatusCode != http.StatusOK {
-			// Session invalid or expired, show login page
-			c.HTML(200, "login.html", gin.H{
-				"title": "SaaS Admin Login",
-			})
-			return
-		}
-		resp.Body.Close()
+		// Valid token, show dashboard
+		// SECURITY: Prevent browser caching of authenticated pages
+		c.Header("Cache-Control", "no-store, no-cache, must-revalidate, private, max-age=0")
+		c.Header("Pragma", "no-cache")
+		c.Header("Expires", "0")
 
-		// Valid session, show dashboard
 		c.HTML(200, "admin.html", gin.H{
 			"title": "SaaS Admin Dashboard",
 		})
@@ -132,6 +127,7 @@ func setupRoutes(router *gin.Engine, adminHandler *handlers.SaaSAdminHandler) {
 			auth.POST("/login", adminHandler.Login)
 			auth.POST("/logout", adminHandler.Logout)
 			auth.GET("/check", adminHandler.CheckAuth)
+			auth.POST("/refresh", adminHandler.RefreshToken)
 		}
 
 		// Platform configuration
@@ -412,6 +408,8 @@ func main() {
 		&models.SaaSSubscriber{},
 		&models.SaaSComponent{},
 		&models.SaaSTenant{},
+		&models.Session{},      // JWT + session authentication
+		&models.UserSession{},  // Refresh tokens
 	); err != nil {
 		logger.Error("Failed to migrate database", zap.Error(err))
 		// Don't fail completely, continue with startup
@@ -454,16 +452,26 @@ func main() {
 	// Initialize service URLs from environment variables
 	serviceURLs := config.GetServiceURLsFromEnv()
 
+	// Initialize JWT manager (15 minute access tokens)
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		logger.Fatal("JWT_SECRET environment variable is required")
+	}
+	jwtManager := auth.NewJWTManager(jwtSecret, 15*time.Minute)
+
+	// Initialize session service for refresh token management
+	sessionService := services.NewSessionService(dbManager.GetDB(), logger)
+
 	// Initialize saas admin service and handlers
 	saasAdminService, err := services.NewSaaSAdminService(nil, logger, dbManager.GetDB())
 	if err != nil {
 		logger.Fatal("Failed to create SaaS admin service", zap.Error(err))
 	}
 
-	saasAdminHandler := handlers.NewSaaSAdminHandler(saasAdminService, serviceURLs, logger)
+	saasAdminHandler := handlers.NewSaaSAdminHandler(saasAdminService, sessionService, jwtManager, serviceURLs, logger)
 
 	// Setup all enterprise routes
-	setupRoutes(router, saasAdminHandler)
+	setupRoutes(router, saasAdminHandler, jwtManager)
 
 	// Create HTTP server with proper timeouts and configuration
 	server := &http.Server{

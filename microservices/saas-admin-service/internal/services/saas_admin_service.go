@@ -146,6 +146,24 @@ func (s *SaaSAdminService) ValidateAdminCredentials(ctx context.Context, usernam
 	return &user, nil
 }
 
+// GetAdminUserByID retrieves an admin user by ID
+func (s *SaaSAdminService) GetAdminUserByID(ctx context.Context, userID uint) (*models.SaaSAdminUser, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("database connection not available")
+	}
+
+	var user models.SaaSAdminUser
+	if err := s.db.WithContext(ctx).Where("id = ? AND status = ?", userID, "active").First(&user).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("user not found or inactive")
+		}
+		s.logger.Error("Database error while fetching user", zap.Error(err), zap.Uint("user_id", userID))
+		return nil, fmt.Errorf("database error: %w", err)
+	}
+
+	return &user, nil
+}
+
 // Plan Management
 
 // CreatePlan creates a new SaaS plan.
@@ -248,6 +266,32 @@ func (s *SaaSAdminService) ListPlans(ctx context.Context, limit, offset int) ([]
 		s.logger.Error("Failed to list plans", zap.Error(err))
 		return nil, fmt.Errorf("failed to list plans: %w", err)
 	}
+
+	return plans, nil
+}
+
+// ListPublicPlans lists all active public plans with their pricing tiers for landing page.
+func (s *SaaSAdminService) ListPublicPlans(ctx context.Context) ([]*models.SaaSPlan, error) {
+	s.logger.Info("Listing public pricing plans for landing page")
+
+	if s.db == nil {
+		s.logger.Debug("Database not available, returning empty list")
+		return []*models.SaaSPlan{}, nil
+	}
+
+	var plans []*models.SaaSPlan
+
+	// Get all active public plans, ordered by display_order
+	if err := s.db.Preload("PricingTiers").
+		Where("is_active = ? AND is_public = ?", true, true).
+		Order("display_order ASC, created_at ASC").
+		Find(&plans).Error; err != nil {
+		s.logger.Error("Failed to list public plans", zap.Error(err))
+		return nil, fmt.Errorf("failed to list public plans: %w", err)
+	}
+
+	s.logger.Info("Retrieved public plans",
+		zap.Int("count", len(plans)))
 
 	return plans, nil
 }

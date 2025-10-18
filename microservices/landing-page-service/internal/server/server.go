@@ -57,7 +57,7 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 	// Create router
 	router := gin.New()
 
-	// Configure HTML templates with custom functions
+	// Configure HTML templates with custom functions (must match landing_handler.go)
 	funcMap := template.FuncMap{
 		"mul": func(a, b int) int {
 			return a * b
@@ -97,10 +97,11 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 
 	// Initialize handlers
 	handler := handlers.NewLandingHandler(service, logger)
-	seoHandler := handlers.NewSEOHandler(seoService, logger)
+	seoHandler := handlers.NewSEOHandler(seoService, service.GetDB(), logger)
+	pricingHandler := handlers.NewPricingHandler(service.GetDB(), logger)
 
 	// Setup routes
-	setupRoutes(router, handler, seoHandler)
+	setupRoutes(router, handler, seoHandler, pricingHandler)
 
 	// Create HTTP server
 	server := &http.Server{
@@ -153,7 +154,7 @@ func (s *Server) Start(ctx context.Context) error {
 }
 
 // setupRoutes sets up the API routes.
-func setupRoutes(router *gin.Engine, handler *handlers.LandingHandler, seoHandler *handlers.SEOHandler) {
+func setupRoutes(router *gin.Engine, handler *handlers.LandingHandler, seoHandler *handlers.SEOHandler, pricingHandler *handlers.PricingHandler) {
 	// Health check
 	router.GET("/health", handler.HealthCheck)
 
@@ -161,8 +162,10 @@ func setupRoutes(router *gin.Engine, handler *handlers.LandingHandler, seoHandle
 	router.Static("/static", "./web/static")
 
 	// SEO routes
-	router.GET("/sitemap.xml", seoHandler.GetSitemap)
-	router.GET("/robots.txt", seoHandler.GetRobotsTxt)
+	if seoHandler != nil {
+		router.GET("/sitemap.xml", seoHandler.GetSitemap)
+		router.GET("/robots.txt", seoHandler.GetRobotsTxt)
+	}
 
 	// Public routes
 	router.GET("/", handler.LandingPage)
@@ -191,8 +194,15 @@ func setupRoutes(router *gin.Engine, handler *handlers.LandingHandler, seoHandle
 		api.POST("/auth/signup", handler.MockSignup)
 		api.POST("/payment/process", handler.MockPayment)
 
-		// Pricing plans sync (from SaaS Admin Service)
-		api.POST("/pricing/sync", handler.SyncPricingPlans)
+		// Public pricing API for frontend
+		api.GET("/pricing", pricingHandler.GetPricingPlans)
+
+		// Admin API routes
+		admin := api.Group("/admin")
+		{
+			// Pricing management - Sync from SaaS Admin Service
+			admin.POST("/pricing/sync", pricingHandler.SyncPricingPlans)
+		}
 
 		// Content management
 		api.GET("/hero", handler.GetHeroSection)
@@ -217,14 +227,16 @@ func setupRoutes(router *gin.Engine, handler *handlers.LandingHandler, seoHandle
 		api.DELETE("/articles/:id", handler.DeleteArticle)
 
 		// SEO API routes
-		seo := api.Group("/seo")
-		{
-			seo.POST("/meta-tags", seoHandler.GenerateMetaTags)
-			seo.POST("/structured-data", seoHandler.GetStructuredData)
-			seo.GET("/analyze", seoHandler.AnalyzeSEO)
-			seo.GET("/recommendations", seoHandler.GetSEORecommendations)
-			seo.POST("/web-vitals", seoHandler.TrackWebVitals)
-			seo.POST("/preview", seoHandler.PreviewSEO)
+		if seoHandler != nil {
+			seo := api.Group("/seo")
+			{
+				seo.POST("/meta-tags", seoHandler.GenerateMetaTags)
+				seo.POST("/structured-data", seoHandler.GetStructuredData)
+				seo.GET("/analyze", seoHandler.AnalyzeSEO)
+				seo.GET("/recommendations", seoHandler.GetSEORecommendations)
+				seo.POST("/web-vitals", seoHandler.TrackWebVitals)
+				seo.POST("/preview", seoHandler.PreviewSEO)
+			}
 		}
 	}
 }

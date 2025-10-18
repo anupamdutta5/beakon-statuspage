@@ -107,6 +107,24 @@ func (h *TenantAdminHandler) Login(c *gin.Context) {
 		zap.Uint("user_id", user.ID),
 		zap.Any("tenant_id", tenantID))
 
+	// Create RBAC session automatically for protected route access
+	var sessionID string
+	if tenantIDStr, ok := tenantID.(string); ok {
+		// Call RBAC service to create session
+		session, err := h.rbacService.CreateSession(c.Request.Context(), user.ID, tenantIDStr, c.ClientIP(), c.Request.UserAgent(), tokenExpiry)
+		if err != nil {
+			h.logger.Warn("Failed to create session (non-critical)",
+				zap.Error(err),
+				zap.Uint("user_id", user.ID))
+			// Don't fail login if session creation fails - log warning and continue
+		} else {
+			sessionID = session.ID
+			h.logger.Info("Session created automatically",
+				zap.String("session_id", sessionID),
+				zap.Uint("user_id", user.ID))
+		}
+	}
+
 	// Set auth token cookie with comprehensive security attributes
 	// Security features:
 	// - HttpOnly: Prevents XSS attacks (JavaScript cannot access cookie)
@@ -132,14 +150,22 @@ func (h *TenantAdminHandler) Login(c *gin.Context) {
 		true,                      // httpOnly
 	)
 
-	c.JSON(http.StatusOK, gin.H{
+	// Return JWT token and session ID
+	response := gin.H{
 		"token": tokenString,
 		"user": gin.H{
 			"id":        user.ID,
 			"email":     user.Email,
 			"tenant_id": tenantID,
 		},
-	})
+	}
+
+	// Include session_id if created successfully
+	if sessionID != "" {
+		response["session_id"] = sessionID
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // Logout handles user logout.

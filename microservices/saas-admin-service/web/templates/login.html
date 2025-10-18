@@ -326,7 +326,9 @@
                 if (response.ok) {
                     showAlert('Login successful! Redirecting...', 'success');
                     setTimeout(() => {
-                        window.location.href = '/admin';
+                        // Redirect to dashboard
+                        // Server-side auth checks + Cache-Control headers prevent back button issues
+                        window.location.replace('/admin');
                     }, 500);
                 } else {
                     showAlert(data.error || 'Invalid username or password', 'error');

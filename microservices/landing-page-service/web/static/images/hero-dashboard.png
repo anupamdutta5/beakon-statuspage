@@ -1,0 +1,113 @@
+<svg width="800" height="600" viewBox="0 0 800 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:0.1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:0.1" />
+    </linearGradient>
+    <linearGradient id="cardGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.9" />
+      <stop offset="100%" style="stop-color:#f8f9ff;stop-opacity:0.9" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#667eea" />
+      <stop offset="100%" style="stop-color:#764ba2" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="600" fill="url(#bg)"/>
+
+  <!-- Browser Window Frame -->
+  <rect x="50" y="50" width="700" height="500" rx="20" fill="white" filter="drop-shadow(0 20px 60px rgba(0,0,0,0.15))"/>
+
+  <!-- Browser Header -->
+  <rect x="50" y="50" width="700" height="50" rx="20" fill="url(#cardGradient)"/>
+  <circle cx="80" cy="75" r="6" fill="#FF5F57"/>
+  <circle cx="100" cy="75" r="6" fill="#FFBD2E"/>
+  <circle cx="120" cy="75" r="6" fill="#28CA42"/>
+
+  <!-- URL Bar -->
+  <rect x="150" y="65" width="500" height="20" rx="10" fill="#f3f4f6"/>
+  <text x="170" y="79" font-family="system-ui" font-size="12" fill="#9ca3af">status.example.com</text>
+
+  <!-- Dashboard Content -->
+  <!-- Status Header -->
+  <text x="100" y="140" font-family="system-ui" font-size="24" font-weight="bold" fill="#111827">All Systems Operational</text>
+  <circle cx="700" cy="135" r="8" fill="#10b981"/>
+
+  <!-- Status Bar -->
+  <rect x="100" y="160" width="600" height="60" rx="12" fill="url(#cardGradient)" filter="drop-shadow(0 4px 12px rgba(0,0,0,0.08))"/>
+  <rect x="120" y="180" width="150" height="8" rx="4" fill="url(#accent)"/>
+  <text x="120" y="205" font-family="system-ui" font-size="12" fill="#6b7280">99.9% Uptime</text>
+  <rect x="320" y="180" width="150" height="8" rx="4" fill="url(#accent)"/>
+  <text x="320" y="205" font-family="system-ui" font-size="12" fill="#6b7280">24/7 Monitoring</text>
+  <rect x="520" y="180" width="150" height="8" rx="4" fill="url(#accent)"/>
+  <text x="520" y="205" font-family="system-ui" font-size="12" fill="#6b7280">Real-time Updates</text>
+
+  <!-- Service Cards -->
+  <!-- Card 1 -->
+  <rect x="100" y="240" width="180" height="100" rx="12" fill="url(#cardGradient)" filter="drop-shadow(0 4px 12px rgba(0,0,0,0.08))"/>
+  <circle cx="130" cy="270" r="12" fill="#10b981"/>
+  <text x="150" y="275" font-family="system-ui" font-size="14" font-weight="600" fill="#111827">API Server</text>
+  <text x="120" y="300" font-family="system-ui" font-size="12" fill="#10b981">Operational</text>
+  <rect x="120" y="310" width="140" height="4" rx="2" fill="#e5e7eb"/>
+  <rect x="120" y="310" width="120" height="4" rx="2" fill="#10b981"/>
+
+  <!-- Card 2 -->
+  <rect x="310" y="240" width="180" height="100" rx="12" fill="url(#cardGradient)" filter="drop-shadow(0 4px 12px rgba(0,0,0,0.08))"/>
+  <circle cx="340" cy="270" r="12" fill="#10b981"/>
+  <text x="360" y="275" font-family="system-ui" font-size="14" font-weight="600" fill="#111827">Database</text>
+  <text x="330" y="300" font-family="system-ui" font-size="12" fill="#10b981">Operational</text>
+  <rect x="330" y="310" width="140" height="4" rx="2" fill="#e5e7eb"/>
+  <rect x="330" y="310" width="135" height="4" rx="2" fill="#10b981"/>
+
+  <!-- Card 3 -->
+  <rect x="520" y="240" width="180" height="100" rx="12" fill="url(#cardGradient)" filter="drop-shadow(0 4px 12px rgba(0,0,0,0.08))"/>
+  <circle cx="550" cy="270" r="12" fill="#10b981"/>
+  <text x="570" y="275" font-family="system-ui" font-size="14" font-weight="600" fill="#111827">CDN</text>
+  <text x="540" y="300" font-family="system-ui" font-size="12" fill="#10b981">Operational</text>
+  <rect x="540" y="310" width="140" height="4" rx="2" fill="#e5e7eb"/>
+  <rect x="540" y="310" width="130" height="4" rx="2" fill="#10b981"/>
+
+  <!-- Uptime Chart -->
+  <rect x="100" y="360" width="600" height="140" rx="12" fill="url(#cardGradient)" filter="drop-shadow(0 4px 12px rgba(0,0,0,0.08))"/>
+  <text x="120" y="385" font-family="system-ui" font-size="14" font-weight="600" fill="#111827">30-Day Uptime</text>
+
+  <!-- Chart Bars -->
+  <rect x="120" y="430" width="8" height="40" rx="4" fill="url(#accent)" opacity="0.8"/>
+  <rect x="135" y="420" width="8" height="50" rx="4" fill="url(#accent)" opacity="0.85"/>
+  <rect x="150" y="415" width="8" height="55" rx="4" fill="url(#accent)" opacity="0.9"/>
+  <rect x="165" y="410" width="8" height="60" rx="4" fill="url(#accent)"/>
+  <rect x="180" y="425" width="8" height="45" rx="4" fill="url(#accent)" opacity="0.85"/>
+  <rect x="195" y="420" width="8" height="50" rx="4" fill="url(#accent)" opacity="0.9"/>
+  <rect x="210" y="415" width="8" height="55" rx="4" fill="url(#accent)"/>
+  <rect x="225" y="410" width="8" height="60" rx="4" fill="url(#accent)"/>
+  <rect x="240" y="418" width="8" height="52" rx="4" fill="url(#accent)" opacity="0.9"/>
+  <rect x="255" y="422" width="8" height="48" rx="4" fill="url(#accent)" opacity="0.85"/>
+  <rect x="270" y="415" width="8" height="55" rx="4" fill="url(#accent)"/>
+  <rect x="285" y="410" width="8" height="60" rx="4" fill="url(#accent)"/>
+  <rect x="300" y="412" width="8" height="58" rx="4" fill="url(#accent)"/>
+  <rect x="315" y="420" width="8" height="50" rx="4" fill="url(#accent)" opacity="0.9"/>
+  <rect x="330" y="415" width="8" height="55" rx="4" fill="url(#accent)"/>
+  <rect x="345" y="410" width="8" height="60" rx="4" fill="url(#accent)"/>
+  <rect x="360" y="418" width="8" height="52" rx="4" fill="url(#accent)" opacity="0.9"/>
+  <rect x="375" y="425" width="8" height="45" rx="4" fill="url(#accent)" opacity="0.85"/>
+  <rect x="390" y="420" width="8" height="50" rx="4" fill="url(#accent)" opacity="0.9"/>
+  <rect x="405" y="410" width="8" height="60" rx="4" fill="url(#accent)"/>
+  <rect x="420" y="415" width="8" height="55" rx="4" fill="url(#accent)"/>
+  <rect x="435" y="410" width="8" height="60" rx="4" fill="url(#accent)"/>
+  <rect x="450" y="420" width="8" height="50" rx="4" fill="url(#accent)" opacity="0.9"/>
+  <rect x="465" y="415" width="8" height="55" rx="4" fill="url(#accent)"/>
+  <rect x="480" y="410" width="8" height="60" rx="4" fill="url(#accent)"/>
+  <rect x="495" y="418" width="8" height="52" rx="4" fill="url(#accent)" opacity="0.9"/>
+  <rect x="510" y="422" width="8" height="48" rx="4" fill="url(#accent)" opacity="0.85"/>
+  <rect x="525" y="415" width="8" height="55" rx="4" fill="url(#accent)"/>
+  <rect x="540" y="410" width="8" height="60" rx="4" fill="url(#accent)"/>
+  <rect x="555" y="412" width="8" height="58" rx="4" fill="url(#accent)"/>
+
+  <!-- Decorative Elements -->
+  <circle cx="750" cy="100" r="30" fill="#667eea" opacity="0.1"/>
+  <circle cx="720" cy="130" r="20" fill="#764ba2" opacity="0.15"/>
+  <circle cx="60" cy="550" r="40" fill="#667eea" opacity="0.1"/>
+  <circle cx="90" cy="520" r="25" fill="#764ba2" opacity="0.15"/>
+</svg>

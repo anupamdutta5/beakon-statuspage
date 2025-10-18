@@ -1,0 +1,169 @@
+# Production-Ready Redis Setup with High Availability
+# Deploy this on your production server (AWS EC2, DigitalOcean Droplet, etc.)
+#
+# Usage:
+#   docker-compose -f docker-compose.production.yml up -d
+#   docker-compose -f docker-compose.production.yml down
+
+version: '3.8'
+
+services:
+  # Redis Master (Primary)
+  redis-master:
+    image: redis:7-alpine
+    container_name: beakon-redis-master
+    restart: always
+
+    ports:
+      - "6379:6379"
+
+    volumes:
+      - redis-master-data:/data
+      - ./redis-production.conf:/usr/local/etc/redis/redis.conf
+
+    command: redis-server /usr/local/etc/redis/redis.conf
+
+    environment:
+      - TZ=UTC
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    networks:
+      - beakon-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # Redis Sentinel (High Availability Monitor)
+  redis-sentinel-1:
+    image: redis:7-alpine
+    container_name: beakon-redis-sentinel-1
+    restart: always
+
+    ports:
+      - "26379:26379"
+
+    volumes:
+      - ./sentinel.conf:/usr/local/etc/redis/sentinel.conf
+
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+
+    depends_on:
+      redis-master:
+        condition: service_healthy
+
+    networks:
+      - beakon-network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Additional Sentinels for quorum (3 sentinels = reliable HA)
+  redis-sentinel-2:
+    image: redis:7-alpine
+    container_name: beakon-redis-sentinel-2
+    restart: always
+
+    ports:
+      - "26380:26379"
+
+    volumes:
+      - ./sentinel.conf:/usr/local/etc/redis/sentinel.conf
+
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+
+    depends_on:
+      redis-master:
+        condition: service_healthy
+
+    networks:
+      - beakon-network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis-sentinel-3:
+    image: redis:7-alpine
+    container_name: beakon-redis-sentinel-3
+    restart: always
+
+    ports:
+      - "26381:26379"
+
+    volumes:
+      - ./sentinel.conf:/usr/local/etc/redis/sentinel.conf
+
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+
+    depends_on:
+      redis-master:
+        condition: service_healthy
+
+    networks:
+      - beakon-network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis Exporter for Prometheus Monitoring (Optional)
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: beakon-redis-exporter
+    restart: always
+
+    ports:
+      - "9121:9121"
+
+    environment:
+      REDIS_ADDR: "redis-master:6379"
+      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+
+    depends_on:
+      redis-master:
+        condition: service_healthy
+
+    networks:
+      - beakon-network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  redis-master-data:
+    driver: local
+
+networks:
+  beakon-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16

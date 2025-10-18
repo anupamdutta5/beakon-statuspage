@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/anupamdutta5/saas-admin-service/internal/auth"
 	"github.com/anupamdutta5/saas-admin-service/internal/config"
 	"github.com/anupamdutta5/saas-admin-service/internal/models"
 	"github.com/anupamdutta5/saas-admin-service/internal/services"
@@ -22,15 +23,23 @@ import (
 
 // SaaSAdminHandler handles SaaS admin-related HTTP requests.
 type SaaSAdminHandler struct {
-	httpClient           *http.Client
-	service              *services.SaaSAdminService
-	serviceURLs          config.ServiceURLs
+	httpClient            *http.Client
+	service               *services.SaaSAdminService
+	sessionService        *services.SessionService
+	jwtManager            *auth.JWTManager
+	serviceURLs           config.ServiceURLs
 	tenantAdminServiceURL string
-	logger               *zap.Logger
+	logger                *zap.Logger
 }
 
 // NewSaaSAdminHandler creates a new SaaS admin handler.
-func NewSaaSAdminHandler(service *services.SaaSAdminService, serviceURLs config.ServiceURLs, logger *zap.Logger) *SaaSAdminHandler {
+func NewSaaSAdminHandler(
+	service *services.SaaSAdminService,
+	sessionService *services.SessionService,
+	jwtManager *auth.JWTManager,
+	serviceURLs config.ServiceURLs,
+	logger *zap.Logger,
+) *SaaSAdminHandler {
 	tenantAdminURL := os.Getenv("TENANT_ADMIN_SERVICE_URL")
 	if tenantAdminURL == "" {
 		tenantAdminURL = "http://localhost:8099"
@@ -39,6 +48,8 @@ func NewSaaSAdminHandler(service *services.SaaSAdminService, serviceURLs config.
 	return &SaaSAdminHandler{
 		httpClient:            &http.Client{},
 		service:               service,
+		sessionService:        sessionService,
+		jwtManager:            jwtManager,
 		serviceURLs:           serviceURLs,
 		tenantAdminServiceURL: tenantAdminURL,
 		logger:                logger,
@@ -1615,136 +1626,223 @@ type LoginRequest struct {
 }
 
 // Login handles admin user authentication
+// Login handles admin user login with JWT + refresh token authentication
+// Phase 1: Uses JWT (15 min) + PostgreSQL refresh tokens (7 days)
 func (h *SaaSAdminHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Warn("Invalid login request", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
 		return
 	}
 
-	// Validate credentials against database
+	// Validate credentials against saas_admin database
 	user, err := h.service.ValidateAdminCredentials(c.Request.Context(), req.Username, req.Password)
 	if err != nil {
-		h.logger.Warn("Login failed", zap.String("username", req.Username), zap.Error(err))
+		h.logger.Warn("Login failed - invalid credentials",
+			zap.String("username", req.Username),
+			zap.String("ip", c.ClientIP()))
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
 	}
 
-	if user != nil {
-		// Create session via tenant-admin-service
-		sessionReq := map[string]interface{}{
-			"user_id":   1,
-			"tenant_id": 1,
-		}
-
-		sessionBytes, _ := json.Marshal(sessionReq)
-
-		// Call tenant-admin service to create session
-		req, err := http.NewRequest("POST", h.serviceURLs.TenantAdminService+"/api/v1/sessions", bytes.NewBuffer(sessionBytes))
-		if err != nil {
-			h.logger.Error("Failed to create session request", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Session creation failed"})
-			return
-		}
-
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer service-token-"+os.Getenv("JWT_SECRET"))
-
-		resp, err := h.httpClient.Do(req)
-		if err != nil {
-			h.logger.Error("Failed to create session", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Session creation failed"})
-			return
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-			h.logger.Error("Session creation failed", zap.Int("status", resp.StatusCode))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Session creation failed"})
-			return
-		}
-
-		var sessionResp map[string]interface{}
-		if err := json.NewDecoder(resp.Body).Decode(&sessionResp); err != nil {
-			h.logger.Error("Failed to decode session response", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Session creation failed"})
-			return
-		}
-
-		// Set session cookie
-		if sessionID, ok := sessionResp["session_id"]; ok {
-			c.SetCookie("session_id", sessionID.(string), 86400, "/", "", false, true)
-			c.JSON(http.StatusOK, gin.H{
-				"success":    true,
-				"session_id": sessionID,
-				"message":    "Login successful",
-			})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Session ID not returned"})
-		}
-	} else {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+	// Generate short-lived JWT access token (15 minutes)
+	accessToken, err := h.jwtManager.GenerateAccessToken(user.ID, user.Username, user.Email)
+	if err != nil {
+		h.logger.Error("Failed to generate access token", zap.Error(err), zap.Uint("user_id", user.ID))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate access token"})
+		return
 	}
+
+	// Generate long-lived refresh token (7 days) and store in database
+	refreshToken, err := h.sessionService.CreateRefreshToken(
+		c.Request.Context(),
+		user.ID,
+		c.ClientIP(),
+		c.Request.UserAgent(),
+	)
+	if err != nil {
+		h.logger.Error("Failed to create refresh token", zap.Error(err), zap.Uint("user_id", user.ID))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create refresh token"})
+		return
+	}
+
+	// Also create a session for backward compatibility and tracking
+	session, err := h.sessionService.CreateSession(
+		c.Request.Context(),
+		user.ID,
+		c.ClientIP(),
+		c.Request.UserAgent(),
+	)
+	if err != nil {
+		h.logger.Warn("Failed to create session (non-critical)", zap.Error(err))
+		// Don't fail login if session creation fails
+	}
+
+	h.logger.Info("User logged in successfully",
+		zap.Uint("user_id", user.ID),
+		zap.String("username", user.Username),
+		zap.String("ip", c.ClientIP()))
+
+	// Set cookies for web UI
+	// Access token cookie (15 minutes, HTTP-only, secure in production)
+	c.SetCookie("access_token", accessToken, 15*60, "/", "", false, true)
+
+	// Refresh token cookie (7 days, HTTP-only, secure in production)
+	c.SetCookie("refresh_token", refreshToken, 7*24*60*60, "/", "", false, true)
+
+	// Session ID cookie (backward compatibility)
+	if session != nil {
+		c.SetCookie("session_id", session.ID, 24*60*60, "/", "", false, true)
+	}
+
+	// Return tokens in response for API clients
+	c.JSON(http.StatusOK, gin.H{
+		"success":       true,
+		"message":       "Login successful",
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+		"token_type":    "Bearer",
+		"expires_in":    900, // 15 minutes in seconds
+		"user": gin.H{
+			"id":       user.ID,
+			"username": user.Username,
+			"email":    user.Email,
+		},
+	})
 }
 
 // Logout handles admin user logout
+// Revokes refresh token and clears all cookies
 func (h *SaaSAdminHandler) Logout(c *gin.Context) {
+	// Get user ID from context (set by auth middleware)
+	userID, exists := c.Get("user_id")
+	if !exists {
+		h.logger.Warn("Logout attempted without authentication")
+		// Still clear cookies even if not authenticated
+		h.clearAuthCookies(c)
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": "Logout successful"})
+		return
+	}
+
+	// Revoke refresh token from database
+	refreshToken, err := c.Cookie("refresh_token")
+	if err == nil && refreshToken != "" {
+		if err := h.sessionService.RevokeRefreshToken(c.Request.Context(), refreshToken); err != nil {
+			h.logger.Warn("Failed to revoke refresh token", zap.Error(err))
+			// Don't fail logout if revocation fails
+		}
+	}
+
+	// Delete session for backward compatibility
 	sessionID, err := c.Cookie("session_id")
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No session found"})
-		return
+	if err == nil && sessionID != "" {
+		if err := h.sessionService.DeleteSession(c.Request.Context(), sessionID); err != nil {
+			h.logger.Warn("Failed to delete session", zap.Error(err))
+			// Don't fail logout if session deletion fails
+		}
 	}
 
-	// Call tenant-admin service to invalidate session
-	req, err := http.NewRequest("DELETE", h.serviceURLs.TenantAdminService+"/api/v1/sessions/"+sessionID, nil)
-	if err != nil {
-		h.logger.Error("Failed to create logout request", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Logout failed"})
-		return
-	}
+	h.logger.Info("User logged out successfully",
+		zap.Any("user_id", userID),
+		zap.String("ip", c.ClientIP()))
 
-	req.Header.Set("Authorization", "Bearer service-token-"+os.Getenv("JWT_SECRET"))
+	// Clear all auth cookies
+	h.clearAuthCookies(c)
 
-	resp, err := h.httpClient.Do(req)
-	if err != nil {
-		h.logger.Error("Failed to invalidate session", zap.Error(err))
-	} else {
-		defer resp.Body.Close()
-	}
-
-	// Clear session cookie
-	c.SetCookie("session_id", "", -1, "/", "", false, true)
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Logout successful"})
 }
 
+// clearAuthCookies clears all authentication-related cookies
+func (h *SaaSAdminHandler) clearAuthCookies(c *gin.Context) {
+	c.SetCookie("access_token", "", -1, "/", "", false, true)
+	c.SetCookie("refresh_token", "", -1, "/", "", false, true)
+	c.SetCookie("session_id", "", -1, "/", "", false, true)
+}
+
 // CheckAuth checks if the current request is authenticated
+// This handler should be called AFTER the auth middleware sets user context
 func (h *SaaSAdminHandler) CheckAuth(c *gin.Context) {
-	sessionID, err := c.Cookie("session_id")
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"authenticated": false})
+	// Check if user_id was set by auth middleware
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"authenticated": false,
+			"message":       "Not authenticated",
+		})
 		return
 	}
 
-	// Validate session with tenant-admin service
-	req, err := http.NewRequest("GET", h.serviceURLs.TenantAdminService+"/api/v1/sessions/"+sessionID, nil)
+	username, _ := c.Get("username")
+	email, _ := c.Get("email")
+
+	c.JSON(http.StatusOK, gin.H{
+		"authenticated": true,
+		"user": gin.H{
+			"id":       userID,
+			"username": username,
+			"email":    email,
+		},
+	})
+}
+
+// RefreshToken handles refreshing an expired access token using a refresh token
+func (h *SaaSAdminHandler) RefreshToken(c *gin.Context) {
+	// Get refresh token from cookie or request body
+	var refreshToken string
+	var err error
+
+	// Try cookie first
+	refreshToken, err = c.Cookie("refresh_token")
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"authenticated": false})
-		return
-	}
-
-	req.Header.Set("Authorization", "Bearer service-token-"+os.Getenv("JWT_SECRET"))
-
-	resp, err := h.httpClient.Do(req)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		if resp != nil {
-			resp.Body.Close()
+		// Try request body
+		var req struct {
+			RefreshToken string `json:"refresh_token" binding:"required"`
 		}
-		c.JSON(http.StatusUnauthorized, gin.H{"authenticated": false})
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Refresh token required"})
+			return
+		}
+		refreshToken = req.RefreshToken
+	}
+
+	// Validate refresh token and get user ID
+	userID, err := h.sessionService.ValidateRefreshToken(c.Request.Context(), refreshToken)
+	if err != nil {
+		h.logger.Warn("Invalid refresh token", zap.Error(err))
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired refresh token"})
 		return
 	}
-	defer resp.Body.Close()
 
-	c.JSON(http.StatusOK, gin.H{"authenticated": true})
+	// Get user details for JWT claims
+	user, err := h.service.GetAdminUserByID(c.Request.Context(), userID)
+	if err != nil {
+		h.logger.Error("Failed to get user for refresh token", zap.Error(err), zap.Uint("user_id", userID))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to refresh token"})
+		return
+	}
+
+	// Generate new access token
+	accessToken, err := h.jwtManager.GenerateAccessToken(user.ID, user.Username, user.Email)
+	if err != nil {
+		h.logger.Error("Failed to generate new access token", zap.Error(err), zap.Uint("user_id", userID))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate access token"})
+		return
+	}
+
+	h.logger.Info("Access token refreshed",
+		zap.Uint("user_id", userID),
+		zap.String("ip", c.ClientIP()))
+
+	// Set new access token cookie
+	c.SetCookie("access_token", accessToken, 15*60, "/", "", false, true)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":      true,
+		"access_token": accessToken,
+		"token_type":   "Bearer",
+		"expires_in":   900, // 15 minutes
+	})
 }
 
 // createTenantInTenantAdminService creates a tenant in the tenant-admin service via API call

@@ -222,10 +222,11 @@
                     // Show success message
                     document.getElementById('successMessage').textContent = 'Login successful! Redirecting...';
                     successAlert.classList.remove('d-none');
-                    
+
                     // Redirect to dashboard
+                    // Server-side auth checks + Cache-Control headers prevent back button issues
                     setTimeout(() => {
-                        window.location.href = '/admin';
+                        window.location.replace('/admin');
                     }, 1000);
                 } else {
                     // Show error message

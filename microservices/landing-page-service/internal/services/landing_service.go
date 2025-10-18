@@ -55,6 +55,11 @@ func (s *LandingService) SetDB(db *gorm.DB) {
 	s.db = db
 }
 
+// GetDB returns the database connection
+func (s *LandingService) GetDB() *gorm.DB {
+	return s.db
+}
+
 // checkDatabase checks if database is available
 func (s *LandingService) checkDatabase() error {
 	if s.db == nil {
@@ -176,7 +181,7 @@ func (s *LandingService) GetHeroSection(ctx context.Context) (*models.HeroSectio
 	}
 
 	var hero models.HeroSection
-	if err := s.db.Where("status = ?", "active").Order("`order` ASC").First(&hero).Error; err != nil {
+	if err := s.db.Where("status = ?", "active").Order("sort_order ASC, id ASC").First(&hero).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			s.logger.Debug("No active hero section found, returning default")
 			return s.getDefaultHero(), nil
@@ -230,14 +235,14 @@ func (s *LandingService) UpdateHeroSection(ctx context.Context, heroID uint, upd
 func (s *LandingService) GetFeatures(ctx context.Context) ([]*models.FeatureSection, error) {
 	s.logger.Info("Getting features")
 
-	// If no database, return default data
+	// If no database, return empty slice
 	if s.db == nil {
-		s.logger.Debug("No database available, returning default features")
-		return s.getDefaultFeatures(), nil
+		s.logger.Debug("No database available, returning empty features")
+		return []*models.FeatureSection{}, nil
 	}
 
 	var features []*models.FeatureSection
-	if err := s.db.Where("status = ?", "active").Order("`order` ASC").Find(&features).Error; err != nil {
+	if err := s.db.Where("status = ?", "active").Order("sort_order ASC, id ASC").Find(&features).Error; err != nil {
 		s.logger.Error("Failed to get features", zap.Error(err))
 		return nil, fmt.Errorf("failed to get features: %w", err)
 	}
@@ -294,7 +299,7 @@ func (s *LandingService) GetPricingPlans(ctx context.Context) ([]*PricingPlanDat
 	}
 
 	var plans []*models.PricingPlan
-	if err := s.db.Where("status = ? AND is_active = ?", "active", true).Order("`order` ASC").Find(&plans).Error; err != nil {
+	if err := s.db.Where("status = ? AND is_active = ?", "active", true).Order("sort_order ASC, id ASC").Find(&plans).Error; err != nil {
 		s.logger.Error("Failed to get pricing plans", zap.Error(err))
 		return nil, fmt.Errorf("failed to get pricing plans: %w", err)
 	}
@@ -358,14 +363,14 @@ func (s *LandingService) SyncPricingPlans(ctx context.Context, plans []*models.P
 func (s *LandingService) GetTestimonials(ctx context.Context) ([]*models.Testimonial, error) {
 	s.logger.Info("Getting testimonials")
 
-	// If no database, return default data
+	// If no database, return empty slice
 	if s.db == nil {
-		s.logger.Debug("No database available, returning default testimonials")
-		return s.getDefaultTestimonials(), nil
+		s.logger.Debug("No database available, returning empty testimonials")
+		return []*models.Testimonial{}, nil
 	}
 
 	var testimonials []*models.Testimonial
-	if err := s.db.Where("status = ?", "active").Order("`order` ASC").Find(&testimonials).Error; err != nil {
+	if err := s.db.Where("status = ?", "active").Order("sort_order ASC, id ASC").Find(&testimonials).Error; err != nil {
 		s.logger.Error("Failed to get testimonials", zap.Error(err))
 		return nil, fmt.Errorf("failed to get testimonials: %w", err)
 	}
@@ -417,7 +422,7 @@ func (s *LandingService) GetFAQs(ctx context.Context) ([]*models.FAQ, error) {
 	}
 
 	var faqs []*models.FAQ
-	if err := s.db.Where("status = ?", "active").Order("`order` ASC").Find(&faqs).Error; err != nil {
+	if err := s.db.Where("status = ?", "active").Order("sort_order ASC, id ASC").Find(&faqs).Error; err != nil {
 		s.logger.Error("Failed to get FAQs", zap.Error(err))
 		return nil, fmt.Errorf("failed to get FAQs: %w", err)
 	}
@@ -618,7 +623,7 @@ func (s *LandingService) getDefaultHero() *models.HeroSection {
 		ButtonURL:   "/signup",
 		ImageURL:    "/static/images/hero-dashboard.png",
 		Status:      "active",
-		Order:       0,
+		SortOrder:       0,
 	}
 }
 
@@ -629,42 +634,42 @@ func (s *LandingService) getDefaultFeatures() []*models.FeatureSection {
 			Description: "Keep your users informed with instant status updates and incident notifications.",
 			Icon:        "fas fa-broadcast-tower",
 			Status:      "active",
-			Order:       0,
+			SortOrder:       0,
 		},
 		{
 			Title:       "Beautiful Custom Pages",
 			Description: "Create stunning status pages that match your brand with our powerful customization tools.",
 			Icon:        "fas fa-palette",
 			Status:      "active",
-			Order:       1,
+			SortOrder:       1,
 		},
 		{
 			Title:       "Advanced Analytics",
 			Description: "Get insights into your uptime, incident patterns, and user engagement with detailed analytics.",
 			Icon:        "fas fa-chart-line",
 			Status:      "active",
-			Order:       2,
+			SortOrder:       2,
 		},
 		{
 			Title:       "Team Collaboration",
 			Description: "Work together seamlessly with your team to manage incidents and communicate updates.",
 			Icon:        "fas fa-users",
 			Status:      "active",
-			Order:       3,
+			SortOrder:       3,
 		},
 		{
 			Title:       "API Integration",
 			Description: "Integrate with your existing tools and workflows using our comprehensive REST API.",
 			Icon:        "fas fa-code",
 			Status:      "active",
-			Order:       4,
+			SortOrder:       4,
 		},
 		{
 			Title:       "24/7 Support",
 			Description: "Get help when you need it with our dedicated support team available around the clock.",
 			Icon:        "fas fa-headset",
 			Status:      "active",
-			Order:       5,
+			SortOrder:       5,
 		},
 	}
 }
@@ -692,8 +697,8 @@ func (s *LandingService) getPricingPlans(ctx context.Context) []*PricingPlanData
 
 		pricingPlan := &PricingPlanData{
 			PricingPlan: models.PricingPlan{
-				ID:              plan.ID,
-				PlanID:          plan.ID,
+				// ID is auto-generated by GORM, don't set it
+				PlanID:          plan.ID, // UUID from SaaS Admin Service
 				Name:            plan.Name,
 				Slug:            plan.Slug,
 				Description:     plan.Description,
@@ -705,7 +710,7 @@ func (s *LandingService) getPricingPlans(ctx context.Context) []*PricingPlanData
 				IsPopular:       plan.IsPopular,
 				IsActive:        plan.IsActive,
 				Status:          "active",
-				Order:           plan.Order,
+				SortOrder:       plan.SortOrder,
 				Features:        plan.Features,
 				Metadata:        plan.Metadata,
 			},
@@ -763,7 +768,7 @@ func (s *LandingService) getDefaultPricingPlans() []*PricingPlanData {
 				ButtonURL:       "/signup?plan=free",
 				IsActive:        true,
 				Status:          "active",
-				Order:           0,
+				SortOrder:           0,
 			},
 			FeaturesList: []string{
 				"Up to 5 services",
@@ -785,7 +790,7 @@ func (s *LandingService) getDefaultPricingPlans() []*PricingPlanData {
 				IsPopular:       true,
 				IsActive:        true,
 				Status:          "active",
-				Order:           1,
+				SortOrder:           1,
 			},
 			FeaturesList: []string{
 				"Up to 25 services",
@@ -808,7 +813,7 @@ func (s *LandingService) getDefaultPricingPlans() []*PricingPlanData {
 				ButtonURL:       "/contact?plan=enterprise",
 				IsActive:        true,
 				Status:          "active",
-				Order:           2,
+				SortOrder:           2,
 			},
 			FeaturesList: []string{
 				"Unlimited services",
@@ -832,7 +837,7 @@ func (s *LandingService) getDefaultTestimonials() []*models.Testimonial {
 			Content:  "StatusPage Pro has transformed how we communicate with our users. The beautiful interface and real-time updates have significantly improved our user satisfaction.",
 			Rating:   5,
 			Status:   "active",
-			Order:    0,
+			SortOrder:    0,
 		},
 		{
 			Name:     "Michael Chen",
@@ -842,7 +847,7 @@ func (s *LandingService) getDefaultTestimonials() []*models.Testimonial {
 			Content:  "The analytics and incident management features are incredible. We can now proactively address issues before they become major problems.",
 			Rating:   5,
 			Status:   "active",
-			Order:    1,
+			SortOrder:    1,
 		},
 		{
 			Name:     "Emily Rodriguez",
@@ -852,7 +857,7 @@ func (s *LandingService) getDefaultTestimonials() []*models.Testimonial {
 			Content:  "The API integration and team collaboration features make it easy to keep everyone in sync. Highly recommended for any growing team.",
 			Rating:   5,
 			Status:   "active",
-			Order:    2,
+			SortOrder:    2,
 		},
 	}
 }
@@ -863,31 +868,31 @@ func (s *LandingService) getDefaultFAQs() []*models.FAQ {
 			Question: "How quickly can I set up my status page?",
 			Answer:   "You can have your status page up and running in under 5 minutes. Simply sign up, add your services, and customize your page to match your brand.",
 			Status:   "active",
-			Order:    0,
+			SortOrder:    0,
 		},
 		{
 			Question: "Can I use my own domain?",
 			Answer:   "Yes! Pro and Enterprise plans include custom domain support. You can use your own domain like status.yourcompany.com.",
 			Status:   "active",
-			Order:    1,
+			SortOrder:    1,
 		},
 		{
 			Question: "What integrations are available?",
 			Answer:   "We integrate with popular tools like Slack, PagerDuty, Datadog, New Relic, and many more. We also provide a comprehensive REST API.",
 			Status:   "active",
-			Order:    2,
+			SortOrder:    2,
 		},
 		{
 			Question: "Is there a free trial?",
 			Answer:   "Yes! All paid plans come with a 14-day free trial. No credit card required to get started.",
 			Status:   "active",
-			Order:    3,
+			SortOrder:    3,
 		},
 		{
 			Question: "What kind of support do you offer?",
 			Answer:   "Free plan includes community support. Pro plan includes priority email support. Enterprise plan includes dedicated support with phone and chat options.",
 			Status:   "active",
-			Order:    4,
+			SortOrder:    4,
 		},
 	}
 }
@@ -945,21 +950,18 @@ func initDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	sqlDB.SetMaxIdleConns(cfg.MaxIdle)
 	sqlDB.SetConnMaxLifetime(time.Duration(cfg.MaxLifetime) * time.Second)
 
-	// Auto-migrate models
-	if err := db.AutoMigrate(
-		&models.LandingPage{},
-		&models.HeroSection{},
-		&models.FeatureSection{},
-		&models.PricingPlan{},
-		&models.Testimonial{},
-		&models.Article{},
-		&models.FAQ{},
-		&models.ContactForm{},
-		&models.Newsletter{},
-		&models.LandingPageStats{},
-	); err != nil {
-		return nil, fmt.Errorf("failed to migrate database: %w", err)
-	}
+	// Database migrations are managed by Atlas CLI
+	// To apply migrations: atlas migrate apply --env dev
+	// To generate new migrations: atlas migrate diff <name> --env dev
+	// See: atlas.hcl for configuration
+	// Migration files: migrations/*.sql
+
+	// Note: GORM AutoMigrate has been replaced with Atlas for production-ready,
+	// version-controlled database migrations. This provides:
+	// - Proper migration versioning and rollback support
+	// - SQL review before applying changes
+	// - Better handling of PostgreSQL-specific features
+	// - Consistent migrations across all 20+ microservices
 
 	return db, nil
 }

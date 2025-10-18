@@ -132,16 +132,40 @@ type AuditLog struct {
 
 // Session represents user sessions for tracking active users
 type Session struct {
-	ID        string    `json:"id" gorm:"primaryKey;size:128"`
-	UserID    uint      `json:"user_id" gorm:"not null;index"`
-	TenantID  uint      `json:"tenant_id" gorm:"not null;index"`
-	IPAddress string    `json:"ip_address" gorm:"size:45"`
-	UserAgent string    `json:"user_agent" gorm:"type:text"`
-	IsActive  bool      `json:"is_active" gorm:"default:true"`
-	LastSeen  time.Time `json:"last_seen" gorm:"default:CURRENT_TIMESTAMP"`
-	ExpiresAt time.Time `json:"expires_at" gorm:"not null"`
+	ID         string    `json:"id" gorm:"primaryKey;size:128"`
+	UserID     uint      `json:"user_id" gorm:"not null;index"`
+	TenantID   string    `json:"tenant_id" gorm:"type:uuid;not null;index"` // Changed to string to support UUID
+	IPAddress  string    `json:"ip_address" gorm:"size:45"`
+	UserAgent  string    `json:"user_agent" gorm:"type:text"`
+	LastSeenAt time.Time `json:"last_seen_at" gorm:"column:last_seen;default:CURRENT_TIMESTAMP"`
+	ExpiresAt  time.Time `json:"expires_at" gorm:"not null"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+// UserSession represents a refresh token session for long-lived authentication
+// Used for JWT refresh token flow (OAuth 2.0 pattern)
+type UserSession struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	UserID    uint      `gorm:"not null;index" json:"user_id"`
+	TenantID  string    `gorm:"type:uuid;not null;index" json:"tenant_id"`
+	Token     string    `gorm:"not null;uniqueIndex;size:255" json:"token"` // Refresh token (base64)
+	ExpiresAt time.Time `gorm:"not null;index" json:"expires_at"`
+	IPAddress string    `gorm:"type:text" json:"ip_address"`
+	UserAgent string    `gorm:"type:text" json:"user_agent"`
+	IsActive  bool      `gorm:"default:true;index" json:"is_active"`
+}
+
+// IsValid checks if the user session (refresh token) is still valid
+func (us *UserSession) IsValid() bool {
+	return us.IsActive && time.Now().Before(us.ExpiresAt)
+}
+
+// IsExpired checks if the user session (refresh token) has expired
+func (us *UserSession) IsExpired() bool {
+	return time.Now().After(us.ExpiresAt)
 }
 
 // TableName methods for custom table names
@@ -151,6 +175,14 @@ func (Role) TableName() string {
 
 func (Permission) TableName() string {
 	return "permissions"
+}
+
+func (Session) TableName() string {
+	return "sessions"
+}
+
+func (UserSession) TableName() string {
+	return "user_sessions"
 }
 
 func (UserRole) TableName() string {

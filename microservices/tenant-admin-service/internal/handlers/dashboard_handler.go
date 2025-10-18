@@ -13,6 +13,19 @@ import (
 
 // GetAdminDashboard renders the admin dashboard with tenant-specific information.
 func (h *TenantAdminHandler) GetAdminDashboard(c *gin.Context) {
+	// CRITICAL: Verify JWT authentication succeeded
+	// JWT middleware sets user_id in context on successful auth
+	_, hasUserID := c.Get("user_id")
+	if !hasUserID {
+		// No valid JWT token - redirect to login
+		// This prevents cached dashboard pages from displaying after logout
+		h.logger.Warn("Unauthenticated dashboard access attempt - redirecting to login",
+			zap.String("client_ip", c.ClientIP()),
+			zap.String("path", c.Request.URL.Path))
+		c.Redirect(http.StatusFound, "/login")
+		return
+	}
+
 	// Use middleware helpers to get tenant context
 	tenantIDStr, hasID := middleware.GetTenantID(c)
 	tenantSlugStr, hasSlug := middleware.GetTenantSlug(c)
@@ -57,6 +70,12 @@ func (h *TenantAdminHandler) GetAdminDashboard(c *gin.Context) {
 
 	// Generate tenant-specific data
 	dashboardData := h.generateTenantDashboardData(tenantID, tenantNameStr)
+
+	// SECURITY: Prevent browser caching of authenticated pages
+	// This ensures browser doesn't serve stale dashboard after logout
+	c.Header("Cache-Control", "no-store, no-cache, must-revalidate, private, max-age=0")
+	c.Header("Pragma", "no-cache")
+	c.Header("Expires", "0")
 
 	c.HTML(http.StatusOK, "admin_dashboard.html", dashboardData)
 }

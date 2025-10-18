@@ -40,6 +40,21 @@ func NewLandingHandler(service *services.LandingService, logger *zap.Logger) *La
 		"sub": func(a, b int) int {
 			return a - b
 		},
+		"mulFloat": func(a int, b float64) float64 {
+			return float64(a) * b
+		},
+		"default": func(defaultValue, value interface{}) interface{} {
+			if value == nil || value == "" {
+				return defaultValue
+			}
+			return value
+		},
+		"noescape": func(str string) template.HTML {
+			return template.HTML(str)
+		},
+		"replace": func(old, new, str string) string {
+			return strings.Replace(str, old, new, -1)
+		},
 	}
 
 	// Try different template paths

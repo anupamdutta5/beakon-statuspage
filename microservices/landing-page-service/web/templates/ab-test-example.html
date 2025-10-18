@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A/B Testing Example - Beakon StatusPage</title>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="/static/css/landing.css">
+    <style>
+        .ab-test-debug {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            z-index: 9999;
+            max-width: 300px;
+        }
+        .ab-test-debug h4 {
+            margin: 0 0 10px 0;
+            color: #3B82F6;
+        }
+        .ab-test-debug .test-info {
+            margin: 5px 0;
+        }
+        .ab-test-debug .variant-a {
+            color: #10B981;
+        }
+        .ab-test-debug .variant-b {
+            color: #F59E0B;
+        }
+
+        /* Visual indicators for variants */
+        [data-ab-variant="A"] {
+            position: relative;
+        }
+        [data-ab-variant="A"]:after {
+            content: "A";
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: #10B981;
+            color: white;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        [data-ab-variant="B"] {
+            position: relative;
+        }
+        [data-ab-variant="B"]:after {
+            content: "B";
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: #F59E0B;
+            color: white;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <img src="/static/images/logo.svg" alt="Beakon" class="nav-logo">
+                <span class="nav-title">Beakon StatusPage</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main>
+        <!-- Hero Section with A/B Test on Headline -->
+        <section class="hero">
+            <div class="container">
+                <!-- Test 1: Hero Headline -->
+                <h1 id="hero-headline"
+                    data-ab-test="1"
+                    data-ab-element="text"
+                    data-ab-conversion="view">
+                    Keep your users informed with beautiful status pages
+                </h1>
+
+                <p class="hero-subtitle">
+                    Professional status page platform for modern teams
+                </p>
+
+                <!-- Test 2: CTA Button -->
+                <button id="hero-cta"
+                        class="btn btn-primary btn-large"
+                        data-ab-test="2"
+                        data-ab-element="button"
+                        data-ab-track="cta"
+                        data-ab-conversion="click">
+                    Get Started Free
+                </button>
+            </div>
+        </section>
+
+        <!-- Pricing Section with A/B Test on Layout -->
+        <section class="pricing" id="pricing-section"
+                 data-ab-test="3"
+                 data-ab-element="custom"
+                 data-ab-conversion="purchase">
+            <div class="container">
+                <h2>Choose Your Plan</h2>
+
+                <div class="pricing-grid">
+                    <div class="pricing-card">
+                        <h3>Free</h3>
+                        <p class="price">$0<span>/month</span></p>
+                        <ul>
+                            <li>Up to 5 services</li>
+                            <li>Basic status page</li>
+                            <li>Email notifications</li>
+                        </ul>
+                        <button class="btn btn-outline">Start Free</button>
+                    </div>
+
+                    <div class="pricing-card popular">
+                        <h3>Pro</h3>
+                        <p class="price">$29<span>/month</span></p>
+                        <ul>
+                            <li>Up to 25 services</li>
+                            <li>Custom domain</li>
+                            <li>Advanced analytics</li>
+                            <li>Priority support</li>
+                        </ul>
+                        <button class="btn btn-primary" id="pro-plan-btn">Start Pro Trial</button>
+                    </div>
+
+                    <div class="pricing-card">
+                        <h3>Enterprise</h3>
+                        <p class="price">$99<span>/month</span></p>
+                        <ul>
+                            <li>Unlimited services</li>
+                            <li>White-label</li>
+                            <li>Custom integrations</li>
+                            <li>Dedicated support</li>
+                        </ul>
+                        <button class="btn btn-outline">Contact Sales</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Feature Section with A/B Test on Order -->
+        <section class="features">
+            <div class="container">
+                <h2>Powerful Features</h2>
+
+                <div class="features-grid"
+                     data-ab-test="4"
+                     data-ab-element="custom">
+                    <div class="feature-card">
+                        <i class="fas fa-bell"></i>
+                        <h3>Real-time Updates</h3>
+                        <p>Keep users informed with instant status updates</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <i class="fas fa-chart-line"></i>
+                        <h3>Advanced Analytics</h3>
+                        <p>Get insights into uptime and incident patterns</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <i class="fas fa-users"></i>
+                        <h3>Team Collaboration</h3>
+                        <p>Work together seamlessly with your team</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- A/B Test Debug Panel (only shown in development) -->
+    <div class="ab-test-debug" id="ab-debug" style="display: none;">
+        <h4>A/B Test Debug</h4>
+        <div id="ab-debug-content"></div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/ab-test.js"></script>
+    <script>
+        // Configure A/B testing
+        window.ABTestConfig = {
+            apiBase: '/api/v1',
+            debug: true // Enable debug mode
+        };
+
+        // Example test configurations that would be set on the server
+        const testConfigs = {
+            1: {
+                // Hero headline test
+                variantA: { text: "Keep your users informed with beautiful status pages" },
+                variantB: { text: "The easiest way to communicate with your users during downtime" }
+            },
+            2: {
+                // CTA button test
+                variantA: { text: "Get Started Free", class: "btn btn-primary btn-large" },
+                variantB: { text: "Start Your Free Trial", class: "btn btn-primary btn-large btn-pulse" }
+            },
+            3: {
+                // Pricing layout test (handled via custom event)
+                variantA: { layout: "grid" },
+                variantB: { layout: "cards-horizontal" }
+            },
+            4: {
+                // Feature order test
+                variantA: { order: ["updates", "analytics", "collaboration"] },
+                variantB: { order: ["analytics", "collaboration", "updates"] }
+            }
+        };
+
+        // Wait for A/B test client to initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Show debug panel in development
+            if (window.location.hostname === 'localhost' || window.location.search.includes('debug=true')) {
+                document.getElementById('ab-debug').style.display = 'block';
+            }
+
+            // Listen for variant applications and update debug panel
+            document.addEventListener('ab-variant-apply', (e) => {
+                console.log('Variant applied:', e.target, e.detail);
+                updateDebugPanel();
+            });
+
+            // Listen for conversions
+            window.addEventListener('ab-conversion', (e) => {
+                console.log('Conversion tracked:', e.detail);
+                updateDebugPanel();
+            });
+
+            // Custom handler for pricing layout test
+            document.getElementById('pricing-section').addEventListener('ab-variant-apply', (e) => {
+                const { variant, config } = e.detail;
+
+                if (variant === 'B' && config.layout === 'cards-horizontal') {
+                    // Apply horizontal layout
+                    document.querySelector('.pricing-grid').style.display = 'flex';
+                    document.querySelector('.pricing-grid').style.flexDirection = 'row';
+                    document.querySelector('.pricing-grid').style.overflowX = 'auto';
+                }
+            });
+
+            // Custom handler for feature order test
+            document.querySelector('.features-grid').addEventListener('ab-variant-apply', (e) => {
+                const { variant, config } = e.detail;
+
+                if (variant === 'B' && config.order) {
+                    // Reorder feature cards
+                    const grid = document.querySelector('.features-grid');
+                    const cards = Array.from(grid.children);
+
+                    // Reorder based on variant B configuration
+                    cards.sort((a, b) => {
+                        // Custom sorting logic based on config.order
+                        return 0;
+                    });
+
+                    cards.forEach(card => grid.appendChild(card));
+                }
+            });
+
+            // Track additional conversion events
+            document.getElementById('pro-plan-btn').addEventListener('click', () => {
+                // Track conversion for pricing test
+                if (window.abTest) {
+                    window.abTest.trackConversion('3');
+                }
+
+                // Simulate purchase completion
+                setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('purchase-complete', {
+                        detail: { plan: 'pro', amount: 29 }
+                    }));
+                }, 1000);
+            });
+
+            // Update debug panel initially
+            setTimeout(updateDebugPanel, 500);
+        });
+
+        // Update debug panel with current test status
+        function updateDebugPanel() {
+            if (!window.abTest) return;
+
+            const debugContent = document.getElementById('ab-debug-content');
+            const tests = window.abTest.getActiveTests();
+
+            let html = '';
+            tests.forEach(test => {
+                const variantClass = test.variant === 'A' ? 'variant-a' : 'variant-b';
+                html += `
+                    <div class="test-info">
+                        Test #${test.id}: <span class="${variantClass}">Variant ${test.variant}</span>
+                        <br>Element: ${test.element.id || test.element.className || 'unnamed'}
+                    </div>
+                `;
+            });
+
+            debugContent.innerHTML = html || '<div>No active tests</div>';
+        }
+
+        // Demo: Manually trigger variant changes (for testing)
+        function switchVariant(testId, variant) {
+            const element = document.querySelector(`[data-ab-test="${testId}"]`);
+            if (element) {
+                element.dataset.abVariant = variant;
+
+                // Apply test config manually for demo
+                const config = testConfigs[testId];
+                if (config) {
+                    const variantConfig = variant === 'A' ? config.variantA : config.variantB;
+
+                    if (variantConfig.text) {
+                        element.textContent = variantConfig.text;
+                    }
+                    if (variantConfig.class) {
+                        element.className = variantConfig.class;
+                    }
+                }
+
+                updateDebugPanel();
+            }
+        }
+
+        // Console helpers for testing
+        window.abTestDemo = {
+            switchVariant,
+            trackConversion: (testId) => window.abTest.trackConversion(testId),
+            showTests: () => console.table(window.abTest.getActiveTests())
+        };
+
+        console.log('A/B Testing Demo loaded. Use window.abTestDemo for testing:');
+        console.log('- abTestDemo.switchVariant(testId, "A" or "B")');
+        console.log('- abTestDemo.trackConversion(testId)');
+        console.log('- abTestDemo.showTests()');
+    </script>
+</body>
+</html>

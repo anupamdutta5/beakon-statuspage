@@ -12,23 +12,26 @@ import (
 	"time"
 
 	"github.com/anupamdutta5/tenant-admin-service/internal/models"
+	"github.com/anupamdutta5/tenant-admin-service/internal/sessions"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 // RBACService provides role-based access control functionality
 type RBACService struct {
-	db     *gorm.DB
-	logger *zap.Logger
+	db             *gorm.DB
+	logger         *zap.Logger
+	sessionManager *sessions.SessionManager
 }
 
 // NewRBACService creates a new RBAC service instance
-func NewRBACService(db *gorm.DB, logger *zap.Logger) *RBACService {
+func NewRBACService(db *gorm.DB, logger *zap.Logger, sessionManager *sessions.SessionManager) *RBACService {
 	// Note: Database migration is handled in main.go to avoid duplicate migrations
 
 	return &RBACService{
-		db:     db,
-		logger: logger,
+		db:             db,
+		logger:         logger,
+		sessionManager: sessionManager,
 	}
 }
 
@@ -403,7 +406,8 @@ func (s *RBACService) AddUserToTeam(ctx context.Context, teamID, userID, tenantI
 // Session Management
 
 // CreateSession creates a new user session
-func (s *RBACService) CreateSession(ctx context.Context, userID, tenantID uint, ipAddress, userAgent string, duration time.Duration) (*models.Session, error) {
+// Updated to accept tenantID as string (UUID) instead of uint
+func (s *RBACService) CreateSession(ctx context.Context, userID uint, tenantID string, ipAddress, userAgent string, duration time.Duration) (*models.Session, error) {
 	// Generate secure session ID
 	sessionID, err := s.generateSessionID()
 	if err != nil {
@@ -411,19 +415,28 @@ func (s *RBACService) CreateSession(ctx context.Context, userID, tenantID uint, 
 	}
 
 	session := &models.Session{
-		ID:        sessionID,
-		UserID:    userID,
-		TenantID:  tenantID,
-		IPAddress: ipAddress,
-		UserAgent: userAgent,
-		IsActive:  true,
-		LastSeen:  time.Now(),
-		ExpiresAt: time.Now().Add(duration),
+		ID:         sessionID,
+		UserID:     userID,
+		TenantID:   tenantID,
+		IPAddress:  ipAddress,
+		UserAgent:  userAgent,
+		CreatedAt:  time.Now(),
+		LastSeenAt: time.Now(),
+		ExpiresAt:  time.Now().Add(duration),
 	}
 
-	if err := s.db.WithContext(ctx).Create(session).Error; err != nil {
-		s.logger.Error("Failed to create session", zap.Error(err))
-		return nil, fmt.Errorf("failed to create session: %w", err)
+	// Use SessionManager if available, fall back to database
+	if s.sessionManager != nil {
+		if err := s.sessionManager.Create(ctx, session); err != nil {
+			s.logger.Error("Failed to create session", zap.Error(err))
+			return nil, fmt.Errorf("failed to create session: %w", err)
+		}
+	} else {
+		// Fallback to direct database access
+		if err := s.db.WithContext(ctx).Create(session).Error; err != nil {
+			s.logger.Error("Failed to create session", zap.Error(err))
+			return nil, fmt.Errorf("failed to create session: %w", err)
+		}
 	}
 
 	return session, nil
@@ -437,18 +450,38 @@ func (s *RBACService) ValidateSession(ctx context.Context, sessionID string) (*m
 		if sessionID == expectedToken {
 			// Return a mock session for service-to-service communication
 			return &models.Session{
-				ID:       sessionID,
-				UserID:   1, // Service user ID
-				TenantID: 1, // Default tenant for admin operations
-				IsActive: true,
-				LastSeen: time.Now(),
+				ID:         sessionID,
+				UserID:     1, // Service user ID
+				TenantID:   "00000000-0000-0000-0000-000000000000", // Default tenant UUID for admin operations
+				CreatedAt:  time.Now(),
+				LastSeenAt: time.Now(),
+				ExpiresAt:  time.Now().Add(24 * time.Hour),
 			}, nil
 		}
 		return nil, errors.New("invalid service session")
 	}
 
+	// Use SessionManager if available
+	if s.sessionManager != nil {
+		session, err := s.sessionManager.Get(ctx, sessionID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to validate session: %w", err)
+		}
+		if session == nil {
+			return nil, errors.New("invalid session")
+		}
+
+		// Update session TTL
+		if err := s.sessionManager.Update(ctx, sessionID); err != nil {
+			s.logger.Warn("Failed to update session TTL", zap.String("session_id", sessionID), zap.Error(err))
+		}
+
+		return session, nil
+	}
+
+	// Fallback to direct database access
 	var session models.Session
-	err := s.db.WithContext(ctx).Where("id = ? AND is_active = ? AND expires_at > NOW()", sessionID, true).First(&session).Error
+	err := s.db.WithContext(ctx).Where("id = ? AND expires_at > ?", sessionID, time.Now()).First(&session).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("invalid session")
@@ -457,7 +490,7 @@ func (s *RBACService) ValidateSession(ctx context.Context, sessionID string) (*m
 	}
 
 	// Update last seen
-	s.db.WithContext(ctx).Model(&session).Update("last_seen", time.Now())
+	s.db.WithContext(ctx).Model(&session).Update("last_seen_at", time.Now())
 
 	return &session, nil
 }
@@ -529,16 +562,25 @@ func (s *RBACService) InitializeDefaultRoles(ctx context.Context, tenantID uint)
 // API Wrapper Methods for Session Management
 
 // CreateSimpleSession creates a new session with simplified parameters for API use
-func (s *RBACService) CreateSimpleSession(ctx context.Context, userID, tenantID uint) (*models.Session, error) {
+// Updated to accept tenantID as string (UUID) instead of uint
+func (s *RBACService) CreateSimpleSession(ctx context.Context, userID uint, tenantID string) (*models.Session, error) {
 	// Use default values for API calls
 	return s.CreateSession(ctx, userID, tenantID, "service-to-service", "admin-api", 24*time.Hour)
 }
 
 // DeleteSession invalidates a session by ID
 func (s *RBACService) DeleteSession(ctx context.Context, sessionID string) error {
-	result := s.db.WithContext(ctx).Model(&models.Session{}).
-		Where("id = ?", sessionID).
-		Update("is_active", false)
+	// Use SessionManager if available
+	if s.sessionManager != nil {
+		if err := s.sessionManager.Delete(ctx, sessionID); err != nil {
+			return fmt.Errorf("failed to delete session: %w", err)
+		}
+		s.logger.Info("Session deleted", zap.String("session_id", sessionID))
+		return nil
+	}
+
+	// Fallback to direct database access
+	result := s.db.WithContext(ctx).Where("id = ?", sessionID).Delete(&models.Session{})
 
 	if result.Error != nil {
 		return fmt.Errorf("failed to delete session: %w", result.Error)

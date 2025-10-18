@@ -489,8 +489,8 @@ type SaaSTenant struct {
 	Subdomain    string         `gorm:"uniqueIndex" json:"subdomain"`
 	ContactEmail string         `gorm:"not null" json:"contact_email"`
 	BillingEmail string         `json:"billing_email"`
-	PlanID       uuid.UUID      `gorm:"type:uuid;not null;index" json:"plan_id"`
-	Plan         SaaSPlan       `gorm:"foreignKey:PlanID" json:"plan"`
+	PlanID       *uuid.UUID     `gorm:"type:uuid;index" json:"plan_id"`
+	Plan         *SaaSPlan      `gorm:"foreignKey:PlanID" json:"plan,omitempty"`
 	Status       string         `gorm:"default:active" json:"status"` // active, inactive, suspended, cancelled
 	IsActive     bool           `gorm:"default:true" json:"is_active"`
 	Settings     string         `gorm:"type:text" json:"settings"` // JSON string

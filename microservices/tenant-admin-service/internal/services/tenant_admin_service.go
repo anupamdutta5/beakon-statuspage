@@ -605,6 +605,17 @@ func (s *TenantAdminService) DeleteTenant(id uint) error {
 	return nil
 }
 
+// DeleteTenantByUUID deletes a tenant by UUID (soft delete)
+func (s *TenantAdminService) DeleteTenantByUUID(ctx context.Context, tenantID uuid.UUID) error {
+	if err := s.db.WithContext(ctx).Where("id = ?", tenantID).Delete(&models.Tenant{}).Error; err != nil {
+		s.logger.Error("Failed to delete tenant by UUID", zap.Error(err), zap.String("tenant_id", tenantID.String()))
+		return fmt.Errorf("failed to delete tenant: %w", err)
+	}
+
+	s.logger.Info("Tenant deleted successfully by UUID", zap.String("tenant_id", tenantID.String()))
+	return nil
+}
+
 // GetTenantBilling retrieves tenant billing information.
 func (s *TenantAdminService) GetTenantBilling(tenantID uuid.UUID) (*models.TenantBilling, error) {
 	var billing models.TenantBilling
@@ -1057,15 +1068,6 @@ func (s *TenantAdminService) GetTenantUserStats(ctx context.Context, tenantID uu
 		return nil, fmt.Errorf("database not initialized")
 	}
 
-	// Retrieve tenant
-	var tenant models.Tenant
-	if err := s.db.WithContext(ctx).First(&tenant, "id = ?", tenantID).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("tenant not found")
-		}
-		return nil, fmt.Errorf("failed to retrieve tenant: %w", err)
-	}
-
 	// Count current active users directly by tenant_id
 	var currentUserCount int64
 	if err := s.db.WithContext(ctx).Model(&models.User{}).
@@ -1074,15 +1076,27 @@ func (s *TenantAdminService) GetTenantUserStats(ctx context.Context, tenantID uu
 		return nil, fmt.Errorf("failed to count users: %w", err)
 	}
 
+	// Try to retrieve tenant for max_users info (optional)
+	var tenant models.Tenant
+	var maxUsers *int
+	var isUnlimited bool = true
+
+	if err := s.db.WithContext(ctx).First(&tenant, "id = ?", tenantID).Error; err == nil {
+		// Tenant found in tenant_admin_db
+		maxUsers = tenant.MaxUsers
+		isUnlimited = tenant.MaxUsers == nil
+	}
+	// If tenant not found, default to unlimited (no enforced limit)
+
 	stats := &TenantUserStats{
 		CurrentUsers: currentUserCount,
-		MaxUsers:     tenant.MaxUsers,
-		IsUnlimited:  tenant.MaxUsers == nil,
+		MaxUsers:     maxUsers,
+		IsUnlimited:  isUnlimited,
 	}
 
 	// Calculate remaining slots if limit is set
-	if tenant.MaxUsers != nil {
-		remaining := int64(*tenant.MaxUsers) - currentUserCount
+	if maxUsers != nil {
+		remaining := int64(*maxUsers) - currentUserCount
 		if remaining < 0 {
 			remaining = 0
 		}

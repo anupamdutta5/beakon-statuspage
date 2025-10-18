@@ -29,6 +29,7 @@ import (
 type TenantAdminHandler struct {
 	service           *services.TenantAdminService
 	statusPageService *services.StatusPageManagementService
+	rbacService       *services.RBACService
 	logger            *zap.Logger
 }
 
@@ -49,10 +50,11 @@ type TenantAdminHandler struct {
 //
 //	handler := NewTenantAdminHandler(tenantService, statusPageService, logger)
 //	router.GET("/health", handler.HealthCheck)
-func NewTenantAdminHandler(service *services.TenantAdminService, statusPageService *services.StatusPageManagementService, logger *zap.Logger) *TenantAdminHandler {
+func NewTenantAdminHandler(service *services.TenantAdminService, statusPageService *services.StatusPageManagementService, rbacService *services.RBACService, logger *zap.Logger) *TenantAdminHandler {
 	return &TenantAdminHandler{
 		service:           service,
 		statusPageService: statusPageService,
+		rbacService:       rbacService,
 		logger:            logger,
 	}
 }

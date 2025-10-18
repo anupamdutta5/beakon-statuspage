@@ -38,6 +38,7 @@
     <!-- Styles -->
     <link rel="stylesheet" href="/static/css/landing.css">
     <link rel="stylesheet" href="/static/css/animations.css">
+    <link rel="stylesheet" href="/static/css/modern-overrides.css">
     {{if .CustomCSS}}<style>{{.CustomCSS}}</style>{{end}}
 
     <!-- Theme detection script (inline for immediate execution) -->
@@ -74,9 +75,7 @@
                 <span class="nav-title">{{.SiteName}}</span>
             </div>
             <div class="nav-menu" id="nav-menu" role="menu">
-                <a href="#features" class="nav-link" role="menuitem">Features</a>
                 <a href="#pricing" class="nav-link" role="menuitem">Pricing</a>
-                <a href="#testimonials" class="nav-link" role="menuitem">Testimonials</a>
                 <a href="#faq" class="nav-link" role="menuitem">FAQ</a>
                 <a href="/blog" class="nav-link" role="menuitem">Blog</a>
                 <a href="#contact" class="nav-link" role="menuitem">Contact</a>
@@ -141,27 +140,6 @@
             </div>
         </section>
 
-        <!-- Features Section -->
-        <section class="features" id="features" aria-labelledby="features-title">
-            <div class="container">
-                <div class="section-header animate-on-scroll">
-                    <h2 id="features-title" class="section-title">Everything you need to keep your team informed</h2>
-                    <p class="section-description">Powerful features designed for modern teams who care about transparency and communication.</p>
-                </div>
-                <div class="features-grid">
-                    {{range $index, $feature := .Features}}
-                    <div class="feature-card interactive hover-lift animate-on-scroll" style="animation-delay: {{mulFloat $index 0.1}}s">
-                        <div class="feature-icon floating">
-                            <i class="{{.Icon}}" aria-hidden="true"></i>
-                        </div>
-                        <h3 class="feature-title">{{.Title}}</h3>
-                        <p class="feature-description">{{.Description}}</p>
-                    </div>
-                    {{end}}
-                </div>
-            </div>
-        </section>
-
         <!-- Pricing Section -->
         <section class="pricing" id="pricing" aria-labelledby="pricing-title">
             <div class="container">
@@ -206,37 +184,6 @@
                         </div>
                         <div class="pricing-action">
                             <a href="{{.ButtonURL}}" class="btn {{if .IsPopular}}btn-primary{{else}}btn-outline{{end}} btn-full btn-modern">{{.ButtonText}}</a>
-                        </div>
-                    </div>
-                    {{end}}
-                </div>
-            </div>
-        </section>
-
-        <!-- Testimonials Section -->
-        <section class="testimonials" id="testimonials" aria-labelledby="testimonials-title">
-            <div class="container">
-                <div class="section-header animate-on-scroll">
-                    <h2 id="testimonials-title" class="section-title">Loved by teams worldwide</h2>
-                    <p class="section-description">See what our customers have to say about StatusPage Pro.</p>
-                </div>
-                <div class="testimonials-grid">
-                    {{range $index, $testimonial := .Testimonials}}
-                    <div class="testimonial-card glass-card hover-lift animate-on-scroll" style="animation-delay: {{mulFloat $index 0.1}}s">
-                        <div class="testimonial-content">
-                            <div class="testimonial-rating" aria-label="{{.Rating}} star rating">
-                                {{range $i := .Rating}}
-                                <i class="fas fa-star" aria-hidden="true"></i>
-                                {{end}}
-                            </div>
-                            <blockquote class="testimonial-text">"{{.Content}}"</blockquote>
-                        </div>
-                        <div class="testimonial-author">
-                            <img src="{{.Avatar}}" alt="" class="author-avatar" loading="lazy">
-                            <div class="author-info">
-                                <h4 class="author-name">{{.Name}}</h4>
-                                <p class="author-title">{{.Position}} at {{.Company}}</p>
-                            </div>
                         </div>
                     </div>
                     {{end}}
@@ -309,7 +256,6 @@
                 <div class="footer-section">
                     <h4 class="footer-title">Product</h4>
                     <ul class="footer-links" role="list">
-                        <li><a href="#features">Features</a></li>
                         <li><a href="#pricing">Pricing</a></li>
                         <li><a href="/integrations">Integrations</a></li>
                         <li><a href="/api">API</a></li>
