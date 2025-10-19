@@ -205,10 +205,6 @@ func (AuditLog) TableName() string {
 	return "audit_logs"
 }
 
-func (Session) TableName() string {
-	return "sessions"
-}
-
 // Default roles and permissions
 var DefaultRoles = []Role{
 	{

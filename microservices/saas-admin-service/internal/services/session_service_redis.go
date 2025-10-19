@@ -87,19 +87,17 @@ func (s *SessionServiceRedis) ValidateRefreshToken(ctx context.Context, token st
 	// Try Redis first
 	if s.redis != nil && s.redis.IsHealthy(ctx) {
 		redisKey := fmt.Sprintf("refresh:%s", token)
-		sessionData, err := s.redis.Get(ctx, redisKey)
+		var userSession models.UserSession
+		err := s.redis.Get(ctx, redisKey, &userSession)
 		if err == nil {
-			var userSession models.UserSession
-			if err := json.Unmarshal([]byte(sessionData), &userSession); err == nil {
-				if userSession.IsValid() {
-					s.logger.Debug("Refresh token validated from Redis",
-						zap.Uint("user_id", userSession.UserID))
-					return userSession.UserID, nil
-				}
-				// Token expired, delete from Redis
-				s.redis.Del(ctx, redisKey)
-				return 0, ErrSessionExpired
+			if userSession.IsValid() {
+				s.logger.Debug("Refresh token validated from Redis",
+					zap.Uint("user_id", userSession.UserID))
+				return userSession.UserID, nil
 			}
+			// Token expired, delete from Redis
+			s.redis.Del(ctx, redisKey)
+			return 0, ErrSessionExpired
 		}
 	}
 

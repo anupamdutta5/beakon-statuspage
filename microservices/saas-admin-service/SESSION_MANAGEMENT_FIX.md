@@ -26,7 +26,7 @@ SaaS Admin Login Flow:
 **Principle**: Each service manages its own sessions
 
 ```
-SaaS Admin Database:
+saas_admin Database (independent database for SaaS Admin Service):
 ├── sessions table (ALREADY EXISTS!)
 │   ├── id (varchar 128, PRIMARY KEY)
 │   ├── user_id (bigint, FK to saas_admin_users)

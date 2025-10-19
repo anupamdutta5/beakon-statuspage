@@ -32,7 +32,7 @@
 | **database-service** | 8095 | statuspage_database | ⚠️ **DEPRECATED** |
 | **event-store-service** | 8096 | statuspage_event_store | ✅ Active |
 | **branding-service** | 8097 | statuspage_branding | ✅ Active |
-| **saas-admin-service** | 8098 | tenant_admin_db | ✅ **Platform Admin** |
+| **saas-admin-service** | 8098 | saas_admin | ✅ **Platform Admin** |
 | **tenant-admin-service** | 8099 | tenant_admin_db | ✅ **Tenant Mgmt** |
 | **landing-page-service** | 8100 | statuspage_landing | ✅ Active |
 
@@ -55,16 +55,17 @@
 
 ### 3. Admin Service Confusion (CRITICAL!)
 - **SaaS Admin (8098)**: Platform-wide super admin (manages ALL tenants)
-  - Database: `tenant_admin_db`
+  - Database: `saas_admin` (independent database)
   - Users: Beakon platform administrators
-  - Features: Tenant CRUD, billing, platform analytics
+  - Features: Subscription plans, features, pricing, tenant creation via API
 
 - **Tenant Admin (8099)**: Individual tenant admin dashboard (ONE tenant)
-  - Database: `tenant_admin_db` (SAME as saas-admin!)
+  - Database: `tenant_admin_db` (separate database)
   - Users: Customer's own admins
-  - Features: User mgmt, status page config, RBAC, branding
+  - Features: User mgmt, status page config, RBAC, branding, teams
 
-- **Key Difference**: Scope (platform vs tenant) and access control
+- **Key Difference**: Scope (platform vs tenant), databases are SEPARATE
+- **Communication**: SaaS Admin creates tenants by calling Tenant Admin API
 
 ### 4. Database Schema Issues
 - ❌ **WRONG**: `last_seen_at` column
@@ -93,9 +94,10 @@
 
 ### 8. Database Naming Patterns
 - **Pattern 1**: `statuspage_<service_name>` (most services)
-- **Pattern 2**: `tenant_admin_db` (shared by saas-admin + tenant-admin)
+- **Pattern 2**: `saas_admin` (saas-admin-service only)
+- **Pattern 3**: `tenant_admin_db` (tenant-admin-service only)
 - **Example**: `statuspage_analytics`, `statuspage_user`, etc.
-- **Special**: `tenant_admin_db` is shared between TWO services
+- **Architecture**: Database-per-service (pure microservices pattern, NO shared databases)
 
 ### 9. Authentication & Session Management (NEW!)
 - ✅ **Pattern**: Hybrid JWT + Refresh Tokens (OAuth 2.0)

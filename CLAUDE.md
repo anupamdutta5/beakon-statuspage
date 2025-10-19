@@ -168,7 +168,7 @@ atlas migrate apply --env dev
 ### Microservices Pattern
 
 **Key Principles:**
-- **Database-per-service**: Each service owns its database (exception: `tenant_admin_db` shared by saas-admin and tenant-admin services)
+- **Database-per-service**: Each service owns its database (pure microservices pattern, no exceptions)
 - **API-first**: Services communicate via HTTP/REST APIs
 - **Multi-tenant**: All services support multi-tenancy with tenant isolation
 - **Stateless**: Services designed for horizontal scaling
@@ -245,9 +245,10 @@ healthChecker.AddCheck("database", dbHealthCheck)
 
 ### Active Databases (14)
 
-| Database | Service(s) | Notes |
-|----------|-----------|-------|
-| `tenant_admin_db` | saas-admin-service, tenant-admin-service | **Shared database** (only exception) |
+| Database | Service | Notes |
+|----------|---------|-------|
+| `saas_admin` | saas-admin-service | Platform admin, plans, features, pricing |
+| `tenant_admin_db` | tenant-admin-service | Tenant management, RBAC |
 | `statuspage_user` | user-service | User authentication |
 | `statuspage_component` | component-service | Component status |
 | `statuspage_incident` | incident-service | Incident management |
@@ -541,17 +542,21 @@ curl http://localhost:8099/api/v1/tenants \
 
 ## Special Considerations
 
-### Shared Database Exception
+### Service Separation
 
-`tenant_admin_db` is intentionally shared between:
-- `saas-admin-service` (platform admin)
-- `tenant-admin-service` (tenant management)
+**SaaS Admin Service** (port 8098) uses `saas_admin` database:
+- Platform administration and configuration
+- Subscription plans, features, pricing management
+- SaaS admin user accounts
+- Creates tenants by calling Tenant Admin Service API
 
-**Reason**: Both are part of the administrative control plane with clear table ownership boundaries.
+**Tenant Admin Service** (port 8099) uses `tenant_admin_db` database:
+- Multi-tenant management
+- Tenant users, roles, permissions, teams
+- Session management and RBAC
+- Tenant-level configuration
 
-**Table ownership:**
-- SaaS Admin: `saas_admins`, `subscription_plans`, `features`, `pricing`
-- Tenant Admin: `tenants`, `users`, `sessions`, `roles`, `permissions`, `teams`
+**Communication**: Services communicate via HTTP APIs, following pure microservices pattern with database-per-service.
 
 ### Deprecated Services
 
@@ -672,3 +677,8 @@ For issues or questions:
 3. Verify environment variables are set correctly
 4. Check database connectivity: `psql -U postgres -d <database> -c '\q'`
 5. Test individual service health: `curl http://localhost:<port>/health`
+
+
+Read all the .md files in the root /Bekon directory and all microservice specififc documents and .md files inside all the directories under /microservices directory. Ensure to have a proper understanding of the project before making cnages and taking up tasks as services are interdependant and careless changes can break the other parts
+
+Never run any git restore, reset, delete commands without permission

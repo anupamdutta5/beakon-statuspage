@@ -12,7 +12,7 @@ set -e
 
 # Service-specific configuration
 SERVICE_NAME="saas-admin-service"
-DB_NAME="saas_admin"
+DB_NAME="${DB_NAME:-saas_admin}"
 MIGRATIONS_DIR="./migrations"
 
 # Database connection (use env vars or defaults)

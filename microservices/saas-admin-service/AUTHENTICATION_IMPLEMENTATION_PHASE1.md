@@ -47,7 +47,7 @@ claims, err := jwtManager.ValidateAccessToken(accessToken)
 
 **Database Tables Used**:
 ```sql
--- Existing tables in saas_admin database
+-- Existing tables in saas_admin (independent database)
 sessions (
     id VARCHAR(128) PRIMARY KEY,
     user_id BIGINT,

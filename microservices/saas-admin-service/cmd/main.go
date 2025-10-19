@@ -11,16 +11,17 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 	"path/filepath"
 
 	resilience "github.com/anupamdutta5/shared-resilience"
-	"github.com/anupamdutta5/saas-admin-service/internal/auth"
+	"github.com/anupamdutta5/saas-admin-service/internal/cache"
 	"github.com/anupamdutta5/saas-admin-service/internal/config"
 	"github.com/anupamdutta5/saas-admin-service/internal/handlers"
-	"github.com/anupamdutta5/saas-admin-service/internal/models"
+	// "github.com/anupamdutta5/saas-admin-service/internal/models" // Unused after disabling AutoMigrate
 	"github.com/anupamdutta5/saas-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq" // PostgreSQL driver
@@ -64,7 +65,7 @@ func loadTemplates() *template.Template {
 }
 
 // setupRoutes configures all the routes for the server
-func setupRoutes(router *gin.Engine, adminHandler *handlers.SaaSAdminHandler, jwtManager *auth.JWTManager) {
+func setupRoutes(router *gin.Engine, adminHandler *handlers.SaaSAdminHandler) {
 	// Load HTML templates including partials
 	router.SetHTMLTemplate(loadTemplates())
 
@@ -81,35 +82,8 @@ func setupRoutes(router *gin.Engine, adminHandler *handlers.SaaSAdminHandler, jw
 		c.Redirect(301, "/api/v1/health")
 	})
 
-	// Admin dashboard - with server-side JWT authentication check
+	// Admin dashboard
 	router.GET("/admin", func(c *gin.Context) {
-		// Check for access token in cookie
-		accessToken, err := c.Cookie("access_token")
-		if err != nil || accessToken == "" {
-			// No access token, show login page
-			c.HTML(200, "login.html", gin.H{
-				"title": "SaaS Admin Login",
-			})
-			return
-		}
-
-		// Validate JWT access token
-		_, err = jwtManager.ValidateAccessToken(accessToken)
-		if err != nil {
-			// Invalid or expired token, show login page
-			// Note: Frontend should handle token refresh automatically
-			c.HTML(200, "login.html", gin.H{
-				"title": "SaaS Admin Login",
-			})
-			return
-		}
-
-		// Valid token, show dashboard
-		// SECURITY: Prevent browser caching of authenticated pages
-		c.Header("Cache-Control", "no-store, no-cache, must-revalidate, private, max-age=0")
-		c.Header("Pragma", "no-cache")
-		c.Header("Expires", "0")
-
 		c.HTML(200, "admin.html", gin.H{
 			"title": "SaaS Admin Dashboard",
 		})
@@ -127,7 +101,6 @@ func setupRoutes(router *gin.Engine, adminHandler *handlers.SaaSAdminHandler, jw
 			auth.POST("/login", adminHandler.Login)
 			auth.POST("/logout", adminHandler.Logout)
 			auth.GET("/check", adminHandler.CheckAuth)
-			auth.POST("/refresh", adminHandler.RefreshToken)
 		}
 
 		// Platform configuration
@@ -176,6 +149,7 @@ func setupRoutes(router *gin.Engine, adminHandler *handlers.SaaSAdminHandler, jw
 			adminUsers.GET("/:id", adminHandler.GetAdminUser)
 			adminUsers.PUT("/:id", adminHandler.UpdateAdminUser)
 			adminUsers.DELETE("/:id", adminHandler.DeleteAdminUser)
+			adminUsers.PUT("/:id/password", adminHandler.ResetAdminPassword)
 		}
 
 		// Notification management
@@ -383,9 +357,12 @@ func main() {
 	defer dbManager.Close()
 
 	// Auto-migrate SaaS Admin Service models
-	db := dbManager.GetDB()
+	// db := dbManager.GetDB() // Unused after disabling AutoMigrate
 
-	// Migrate all models at once - GORM handles dependencies automatically
+	// AutoMigrate DISABLED - Using Atlas for database migrations
+	// Atlas migrations are managed via atlas.hcl and migrations/ directory
+	// Run migrations with: atlas migrate apply --env dev
+	/*
 	if err := db.AutoMigrate(
 		&models.Platform{},
 		&models.SaaSPlan{},
@@ -408,14 +385,12 @@ func main() {
 		&models.SaaSSubscriber{},
 		&models.SaaSComponent{},
 		&models.SaaSTenant{},
-		&models.Session{},      // JWT + session authentication
-		&models.UserSession{},  // Refresh tokens
 	); err != nil {
 		logger.Error("Failed to migrate database", zap.Error(err))
-		// Don't fail completely, continue with startup
 	}
+	*/
 
-	logger.Info("SaaS Admin Service database migration completed")
+	logger.Info("SaaS Admin Service using Atlas for migrations - AutoMigrate disabled")
 
 	// Create Gin router
 	router := gin.New()
@@ -452,26 +427,44 @@ func main() {
 	// Initialize service URLs from environment variables
 	serviceURLs := config.GetServiceURLsFromEnv()
 
-	// Initialize JWT manager (15 minute access tokens)
-	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
-		logger.Fatal("JWT_SECRET environment variable is required")
+	// Initialize Redis cache
+	redisEnabled := os.Getenv("REDIS_ENABLED") == "true"
+	redisHost := os.Getenv("REDIS_HOST")
+	if redisHost == "" {
+		redisHost = "localhost"
 	}
-	jwtManager := auth.NewJWTManager(jwtSecret, 15*time.Minute)
+	redisPort := 6379
+	if redisPortStr := os.Getenv("REDIS_PORT"); redisPortStr != "" {
+		if port, err := strconv.Atoi(redisPortStr); err == nil {
+			redisPort = port
+		}
+	}
+	redisPassword := os.Getenv("REDIS_PASSWORD")
 
-	// Initialize session service for refresh token management
-	sessionService := services.NewSessionService(dbManager.GetDB(), logger)
+	redisConfig := cache.RedisConfig{
+		Host:     redisHost,
+		Port:     redisPort,
+		Password: redisPassword,
+		DB:       0,
+		Enabled:  redisEnabled,
+	}
+
+	redisCache := cache.NewRedisClient(redisConfig, logger)
+	logger.Info("Redis cache initialized",
+		zap.Bool("enabled", redisEnabled),
+		zap.String("host", redisHost),
+		zap.Int("port", redisPort))
 
 	// Initialize saas admin service and handlers
-	saasAdminService, err := services.NewSaaSAdminService(nil, logger, dbManager.GetDB())
+	saasAdminService, err := services.NewSaaSAdminService(nil, logger, dbManager.GetDB(), redisCache)
 	if err != nil {
 		logger.Fatal("Failed to create SaaS admin service", zap.Error(err))
 	}
 
-	saasAdminHandler := handlers.NewSaaSAdminHandler(saasAdminService, sessionService, jwtManager, serviceURLs, logger)
+	saasAdminHandler := handlers.NewSaaSAdminHandler(saasAdminService, serviceURLs, logger)
 
 	// Setup all enterprise routes
-	setupRoutes(router, saasAdminHandler, jwtManager)
+	setupRoutes(router, saasAdminHandler)
 
 	// Create HTTP server with proper timeouts and configuration
 	server := &http.Server{

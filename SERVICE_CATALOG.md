@@ -23,7 +23,7 @@
 | database-service | 8095 | statuspage_database | ⚠️ DEPRECATED | ✅ Full | Database utils (unused) |
 | event-store-service | 8096 | statuspage_event_store | ✅ Active | ✅ Full | Event sourcing |
 | branding-service | 8097 | statuspage_branding | ✅ Active | ✅ Full | Theming & branding |
-| saas-admin-service | 8098 | tenant_admin_db | ✅ Active | ✅ Full | Platform admin |
+| saas-admin-service | 8098 | saas_admin | ✅ Active | ✅ Full | Platform admin |
 | tenant-admin-service | 8099 | tenant_admin_db | ✅ Active | ✅ Full | Multi-tenant mgmt |
 | landing-page-service | 8100 | statuspage_landing | ✅ Active | ✅ Full | Marketing website |
 | analytics-consumer | N/A | statuspage_analytics_consumer | ✅ Active | ✅ Full | Analytics processing |
@@ -472,7 +472,7 @@
 
 ### 13. SaaS Admin Service
 **Port**: 8098
-**Database**: tenant_admin_db (shared with tenant-admin-service)
+**Database**: saas_admin
 **Type**: HTTP Service + Web UI
 **Language**: Go
 
@@ -515,22 +515,23 @@
 - `PUT /api/v1/tenants/:id` - Update tenant
 - `DELETE /api/v1/tenants/:id` - Delete tenant
 
-**Database Tables** (in tenant_admin_db):
-- `saas_admins` - Platform admin users
+**Database Tables** (in saas_admin):
+- `saas_admin_users` - Platform admin users
 - `subscription_plans` - Plan definitions
 - `features` - Feature catalog
 - `pricing` - Pricing rules
 - `platform_settings` - System configuration
+- `sessions` - Admin session management
 
 **Service Communication**:
-- Calls tenant-admin-service for tenant operations
-- Integrates with payment-service for billing
+- Calls tenant-admin-service API for tenant CRUD operations
+- Communicates via HTTP (pure microservices pattern)
 
 ---
 
 ### 14. Tenant Admin Service
 **Port**: 8099
-**Database**: tenant_admin_db (shared with saas-admin-service)
+**Database**: tenant_admin_db
 **Type**: HTTP Service + Web UI
 **Language**: Go
 
@@ -857,11 +858,12 @@ shared-resilience/
 
 ### Database-per-Service Pattern
 
-Beakon follows the microservices best practice of **database-per-service**, with one documented exception:
+Beakon follows the microservices best practice of **database-per-service** (pure microservices pattern):
 
-| Database Name | Service(s) | Purpose |
-|---------------|-----------|---------|
-| tenant_admin_db | saas-admin-service, tenant-admin-service | **Shared** - Admin control plane |
+| Database Name | Service | Purpose |
+|---------------|---------|---------|
+| saas_admin | saas-admin-service | Platform admin, plans, features |
+| tenant_admin_db | tenant-admin-service | Tenants, users, RBAC |
 | statuspage_user | user-service | User authentication |
 | statuspage_component | component-service | Components & status |
 | statuspage_notification | notification-service | Notifications |
@@ -877,22 +879,12 @@ Beakon follows the microservices best practice of **database-per-service**, with
 | statuspage_billing_consumer | billing-consumer | Billing events |
 | statuspage_database | database-service | ⚠️ **DEPRECATED** |
 
-### Database Sharing Rationale
+### Service Communication
 
-**tenant_admin_db** is shared by two services:
-- **saas-admin-service**: Platform administration
-- **tenant-admin-service**: Tenant management
-
-**Why This Is Acceptable**:
-1. Both services are part of the administrative control plane
-2. Clear table ownership boundaries:
-   - SaaS Admin owns: `saas_admins`, `subscription_plans`, `features`, `pricing`
-   - Tenant Admin owns: `tenants`, `users`, `sessions`, `roles`, `permissions`
-3. SaaS Admin delegates actual tenant operations to Tenant Admin service
-4. Simplified transaction management for cross-cutting admin operations
-5. Both services are tightly coupled by design (administrative domain)
-
-**Future Consideration**: Split databases if services grow significantly or need independent scaling
+Services communicate via HTTP APIs, not database sharing:
+- **SaaS Admin → Tenant Admin**: Creates tenants via `POST /api/v1/tenants` API
+- **All Services → API Gateway**: Standard request routing pattern
+- **Consumer Services**: Event-driven processing via message queues
 
 ---
 
