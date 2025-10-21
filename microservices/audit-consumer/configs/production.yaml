@@ -1,0 +1,52 @@
+environment: production
+
+consumer:
+  name: audit-consumer
+  version: 1.0.0
+  description: Audit Consumer for StatusPage
+  tags:
+    - audit
+    - consumer
+    - event-driven
+  metadata:
+    owner: platform-team
+    maintainer: devops@company.com
+
+kafka:
+  brokers:
+    - ${KAFKA_BROKERS}
+  group_id: audit-consumer-prod
+  auto_offset_reset: latest
+  enable_auto_commit: true
+
+database: test_db
+  host: localhost
+  port: 5432
+  user: test_user
+  password: ${DB_PASSWORD}
+  name: ${DB_NAME}
+  ssl_mode: require
+  max_conns: 100
+  min_conns: 10
+  max_idle: 20
+  max_lifetime: 3600
+
+cache:
+  provider: redis
+  host: ${REDIS_HOST}
+  port: ${REDIS_PORT}
+  password: ${REDIS_PASSWORD}
+  db: 0
+  ttl: 300
+  key_prefix: "statuspage:audit-consumer"
+
+logging:
+  level: info
+  format: json
+  output: stdout
+
+processing:
+  batch_size: 1000
+  max_retries: 5
+  retry_delay: 10s
+  timeout: 60s

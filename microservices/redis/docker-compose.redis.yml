@@ -1,0 +1,84 @@
+# Redis Infrastructure for Beakon Microservices
+# Simple, production-ready Redis setup with persistence
+#
+# Usage:
+#   docker-compose -f docker-compose.redis.yml up -d
+#   docker-compose -f docker-compose.redis.yml down
+
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: beakon-redis
+    restart: unless-stopped
+
+    ports:
+      - "6379:6379"
+
+    # Persistent storage
+    volumes:
+      - redis-data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+
+    # Use custom config
+    command: redis-server /usr/local/etc/redis/redis.conf
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Redis Commander (Web UI for debugging)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: beakon-redis-commander
+    restart: unless-stopped
+
+    ports:
+      - "8081:8081"
+
+    environment:
+      - REDIS_HOSTS=local:beakon-redis:6379
+      - HTTP_USER=admin
+      - HTTP_PASSWORD=admin
+
+    depends_on:
+      redis:
+        condition: service_healthy
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  redis-data:
+    driver: local
+
+networks:
+  default:
+    name: beakon-network
+    driver: bridge

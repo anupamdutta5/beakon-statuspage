@@ -1,0 +1,600 @@
+openapi: 3.0.3
+info:
+  title: Monitoring Service API
+  description: API contract for the Monitoring Service
+  version: 1.0.0
+  contact:
+    name: Monitoring Service Team
+    email: monitoring-service@statuspage.com
+
+servers:
+  - url: http://localhost:8006
+    description: Development server
+  - url: https://monitoring-service.statuspage.com
+    description: Production server
+
+paths:
+  /monitors:
+    get:
+      summary: List monitors
+      description: Get a list of monitors with optional filtering
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [up, down, paused]
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [http, https, ping, tcp, udp, dns]
+      responses:
+        '200':
+          description: List of monitors
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  monitors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Monitor'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create monitor
+      description: Create a new monitor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMonitorRequest'
+      responses:
+        '201':
+          description: Monitor created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Monitor'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /monitors/{monitor_id}:
+    get:
+      summary: Get monitor
+      description: Get a specific monitor by ID
+      parameters:
+        - name: monitor_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Monitor details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Monitor'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update monitor
+      description: Update an existing monitor
+      parameters:
+        - name: monitor_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMonitorRequest'
+      responses:
+        '200':
+          description: Monitor updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Monitor'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete monitor
+      description: Delete a monitor
+      parameters:
+        - name: monitor_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Monitor deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /monitors/{monitor_id}/status:
+    get:
+      summary: Get monitor status
+      description: Get the current status of a monitor
+      parameters:
+        - name: monitor_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Monitor status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorStatus'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /monitors/{monitor_id}/checks:
+    get:
+      summary: Get monitor checks
+      description: Get recent check results for a monitor
+      parameters:
+        - name: monitor_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of monitor checks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  checks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MonitorCheck'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /monitors/{monitor_id}/pause:
+    post:
+      summary: Pause monitor
+      description: Pause a monitor
+      parameters:
+        - name: monitor_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Monitor paused successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Monitor'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /monitors/{monitor_id}/resume:
+    post:
+      summary: Resume monitor
+      description: Resume a paused monitor
+      parameters:
+        - name: monitor_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Monitor resumed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Monitor'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /uptime:
+    get:
+      summary: Get uptime statistics
+      description: Get uptime statistics for monitors
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: monitor_id
+          in: query
+          schema:
+            type: string
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [24h, 7d, 30d, 90d]
+            default: 24h
+      responses:
+        '200':
+          description: Uptime statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UptimeStats'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    Monitor:
+      type: object
+      required:
+        - id
+        - name
+        - tenant_id
+        - type
+        - url
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique monitor identifier
+        name:
+          type: string
+          description: Monitor name
+        description:
+          type: string
+          description: Monitor description
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        type:
+          type: string
+          enum: [http, https, ping, tcp, udp, dns]
+          description: Monitor type
+        url:
+          type: string
+          description: URL or host to monitor
+        method:
+          type: string
+          enum: [GET, POST, PUT, DELETE, HEAD, OPTIONS]
+          description: HTTP method (for HTTP/HTTPS monitors)
+        headers:
+          type: object
+          description: HTTP headers (for HTTP/HTTPS monitors)
+        body:
+          type: string
+          description: Request body (for HTTP/HTTPS monitors)
+        expected_status:
+          type: integer
+          description: Expected HTTP status code
+        timeout:
+          type: integer
+          description: Timeout in seconds
+        interval:
+          type: integer
+          description: Check interval in seconds
+        status:
+          type: string
+          enum: [up, down, paused]
+          description: Monitor status
+        uptime_percentage:
+          type: number
+          format: float
+          description: Uptime percentage
+        last_check:
+          type: string
+          format: date-time
+          description: Last check timestamp
+        created_at:
+          type: string
+          format: date-time
+          description: Monitor creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Monitor last update timestamp
+
+    MonitorCheck:
+      type: object
+      required:
+        - id
+        - monitor_id
+        - status
+        - response_time
+        - checked_at
+      properties:
+        id:
+          type: string
+          description: Unique check identifier
+        monitor_id:
+          type: string
+          description: Monitor identifier
+        status:
+          type: string
+          enum: [up, down]
+          description: Check status
+        response_time:
+          type: number
+          format: float
+          description: Response time in milliseconds
+        status_code:
+          type: integer
+          description: HTTP status code (for HTTP/HTTPS monitors)
+        error_message:
+          type: string
+          description: Error message if check failed
+        checked_at:
+          type: string
+          format: date-time
+          description: Check timestamp
+
+    MonitorStatus:
+      type: object
+      required:
+        - status
+        - uptime_percentage
+        - last_check
+      properties:
+        status:
+          type: string
+          enum: [up, down, paused]
+          description: Current monitor status
+        uptime_percentage:
+          type: number
+          format: float
+          description: Uptime percentage
+        last_check:
+          type: string
+          format: date-time
+          description: Last check timestamp
+        response_time:
+          type: number
+          format: float
+          description: Average response time
+        total_checks:
+          type: integer
+          description: Total number of checks
+        successful_checks:
+          type: integer
+          description: Number of successful checks
+
+    UptimeStats:
+      type: object
+      required:
+        - period
+        - uptime_percentage
+        - total_checks
+        - successful_checks
+      properties:
+        period:
+          type: string
+          description: Statistics period
+        uptime_percentage:
+          type: number
+          format: float
+          description: Overall uptime percentage
+        total_checks:
+          type: integer
+          description: Total number of checks
+        successful_checks:
+          type: integer
+          description: Number of successful checks
+        failed_checks:
+          type: integer
+          description: Number of failed checks
+        average_response_time:
+          type: number
+          format: float
+          description: Average response time
+        monitors:
+          type: array
+          items:
+            type: object
+            properties:
+              monitor_id:
+                type: string
+              name:
+                type: string
+              uptime_percentage:
+                type: number
+                format: float
+              status:
+                type: string
+                enum: [up, down, paused]
+
+    CreateMonitorRequest:
+      type: object
+      required:
+        - name
+        - tenant_id
+        - type
+        - url
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        tenant_id:
+          type: string
+        type:
+          type: string
+          enum: [http, https, ping, tcp, udp, dns]
+        url:
+          type: string
+        method:
+          type: string
+          enum: [GET, POST, PUT, DELETE, HEAD, OPTIONS]
+        headers:
+          type: object
+        body:
+          type: string
+        expected_status:
+          type: integer
+        timeout:
+          type: integer
+          default: 30
+        interval:
+          type: integer
+          default: 300
+
+    UpdateMonitorRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          enum: [http, https, ping, tcp, udp, dns]
+        url:
+          type: string
+        method:
+          type: string
+          enum: [GET, POST, PUT, DELETE, HEAD, OPTIONS]
+        headers:
+          type: object
+        body:
+          type: string
+        expected_status:
+          type: integer
+        timeout:
+          type: integer
+        interval:
+          type: integer
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+

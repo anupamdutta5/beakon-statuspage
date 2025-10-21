@@ -1,0 +1,519 @@
+openapi: 3.0.3
+info:
+  title: Analytics Service API
+  description: API contract for the Analytics Service
+  version: 1.0.0
+  contact:
+    name: Analytics Service Team
+    email: analytics-service@statuspage.com
+
+servers:
+  - url: http://localhost:8007
+    description: Development server
+  - url: https://analytics-service.statuspage.com
+    description: Production server
+
+paths:
+  /analytics/dashboard:
+    get:
+      summary: Get analytics dashboard
+      description: Get analytics dashboard data for a tenant
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [24h, 7d, 30d, 90d]
+            default: 7d
+      responses:
+        '200':
+          description: Analytics dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsDashboard'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /analytics/events:
+    get:
+      summary: Get analytics events
+      description: Get analytics events with optional filtering
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: event_type
+          in: query
+          schema:
+            type: string
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: List of analytics events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AnalyticsEvent'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Track analytics event
+      description: Track a new analytics event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackEventRequest'
+      responses:
+        '201':
+          description: Event tracked successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsEvent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /analytics/metrics:
+    get:
+      summary: Get analytics metrics
+      description: Get analytics metrics for a tenant
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: metric_type
+          in: query
+          schema:
+            type: string
+            enum: [page_views, unique_visitors, bounce_rate, avg_session_duration, conversion_rate]
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [24h, 7d, 30d, 90d]
+            default: 7d
+        - name: granularity
+          in: query
+          schema:
+            type: string
+            enum: [hour, day, week, month]
+            default: day
+      responses:
+        '200':
+          description: Analytics metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsMetrics'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /analytics/reports:
+    get:
+      summary: Get analytics reports
+      description: Get analytics reports for a tenant
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: report_type
+          in: query
+          schema:
+            type: string
+            enum: [summary, detailed, custom]
+            default: summary
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [24h, 7d, 30d, 90d]
+            default: 7d
+      responses:
+        '200':
+          description: Analytics report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsReport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /analytics/export:
+    post:
+      summary: Export analytics data
+      description: Export analytics data in various formats
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportRequest'
+      responses:
+        '200':
+          description: Export file
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    AnalyticsDashboard:
+      type: object
+      required:
+        - tenant_id
+        - period
+        - summary
+      properties:
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        period:
+          type: string
+          description: Analytics period
+        summary:
+          $ref: '#/components/schemas/AnalyticsSummary'
+        widgets:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardWidget'
+        generated_at:
+          type: string
+          format: date-time
+          description: Dashboard generation timestamp
+
+    AnalyticsSummary:
+      type: object
+      required:
+        - total_events
+        - unique_visitors
+        - page_views
+      properties:
+        total_events:
+          type: integer
+          description: Total number of events
+        unique_visitors:
+          type: integer
+          description: Number of unique visitors
+        page_views:
+          type: integer
+          description: Total page views
+        bounce_rate:
+          type: number
+          format: float
+          description: Bounce rate percentage
+        avg_session_duration:
+          type: number
+          format: float
+          description: Average session duration in seconds
+        conversion_rate:
+          type: number
+          format: float
+          description: Conversion rate percentage
+
+    DashboardWidget:
+      type: object
+      required:
+        - id
+        - type
+        - title
+        - data
+      properties:
+        id:
+          type: string
+          description: Widget identifier
+        type:
+          type: string
+          enum: [chart, metric, table, map]
+          description: Widget type
+        title:
+          type: string
+          description: Widget title
+        data:
+          type: object
+          description: Widget data
+        position:
+          type: object
+          properties:
+            x:
+              type: integer
+            y:
+              type: integer
+            width:
+              type: integer
+            height:
+              type: integer
+
+    AnalyticsEvent:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - event_type
+        - timestamp
+      properties:
+        id:
+          type: string
+          description: Unique event identifier
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        event_type:
+          type: string
+          description: Event type
+        user_id:
+          type: string
+          description: User identifier
+        session_id:
+          type: string
+          description: Session identifier
+        properties:
+          type: object
+          description: Event properties
+        timestamp:
+          type: string
+          format: date-time
+          description: Event timestamp
+        created_at:
+          type: string
+          format: date-time
+          description: Event creation timestamp
+
+    AnalyticsMetrics:
+      type: object
+      required:
+        - tenant_id
+        - metric_type
+        - period
+        - data_points
+      properties:
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        metric_type:
+          type: string
+          description: Metric type
+        period:
+          type: string
+          description: Analytics period
+        granularity:
+          type: string
+          description: Data granularity
+        data_points:
+          type: array
+          items:
+            type: object
+            properties:
+              timestamp:
+                type: string
+                format: date-time
+              value:
+                type: number
+        summary:
+          type: object
+          properties:
+            total:
+              type: number
+            average:
+              type: number
+            min:
+              type: number
+            max:
+              type: number
+
+    AnalyticsReport:
+      type: object
+      required:
+        - tenant_id
+        - report_type
+        - period
+        - data
+      properties:
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        report_type:
+          type: string
+          description: Report type
+        period:
+          type: string
+          description: Report period
+        data:
+          type: object
+          description: Report data
+        generated_at:
+          type: string
+          format: date-time
+          description: Report generation timestamp
+
+    TrackEventRequest:
+      type: object
+      required:
+        - tenant_id
+        - event_type
+      properties:
+        tenant_id:
+          type: string
+        event_type:
+          type: string
+        user_id:
+          type: string
+        session_id:
+          type: string
+        properties:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+
+    ExportRequest:
+      type: object
+      required:
+        - tenant_id
+        - format
+        - period
+      properties:
+        tenant_id:
+          type: string
+        format:
+          type: string
+          enum: [csv, json, xlsx, pdf]
+        period:
+          type: string
+          enum: [24h, 7d, 30d, 90d]
+        metric_types:
+          type: array
+          items:
+            type: string
+        start_date:
+          type: string
+          format: date-time
+        end_date:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+

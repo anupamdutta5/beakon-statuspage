@@ -1,0 +1,58 @@
+package events
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+// RabbitMQEventType represents the type of tenant event from RabbitMQ
+type RabbitMQEventType string
+
+const (
+	RabbitMQTenantCreated  RabbitMQEventType = "tenant.created"
+	RabbitMQTenantUpdated  RabbitMQEventType = "tenant.updated"
+	RabbitMQTenantDeleted  RabbitMQEventType = "tenant.deleted"
+	RabbitMQTenantRestored RabbitMQEventType = "tenant.restored"
+	RabbitMQTenantUsers    RabbitMQEventType = "tenant.users.updated"
+)
+
+// RabbitMQTenantEvent represents a tenant lifecycle event from saas-admin-service via RabbitMQ
+type RabbitMQTenantEvent struct {
+	EventID     string            `json:"event_id"`
+	EventType   RabbitMQEventType `json:"event_type"`
+	TenantID    uuid.UUID         `json:"tenant_id"`
+	Timestamp   time.Time         `json:"timestamp"`
+	Data        RabbitMQTenantData      `json:"data"`
+	Metadata    RabbitMQEventMetadata   `json:"metadata"`
+}
+
+// RabbitMQTenantData contains the tenant information from the event
+type RabbitMQTenantData struct{
+	ID            uuid.UUID  `json:"id"`
+	Name          string     `json:"name"`
+	Slug          string     `json:"slug"`
+	Domain        *string    `json:"domain,omitempty"`
+	Subdomain     *string    `json:"subdomain,omitempty"`
+	ContactEmail  string     `json:"contact_email"`
+	BillingEmail  *string    `json:"billing_email,omitempty"`
+	PlanID        uuid.UUID  `json:"plan_id"`
+	Status        string     `json:"status"`
+	MaxUsers      int        `json:"max_users"`
+	Settings      *string    `json:"settings,omitempty"`
+	Branding      *string    `json:"branding,omitempty"`
+	Features      *string    `json:"features,omitempty"`
+	IsActive      bool       `json:"is_active"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+	DeletedAt     *time.Time `json:"deleted_at,omitempty"`
+}
+
+// RabbitMQEventMetadata contains metadata about the event
+type RabbitMQEventMetadata struct {
+	Source        string `json:"source"`
+	CorrelationID string `json:"correlation_id"`
+	UserID        string `json:"user_id,omitempty"`
+	IPAddress     string `json:"ip_address,omitempty"`
+	UserAgent     string `json:"user_agent,omitempty"`
+}

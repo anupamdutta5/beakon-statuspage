@@ -1,0 +1,211 @@
+{
+  "environment": "testing",
+  "log_level": "debug",
+  "timeout": "10m",
+  "retry_attempts": 5,
+  "retry_delay": "2s",
+  "cleanup_on_exit": true,
+  "parallel_tests": false,
+  "coverage_report": true,
+  "test_data_dir": "./testdata",
+  "server": {
+    "port": "8091",
+    "host": "localhost",
+    "read_timeout": "30s",
+    "write_timeout": "30s",
+    "idle_timeout": "120s"
+  },
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "statuspage_event_store_test",
+    "user": "postgres",
+    "password": "postgres",
+    "ssl_mode": "disable",
+    "max_connections": 10,
+    "max_idle_connections": 5,
+    "connection_max_lifetime": "1h"
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "password": "",
+    "db": 0,
+    "pool_size": 10,
+    "min_idle_connections": 5
+  },
+  "kafka": {
+    "brokers": ["localhost:9092"],
+    "topic": "event-store-events",
+    "group_id": "event-store-service-test",
+    "auto_offset_reset": "earliest",
+    "enable_auto_commit": true
+  },
+  "services": {
+    "database_service": {
+      "base_url": "http://localhost:8090",
+      "timeout": "5s"
+    }
+  },
+  "test_scenarios": {
+    "append_event": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_events_by_aggregate_id": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_events_by_type": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_events_by_stream": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_aggregate_snapshot": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "save_aggregate_snapshot": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_event_stream": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "subscribe_to_events": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "publish_event": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "bulk_events": {
+      "enabled": true,
+      "timeout": "10s",
+      "bulk_size": 100
+    }
+  },
+  "mock_data": {
+    "events": [
+      {
+        "aggregate_id": "tenant-123",
+        "aggregate_type": "tenant",
+        "event_type": "tenant.created",
+        "event_data": "{\"name\": \"Test Tenant\", \"subdomain\": \"test\"}",
+        "event_version": 1,
+        "metadata": {
+          "user_id": "user-123",
+          "ip_address": "192.168.1.1"
+        }
+      },
+      {
+        "aggregate_id": "tenant-123",
+        "aggregate_type": "tenant",
+        "event_type": "tenant.updated",
+        "event_data": "{\"name\": \"Updated Tenant\"}",
+        "event_version": 2,
+        "metadata": {
+          "user_id": "user-123",
+          "ip_address": "192.168.1.1"
+        }
+      },
+      {
+        "aggregate_id": "user-456",
+        "aggregate_type": "user",
+        "event_type": "user.created",
+        "event_data": "{\"email\": \"user@example.com\", \"name\": \"Test User\"}",
+        "event_version": 1,
+        "metadata": {
+          "ip_address": "192.168.1.1"
+        }
+      },
+      {
+        "aggregate_id": "incident-789",
+        "aggregate_type": "incident",
+        "event_type": "incident.created",
+        "event_data": "{\"title\": \"Service Outage\", \"severity\": \"high\"}",
+        "event_version": 1,
+        "metadata": {
+          "user_id": "user-123",
+          "component_id": "component-456"
+        }
+      }
+    ],
+    "event_streams": [
+      {
+        "name": "tenant-events",
+        "description": "All tenant-related events",
+        "event_types": ["tenant.created", "tenant.updated", "tenant.deleted"]
+      },
+      {
+        "name": "user-events",
+        "description": "All user-related events",
+        "event_types": ["user.created", "user.updated", "user.deleted"]
+      },
+      {
+        "name": "incident-events",
+        "description": "All incident-related events",
+        "event_types": ["incident.created", "incident.updated", "incident.resolved"]
+      }
+    ],
+    "aggregate_snapshots": [
+      {
+        "aggregate_id": "tenant-123",
+        "aggregate_type": "tenant",
+        "version": 5,
+        "data": "{\"name\": \"Test Tenant\", \"subdomain\": \"test\", \"status\": \"active\"}"
+      },
+      {
+        "aggregate_id": "user-456",
+        "aggregate_type": "user",
+        "version": 3,
+        "data": "{\"email\": \"user@example.com\", \"name\": \"Test User\", \"status\": \"active\"}"
+      }
+    ],
+    "event_types": [
+      "tenant.created",
+      "tenant.updated",
+      "tenant.deleted",
+      "user.created",
+      "user.updated",
+      "user.deleted",
+      "incident.created",
+      "incident.updated",
+      "incident.resolved",
+      "component.created",
+      "component.updated",
+      "component.deleted",
+      "payment.processed",
+      "payment.failed",
+      "subscription.created",
+      "subscription.updated",
+      "subscription.cancelled"
+    ],
+    "aggregate_types": [
+      "tenant",
+      "user",
+      "incident",
+      "component",
+      "payment",
+      "subscription",
+      "notification",
+      "audit"
+    ],
+    "event_versions": [1, 2, 3, 4, 5],
+    "metadata_keys": [
+      "user_id",
+      "ip_address",
+      "session_id",
+      "request_id",
+      "component_id",
+      "tenant_id",
+      "timestamp"
+    ]
+  }
+}
+

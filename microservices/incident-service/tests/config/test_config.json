@@ -1,0 +1,148 @@
+{
+  "environment": "testing",
+  "log_level": "debug",
+  "timeout": "10m",
+  "retry_attempts": 5,
+  "retry_delay": "2s",
+  "cleanup_on_exit": true,
+  "parallel_tests": false,
+  "coverage_report": true,
+  "test_data_dir": "./testdata",
+  "server": {
+    "port": "8085",
+    "host": "localhost",
+    "read_timeout": "30s",
+    "write_timeout": "30s",
+    "idle_timeout": "120s"
+  },
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "statuspage_incident_test",
+    "user": "postgres",
+    "password": "postgres",
+    "ssl_mode": "disable",
+    "max_connections": 10,
+    "max_idle_connections": 5,
+    "connection_max_lifetime": "1h"
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "password": "",
+    "db": 0,
+    "pool_size": 10,
+    "min_idle_connections": 5
+  },
+  "services": {
+    "tenant_service": {
+      "base_url": "http://localhost:8082",
+      "timeout": "5s"
+    },
+    "component_service": {
+      "base_url": "http://localhost:8084",
+      "timeout": "5s"
+    },
+    "notification_service": {
+      "base_url": "http://localhost:8086",
+      "timeout": "5s"
+    }
+  },
+  "test_scenarios": {
+    "create_incident": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "update_incident": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "delete_incident": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "list_incidents": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "update_incident_status": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "add_incident_update": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_incident_updates": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_incidents_by_status": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_incidents_by_severity": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "performance_test": {
+      "enabled": true,
+      "timeout": "10s",
+      "bulk_operations": 20
+    }
+  },
+  "mock_data": {
+    "incidents": [
+      {
+        "title": "API Server Outage",
+        "description": "API server is experiencing downtime",
+        "status": "investigating",
+        "severity": "major",
+        "tenant_id": "test-tenant-id",
+        "component_ids": ["component-1", "component-2"],
+        "metadata": {
+          "affected_users": 1000,
+          "region": "us-east-1"
+        }
+      },
+      {
+        "title": "Database Performance Issues",
+        "description": "Database is experiencing slow query performance",
+        "status": "identified",
+        "severity": "minor",
+        "tenant_id": "test-tenant-id",
+        "component_ids": ["component-3"],
+        "metadata": {
+          "affected_users": 100,
+          "region": "us-west-2"
+        }
+      }
+    ],
+    "incident_updates": [
+      {
+        "message": "We are investigating the issue",
+        "status": "investigating"
+      },
+      {
+        "message": "We have identified the root cause",
+        "status": "identified"
+      },
+      {
+        "message": "The issue has been resolved",
+        "status": "resolved"
+      }
+    ],
+    "statuses": [
+      "investigating",
+      "identified",
+      "monitoring",
+      "resolved"
+    ],
+    "severities": [
+      "minor",
+      "major",
+      "critical"
+    ]
+  }
+}
+

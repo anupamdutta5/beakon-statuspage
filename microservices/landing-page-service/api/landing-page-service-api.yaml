@@ -1,0 +1,1131 @@
+openapi: 3.0.3
+info:
+  title: Landing Page Service API
+  description: API contract for the Landing Page Service
+  version: 1.0.0
+  contact:
+    name: Landing Page Service Team
+    email: landing-page-service@statuspage.com
+
+servers:
+  - url: http://localhost:8012
+    description: Development server
+  - url: https://landing-page-service.statuspage.com
+    description: Production server
+
+paths:
+  /landing-page:
+    get:
+      summary: Get landing page
+      description: Get the public landing page content
+      responses:
+        '200':
+          description: Landing page content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LandingPage'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/landing-page:
+    get:
+      summary: Get landing page admin
+      description: Get landing page content for admin editing
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Landing page admin content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LandingPageAdmin'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update landing page
+      description: Update landing page content
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLandingPageRequest'
+      responses:
+        '200':
+          description: Landing page updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LandingPageAdmin'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/hero-section:
+    get:
+      summary: Get hero section
+      description: Get hero section content
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Hero section content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HeroSection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update hero section
+      description: Update hero section content
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateHeroSectionRequest'
+      responses:
+        '200':
+          description: Hero section updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HeroSection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/features:
+    get:
+      summary: List features
+      description: Get a list of features
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of features
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  features:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Feature'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create feature
+      description: Create a new feature
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFeatureRequest'
+      responses:
+        '201':
+          description: Feature created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Feature'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/features/{feature_id}:
+    get:
+      summary: Get feature
+      description: Get a specific feature by ID
+      parameters:
+        - name: feature_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Feature details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Feature'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update feature
+      description: Update an existing feature
+      parameters:
+        - name: feature_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFeatureRequest'
+      responses:
+        '200':
+          description: Feature updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Feature'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete feature
+      description: Delete a feature
+      parameters:
+        - name: feature_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Feature deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/pricing:
+    get:
+      summary: Get pricing plans
+      description: Get pricing plans for the landing page
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pricing plans
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pricing_plans:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PricingPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update pricing plans
+      description: Update pricing plans for the landing page
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePricingRequest'
+      responses:
+        '200':
+          description: Pricing plans updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pricing_plans:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PricingPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/testimonials:
+    get:
+      summary: List testimonials
+      description: Get a list of testimonials
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of testimonials
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  testimonials:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Testimonial'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create testimonial
+      description: Create a new testimonial
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTestimonialRequest'
+      responses:
+        '201':
+          description: Testimonial created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Testimonial'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/testimonials/{testimonial_id}:
+    get:
+      summary: Get testimonial
+      description: Get a specific testimonial by ID
+      parameters:
+        - name: testimonial_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Testimonial details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Testimonial'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update testimonial
+      description: Update an existing testimonial
+      parameters:
+        - name: testimonial_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTestimonialRequest'
+      responses:
+        '200':
+          description: Testimonial updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Testimonial'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete testimonial
+      description: Delete a testimonial
+      parameters:
+        - name: testimonial_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Testimonial deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/faqs:
+    get:
+      summary: List FAQs
+      description: Get a list of frequently asked questions
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of FAQs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  faqs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FAQ'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create FAQ
+      description: Create a new FAQ
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFAQRequest'
+      responses:
+        '201':
+          description: FAQ created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FAQ'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/faqs/{faq_id}:
+    get:
+      summary: Get FAQ
+      description: Get a specific FAQ by ID
+      parameters:
+        - name: faq_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: FAQ details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FAQ'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update FAQ
+      description: Update an existing FAQ
+      parameters:
+        - name: faq_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFAQRequest'
+      responses:
+        '200':
+          description: FAQ updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FAQ'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete FAQ
+      description: Delete a FAQ
+      parameters:
+        - name: faq_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: FAQ deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    LandingPage:
+      type: object
+      required:
+        - hero_section
+        - features
+        - pricing_plans
+        - testimonials
+        - faqs
+      properties:
+        hero_section:
+          $ref: '#/components/schemas/HeroSection'
+        features:
+          type: array
+          items:
+            $ref: '#/components/schemas/Feature'
+        pricing_plans:
+          type: array
+          items:
+            $ref: '#/components/schemas/PricingPlan'
+        testimonials:
+          type: array
+          items:
+            $ref: '#/components/schemas/Testimonial'
+        faqs:
+          type: array
+          items:
+            $ref: '#/components/schemas/FAQ'
+
+    LandingPageAdmin:
+      type: object
+      required:
+        - tenant_id
+        - hero_section
+        - features
+        - pricing_plans
+        - testimonials
+        - faqs
+        - created_at
+        - updated_at
+      properties:
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        hero_section:
+          $ref: '#/components/schemas/HeroSection'
+        features:
+          type: array
+          items:
+            $ref: '#/components/schemas/Feature'
+        pricing_plans:
+          type: array
+          items:
+            $ref: '#/components/schemas/PricingPlan'
+        testimonials:
+          type: array
+          items:
+            $ref: '#/components/schemas/Testimonial'
+        faqs:
+          type: array
+          items:
+            $ref: '#/components/schemas/FAQ'
+        created_at:
+          type: string
+          format: date-time
+          description: Landing page creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Landing page last update timestamp
+
+    HeroSection:
+      type: object
+      required:
+        - title
+        - subtitle
+        - cta_text
+        - cta_url
+      properties:
+        title:
+          type: string
+          description: Hero title
+        subtitle:
+          type: string
+          description: Hero subtitle
+        description:
+          type: string
+          description: Hero description
+        cta_text:
+          type: string
+          description: Call-to-action button text
+        cta_url:
+          type: string
+          description: Call-to-action button URL
+        background_image:
+          type: string
+          description: Background image URL
+        background_video:
+          type: string
+          description: Background video URL
+        is_active:
+          type: boolean
+          description: Whether hero section is active
+
+    Feature:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - icon
+        - is_active
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique feature identifier
+        title:
+          type: string
+          description: Feature title
+        description:
+          type: string
+          description: Feature description
+        icon:
+          type: string
+          description: Feature icon
+        image_url:
+          type: string
+          description: Feature image URL
+        order:
+          type: integer
+          description: Display order
+        is_active:
+          type: boolean
+          description: Whether feature is active
+        created_at:
+          type: string
+          format: date-time
+          description: Feature creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Feature last update timestamp
+
+    PricingPlan:
+      type: object
+      required:
+        - id
+        - name
+        - price
+        - currency
+        - features
+        - is_popular
+        - is_active
+      properties:
+        id:
+          type: string
+          description: Unique plan identifier
+        name:
+          type: string
+          description: Plan name
+        description:
+          type: string
+          description: Plan description
+        price:
+          type: number
+          format: decimal
+          description: Plan price
+        currency:
+          type: string
+          description: Currency code
+        billing_interval:
+          type: string
+          enum: [monthly, yearly]
+          description: Billing interval
+        features:
+          type: array
+          items:
+            type: string
+          description: Plan features
+        cta_text:
+          type: string
+          description: Call-to-action button text
+        cta_url:
+          type: string
+          description: Call-to-action button URL
+        is_popular:
+          type: boolean
+          description: Whether plan is popular
+        is_active:
+          type: boolean
+          description: Whether plan is active
+        order:
+          type: integer
+          description: Display order
+
+    Testimonial:
+      type: object
+      required:
+        - id
+        - name
+        - company
+        - content
+        - rating
+        - is_active
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique testimonial identifier
+        name:
+          type: string
+          description: Customer name
+        company:
+          type: string
+          description: Customer company
+        position:
+          type: string
+          description: Customer position
+        content:
+          type: string
+          description: Testimonial content
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Customer rating
+        avatar_url:
+          type: string
+          description: Customer avatar URL
+        is_active:
+          type: boolean
+          description: Whether testimonial is active
+        order:
+          type: integer
+          description: Display order
+        created_at:
+          type: string
+          format: date-time
+          description: Testimonial creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Testimonial last update timestamp
+
+    FAQ:
+      type: object
+      required:
+        - id
+        - question
+        - answer
+        - is_active
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique FAQ identifier
+        question:
+          type: string
+          description: FAQ question
+        answer:
+          type: string
+          description: FAQ answer
+        category:
+          type: string
+          description: FAQ category
+        is_active:
+          type: boolean
+          description: Whether FAQ is active
+        order:
+          type: integer
+          description: Display order
+        created_at:
+          type: string
+          format: date-time
+          description: FAQ creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: FAQ last update timestamp
+
+    UpdateLandingPageRequest:
+      type: object
+      properties:
+        hero_section:
+          $ref: '#/components/schemas/UpdateHeroSectionRequest'
+        features:
+          type: array
+          items:
+            $ref: '#/components/schemas/UpdateFeatureRequest'
+        pricing_plans:
+          $ref: '#/components/schemas/UpdatePricingRequest'
+        testimonials:
+          type: array
+          items:
+            $ref: '#/components/schemas/UpdateTestimonialRequest'
+        faqs:
+          type: array
+          items:
+            $ref: '#/components/schemas/UpdateFAQRequest'
+
+    UpdateHeroSectionRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        subtitle:
+          type: string
+        description:
+          type: string
+        cta_text:
+          type: string
+        cta_url:
+          type: string
+        background_image:
+          type: string
+        background_video:
+          type: string
+        is_active:
+          type: boolean
+
+    CreateFeatureRequest:
+      type: object
+      required:
+        - title
+        - description
+        - icon
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+        image_url:
+          type: string
+        order:
+          type: integer
+
+    UpdateFeatureRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+        image_url:
+          type: string
+        order:
+          type: integer
+        is_active:
+          type: boolean
+
+    UpdatePricingRequest:
+      type: object
+      properties:
+        pricing_plans:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              description:
+                type: string
+              price:
+                type: number
+                format: decimal
+              currency:
+                type: string
+              billing_interval:
+                type: string
+                enum: [monthly, yearly]
+              features:
+                type: array
+                items:
+                  type: string
+              cta_text:
+                type: string
+              cta_url:
+                type: string
+              is_popular:
+                type: boolean
+              is_active:
+                type: boolean
+              order:
+                type: integer
+
+    CreateTestimonialRequest:
+      type: object
+      required:
+        - name
+        - company
+        - content
+        - rating
+      properties:
+        name:
+          type: string
+        company:
+          type: string
+        position:
+          type: string
+        content:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        avatar_url:
+          type: string
+        order:
+          type: integer
+
+    UpdateTestimonialRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        company:
+          type: string
+        position:
+          type: string
+        content:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        avatar_url:
+          type: string
+        order:
+          type: integer
+        is_active:
+          type: boolean
+
+    CreateFAQRequest:
+      type: object
+      required:
+        - question
+        - answer
+      properties:
+        question:
+          type: string
+        answer:
+          type: string
+        category:
+          type: string
+        order:
+          type: integer
+
+    UpdateFAQRequest:
+      type: object
+      properties:
+        question:
+          type: string
+        answer:
+          type: string
+        category:
+          type: string
+        order:
+          type: integer
+        is_active:
+          type: boolean
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+

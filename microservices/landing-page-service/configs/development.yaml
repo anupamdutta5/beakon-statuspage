@@ -1,0 +1,77 @@
+environment: development
+
+service:
+  name: landing-page-service
+  version: 1.0.0
+  description: Landing Page Service for StatusPage
+  tags:
+    - landing
+    - marketing
+    - frontend
+  metadata:
+    owner: platform-team
+    maintainer: devops@company.com
+
+server:
+  host: ${SERVER_HOST:localhost}
+  port: ${SERVER_PORT:8100}
+  read_timeout: 30
+  write_timeout: 30
+  idle_timeout: 120
+
+database:
+  host: ${DB_HOST:localhost}
+  port: ${DB_PORT:5432}
+  user: ${DB_USER:statuspage_user}
+  password: ${DB_PASSWORD}
+  name: ${DB_NAME:statuspage_landing}
+  ssl_mode: disable
+  max_conns: 25
+  min_conns: 5
+  max_idle: 10
+  max_lifetime: 3600
+
+# API Gateway configuration - all inter-service calls should route through gateway
+api_gateway:
+  url: ${API_GATEWAY_URL:http://localhost:8080}
+
+cache:
+  provider: redis
+  host: ${REDIS_HOST:localhost}
+  port: ${REDIS_PORT:6379}
+  password: ${REDIS_PASSWORD:}
+  db: 0
+  ttl: 300
+  key_prefix: "statuspage:landing-page-service"
+
+logging:
+  level: ${LOG_LEVEL:debug}
+  format: json
+  output: stdout
+
+templates:
+  path: web/templates
+  cache: false
+
+static:
+  path: web/static
+  cache_control: "public, max-age=3600"
+
+# Service URLs - route through API Gateway
+services:
+  database_service:
+    base_url: ${API_GATEWAY_URL:http://localhost:8080}
+    timeout: 5s
+  event_store_service:
+    base_url: ${API_GATEWAY_URL:http://localhost:8080}
+    timeout: 5s
+  saas_admin_service:
+    base_url: ${API_GATEWAY_URL:http://localhost:8080}
+    timeout: 5s
+
+features:
+  enable_analytics: true
+  enable_contact_form: true
+  enable_newsletter: true
+  enable_blog: true
+  use_database_service: ${FEATURE_USE_DATABASE_SERVICE:false}

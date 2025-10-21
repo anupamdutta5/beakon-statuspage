@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <meta name="description" content="{{.Description}}">
+    <link rel="stylesheet" href="/static/css/animations.css">
+    <link rel="stylesheet" href="/static/css/tailwind-directives.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .payment-container {
+            max-width: 800px;
+            margin: 40px auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            animation: fadeInUp 0.6s ease-out;
+        }
+        .payment-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            align-items: start;
+        }
+        @media (max-width: 768px) {
+            .payment-grid {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+        }
+        .plan-summary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(102, 126, 234, 0.4);
+        }
+        .plan-summary h3 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            font-weight: 700;
+        }
+        .plan-price {
+            font-size: 36px;
+            font-weight: 900;
+            margin: 20px 0;
+        }
+        .plan-features {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0 0 0;
+        }
+        .plan-features li {
+            padding: 8px 0;
+            position: relative;
+            padding-left: 25px;
+        }
+        .plan-features li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #a7f3d0;
+            font-weight: bold;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-row {
+            display: flex;
+            gap: 15px;
+        }
+        .form-row .form-group {
+            flex: 1;
+        }
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #374151;
+        }
+        .form-input, .form-select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.8);
+        }
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4);
+        }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .security-notice {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #0c4a6e;
+        }
+        .text-center {
+            text-align: center;
+        }
+        .text-sm {
+            font-size: 14px;
+        }
+        .alert {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .alert-error {
+            background-color: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+        .alert-success {
+            background-color: #f0fdf4;
+            color: #16a34a;
+            border: 1px solid #bbf7d0;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="payment-container">
+        <div class="text-center mb-8">
+            <h1 style="font-size: 32px; font-weight: 700; color: #1f2937; margin-bottom: 8px;">Complete Your Payment</h1>
+            <p style="color: #6b7280;">Secure payment processing with 256-bit SSL encryption</p>
+        </div>
+
+        <div class="payment-grid">
+            <!-- Plan Summary -->
+            <div class="plan-summary">
+                <h3>{{.Plan.name}} Plan</h3>
+                <div class="plan-price">${{.Plan.price}}<span style="font-size: 18px; font-weight: 400;">/month</span></div>
+
+                <h4 style="margin: 20px 0 10px 0; font-size: 18px;">Included features:</h4>
+                <ul class="plan-features">
+                    {{range .Plan.features}}
+                    <li>{{.}}</li>
+                    {{end}}
+                </ul>
+
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2);">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <span>Subtotal:</span>
+                        <span>${{.Plan.price}}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 18px;">
+                        <span>Total:</span>
+                        <span>${{.Plan.price}}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payment Form -->
+            <div>
+                <div id="alert" class="alert"></div>
+
+                <div class="security-notice">
+                    🔒 Your payment information is encrypted and secure. We use industry-standard SSL encryption.
+                </div>
+
+                <form id="paymentForm">
+                    <input type="hidden" name="plan" value="{{.PlanName}}">
+
+                    <div class="form-group">
+                        <label class="form-label" for="billing_email">Billing Email</label>
+                        <input type="email" id="billing_email" name="billing_email" class="form-input" required
+                               placeholder="billing@yourcompany.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="payment_method">Payment Method</label>
+                        <select id="payment_method" name="payment_method" class="form-select" required>
+                            <option value="">Select payment method</option>
+                            <option value="card">Credit/Debit Card</option>
+                            <option value="paypal">PayPal</option>
+                        </select>
+                    </div>
+
+                    <div id="card-details" style="display: none;">
+                        <div class="form-group">
+                            <label class="form-label" for="card_number">Card Number</label>
+                            <input type="text" id="card_number" name="card_number" class="form-input"
+                                   placeholder="1234 5678 9012 3456" maxlength="19">
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label" for="expiry_month">Expiry Month</label>
+                                <select id="expiry_month" name="expiry_month" class="form-select">
+                                    <option value="">Month</option>
+                                    <option value="01">01</option>
+                                    <option value="02">02</option>
+                                    <option value="03">03</option>
+                                    <option value="04">04</option>
+                                    <option value="05">05</option>
+                                    <option value="06">06</option>
+                                    <option value="07">07</option>
+                                    <option value="08">08</option>
+                                    <option value="09">09</option>
+                                    <option value="10">10</option>
+                                    <option value="11">11</option>
+                                    <option value="12">12</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="expiry_year">Expiry Year</label>
+                                <select id="expiry_year" name="expiry_year" class="form-select">
+                                    <option value="">Year</option>
+                                    <option value="2024">2024</option>
+                                    <option value="2025">2025</option>
+                                    <option value="2026">2026</option>
+                                    <option value="2027">2027</option>
+                                    <option value="2028">2028</option>
+                                    <option value="2029">2029</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="cvv">CVV</label>
+                                <input type="text" id="cvv" name="cvv" class="form-input"
+                                       placeholder="123" maxlength="4">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn" id="paymentBtn">
+                        Complete Payment - ${{.Plan.price}}
+                    </button>
+
+                    <div class="loading" id="loading">
+                        <p>Processing your payment...</p>
+                    </div>
+                </form>
+
+                <div class="text-center" style="margin-top: 20px;">
+                    <p class="text-sm" style="color: #6b7280;">
+                        By proceeding, you agree to our Terms of Service and Privacy Policy.
+                        You can cancel anytime from your dashboard.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Show/hide card details based on payment method
+        document.getElementById('payment_method').addEventListener('change', function() {
+            const cardDetails = document.getElementById('card-details');
+            const cardInputs = cardDetails.querySelectorAll('input, select');
+
+            if (this.value === 'card') {
+                cardDetails.style.display = 'block';
+                cardInputs.forEach(input => input.required = true);
+            } else {
+                cardDetails.style.display = 'none';
+                cardInputs.forEach(input => input.required = false);
+            }
+        });
+
+        // Format card number input
+        document.getElementById('card_number').addEventListener('input', function() {
+            let value = this.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+            let formattedValue = '';
+            for (let i = 0; i < value.length; i++) {
+                if (i > 0 && i % 4 === 0) {
+                    formattedValue += ' ';
+                }
+                formattedValue += value[i];
+            }
+            this.value = formattedValue;
+        });
+
+        // Handle form submission
+        document.getElementById('paymentForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const btn = document.getElementById('paymentBtn');
+            const loading = document.getElementById('loading');
+            const alert = document.getElementById('alert');
+
+            // Get form data
+            const formData = new FormData(e.target);
+            const data = {
+                plan: formData.get('plan'),
+                payment_method: formData.get('payment_method'),
+                billing_email: formData.get('billing_email'),
+                card_number: formData.get('card_number'),
+                expiry_month: formData.get('expiry_month'),
+                expiry_year: formData.get('expiry_year'),
+                cvv: formData.get('cvv')
+            };
+
+            // Disable button and show loading
+            btn.disabled = true;
+            loading.style.display = 'block';
+            alert.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/v1/payment/process', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Success
+                    alert.className = 'alert alert-success';
+                    alert.textContent = result.message || 'Payment processed successfully!';
+                    alert.style.display = 'block';
+
+                    // Store payment info if provided
+                    if (result.payment) {
+                        localStorage.setItem('payment_data', JSON.stringify(result.payment));
+                    }
+
+                    // Show success message and redirect
+                    setTimeout(() => {
+                        alert.textContent = 'Redirecting to your dashboard...';
+                        setTimeout(() => {
+                            window.location.href = result.redirect || '/dashboard';
+                        }, 1000);
+                    }, 2000);
+                } else {
+                    // Error
+                    alert.className = 'alert alert-error';
+                    alert.textContent = result.error || 'Payment failed. Please try again.';
+                    alert.style.display = 'block';
+                }
+            } catch (error) {
+                // Network error
+                alert.className = 'alert alert-error';
+                alert.textContent = 'Connection error. Please try again.';
+                alert.style.display = 'block';
+            } finally {
+                // Re-enable button and hide loading
+                btn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

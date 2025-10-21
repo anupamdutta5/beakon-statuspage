@@ -1,0 +1,28 @@
+{{define "admin.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.title}}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.ico">
+    <link rel="icon" href="/static/favicon.ico" sizes="any">
+
+    {{template "partials/styles.html"}}
+</head>
+<body class="admin-body">
+    <div class="admin-container">
+        {{template "partials/sidebar.html"}}
+
+        <!-- Main Content -->
+        <main class="main-content">
+            {{template "partials/header.html"}}
+
+            {{template "partials/dashboard.html"}}
+        </main>
+    </div>
+
+    {{template "partials/scripts.html"}}
+</body>
+</html>
+{{end}}

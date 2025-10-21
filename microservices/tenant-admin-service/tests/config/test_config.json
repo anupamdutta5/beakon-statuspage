@@ -1,0 +1,320 @@
+{
+  "environment": "testing",
+  "log_level": "debug",
+  "timeout": "10m",
+  "retry_attempts": 5,
+  "retry_delay": "2s",
+  "cleanup_on_exit": true,
+  "parallel_tests": false,
+  "coverage_report": true,
+  "test_data_dir": "./testdata",
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "statuspage_tenant_admin_test",
+    "user": "postgres",
+    "password": "postgres",
+    "ssl_mode": "disable",
+    "max_connections": 10,
+    "max_idle_connections": 5,
+    "connection_max_lifetime": "1h"
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "password": "",
+    "db": 0,
+    "pool_size": 10,
+    "min_idle_connections": 5
+  },
+  "server": {
+    "port": 8093,
+    "health_path": "/health",
+    "base_url": "http://localhost:8093"
+  },
+  "services": {
+    "database_service": {
+      "base_url": "http://localhost:8090",
+      "timeout": "5s"
+    },
+    "event_store_service": {
+      "base_url": "http://localhost:8091",
+      "timeout": "5s"
+    },
+    "tenant_service": {
+      "base_url": "http://localhost:8081",
+      "timeout": "5s"
+    },
+    "user_service": {
+      "base_url": "http://localhost:8082",
+      "timeout": "5s"
+    },
+    "payment_service": {
+      "base_url": "http://localhost:8083",
+      "timeout": "5s"
+    },
+    "saas_admin_service": {
+      "base_url": "http://localhost:8092",
+      "timeout": "5s"
+    }
+  },
+  "test_scenarios": {
+    "get_tenant_settings": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "update_tenant_settings": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_tenant_users": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "add_tenant_user": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "update_tenant_user": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "remove_tenant_user": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_tenant_usage": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_tenant_billing": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_tenant_feature_flags": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "update_tenant_feature_flag": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "concurrency_test": {
+      "enabled": true,
+      "timeout": "30s",
+      "concurrent_requests": 10
+    },
+    "error_handling": {
+      "enabled": true,
+      "timeout": "5s"
+    }
+  },
+  "mock_data": {
+    "tenant_settings": {
+      "tenant_id": "test-tenant-id",
+      "settings": {
+        "notifications": {
+          "email_enabled": true,
+          "sms_enabled": false,
+          "webhook_url": "https://example.com/webhook",
+          "notification_channels": ["email", "webhook"]
+        },
+        "branding": {
+          "logo_url": "https://example.com/logo.png",
+          "primary_color": "#007bff",
+          "secondary_color": "#6c757d",
+          "font_family": "Inter",
+          "custom_css": ".custom { color: red; }"
+        },
+        "security": {
+          "two_factor_enabled": true,
+          "session_timeout": 3600,
+          "password_policy": {
+            "min_length": 8,
+            "require_uppercase": true,
+            "require_lowercase": true,
+            "require_numbers": true,
+            "require_symbols": true
+          }
+        },
+        "api": {
+          "rate_limit": 1000,
+          "webhook_retry_attempts": 3,
+          "webhook_timeout": 30
+        }
+      }
+    },
+    "tenant_users": [
+      {
+        "tenant_id": "test-tenant-id",
+        "user_id": "user-1",
+        "role": "admin",
+        "status": "active",
+        "permissions": ["read", "write", "admin"],
+        "last_login": "2024-01-15T10:30:00Z"
+      },
+      {
+        "tenant_id": "test-tenant-id",
+        "user_id": "user-2",
+        "role": "user",
+        "status": "active",
+        "permissions": ["read", "write"],
+        "last_login": "2024-01-14T15:45:00Z"
+      },
+      {
+        "tenant_id": "test-tenant-id",
+        "user_id": "user-3",
+        "role": "viewer",
+        "status": "inactive",
+        "permissions": ["read"],
+        "last_login": "2024-01-10T09:15:00Z"
+      }
+    ],
+    "tenant_usage": {
+      "tenant_id": "test-tenant-id",
+      "usage": {
+        "incidents": {
+          "total": 150,
+          "this_month": 12,
+          "limit": 100,
+          "overage": 12
+        },
+        "components": {
+          "total": 45,
+          "this_month": 3,
+          "limit": 50,
+          "overage": 0
+        },
+        "users": {
+          "total": 25,
+          "active": 20,
+          "limit": 30,
+          "overage": 0
+        },
+        "api_calls": {
+          "total": 8500,
+          "this_month": 8500,
+          "limit": 10000,
+          "overage": 0
+        },
+        "storage": {
+          "used_gb": 7.5,
+          "limit_gb": 10,
+          "overage_gb": 0
+        }
+      },
+      "period": {
+        "start": "2024-01-01T00:00:00Z",
+        "end": "2024-01-31T23:59:59Z"
+      }
+    },
+    "tenant_billing": {
+      "tenant_id": "test-tenant-id",
+      "subscription": {
+        "plan": "Pro Plan",
+        "status": "active",
+        "billing_cycle": "monthly",
+        "price": 2999,
+        "currency": "USD",
+        "next_billing_date": "2024-02-01T00:00:00Z",
+        "trial_end": null
+      },
+      "invoices": [
+        {
+          "id": "inv_123456789",
+          "number": "INV-001",
+          "amount": 2999,
+          "currency": "USD",
+          "status": "paid",
+          "due_date": "2024-01-01T00:00:00Z",
+          "paid_date": "2024-01-01T10:30:00Z"
+        }
+      ],
+      "payment_methods": [
+        {
+          "id": "pm_123456789",
+          "type": "card",
+          "last_four": "4242",
+          "brand": "visa",
+          "exp_month": 12,
+          "exp_year": 2025,
+          "is_default": true
+        }
+      ]
+    },
+    "tenant_feature_flags": [
+      {
+        "tenant_id": "test-tenant-id",
+        "name": "advanced_analytics",
+        "is_enabled": true,
+        "value": "true",
+        "description": "Enable advanced analytics features",
+        "metadata": {
+          "rollout_percentage": 100,
+          "target_users": "all"
+        }
+      },
+      {
+        "tenant_id": "test-tenant-id",
+        "name": "custom_domain",
+        "is_enabled": false,
+        "value": "false",
+        "description": "Enable custom domain support",
+        "metadata": {
+          "rollout_percentage": 0,
+          "target_users": "enterprise"
+        }
+      },
+      {
+        "tenant_id": "test-tenant-id",
+        "name": "api_rate_limit",
+        "is_enabled": true,
+        "value": "1000",
+        "description": "API rate limit per hour",
+        "metadata": {
+          "rollout_percentage": 100,
+          "default_value": "1000"
+        }
+      }
+    ],
+    "user_roles": [
+      "admin",
+      "user",
+      "viewer",
+      "guest"
+    ],
+    "user_statuses": [
+      "active",
+      "inactive",
+      "suspended",
+      "pending"
+    ],
+    "permissions": [
+      "read",
+      "write",
+      "admin",
+      "billing",
+      "settings"
+    ],
+    "notification_channels": [
+      "email",
+      "sms",
+      "webhook",
+      "push",
+      "slack"
+    ],
+    "billing_cycles": [
+      "monthly",
+      "quarterly",
+      "annual"
+    ],
+    "subscription_statuses": [
+      "active",
+      "cancelled",
+      "past_due",
+      "unpaid",
+      "trialing"
+    ]
+  }
+}
+

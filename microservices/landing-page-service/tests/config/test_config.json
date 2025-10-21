@@ -1,0 +1,365 @@
+{
+  "environment": "testing",
+  "log_level": "debug",
+  "timeout": "10m",
+  "retry_attempts": 5,
+  "retry_delay": "2s",
+  "cleanup_on_exit": true,
+  "parallel_tests": false,
+  "coverage_report": true,
+  "test_data_dir": "./testdata",
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "statuspage_landing_page_test",
+    "user": "postgres",
+    "password": "postgres",
+    "ssl_mode": "disable",
+    "max_connections": 10,
+    "max_idle_connections": 5,
+    "connection_max_lifetime": "1h"
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "password": "",
+    "db": 0,
+    "pool_size": 10,
+    "min_idle_connections": 5
+  },
+  "server": {
+    "port": 8094,
+    "health_path": "/health",
+    "base_url": "http://localhost:8094"
+  },
+  "services": {
+    "database_service": {
+      "base_url": "http://localhost:8090",
+      "timeout": "5s"
+    },
+    "event_store_service": {
+      "base_url": "http://localhost:8091",
+      "timeout": "5s"
+    },
+    "saas_admin_service": {
+      "base_url": "http://localhost:8092",
+      "timeout": "5s"
+    }
+  },
+  "test_scenarios": {
+    "get_landing_page": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "create_article": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_article": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "update_article": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "delete_article": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "list_articles": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "create_testimonial": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_testimonials": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "create_faq": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_faqs": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_pricing_plans": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "concurrency_test": {
+      "enabled": true,
+      "timeout": "30s",
+      "concurrent_requests": 10
+    },
+    "error_handling": {
+      "enabled": true,
+      "timeout": "5s"
+    }
+  },
+  "mock_data": {
+    "landing_page_content": {
+      "hero": {
+        "title": "Monitor Your Services with Confidence",
+        "subtitle": "Professional Status Pages Made Simple",
+        "description": "Create beautiful, real-time status pages that keep your users informed about your service availability.",
+        "cta_button": "Start Free Trial",
+        "cta_url": "/signup",
+        "background_image": "https://example.com/hero-bg.jpg"
+      },
+      "features": [
+        {
+          "title": "Real-time Monitoring",
+          "description": "Get instant notifications when your services go down or experience issues.",
+          "icon": "monitor",
+          "image": "https://example.com/feature1.jpg"
+        },
+        {
+          "title": "Beautiful Status Pages",
+          "description": "Create stunning status pages that match your brand and keep users informed.",
+          "icon": "design",
+          "image": "https://example.com/feature2.jpg"
+        },
+        {
+          "title": "Team Collaboration",
+          "description": "Work together with your team to resolve incidents and communicate updates.",
+          "icon": "team",
+          "image": "https://example.com/feature3.jpg"
+        },
+        {
+          "title": "API Integration",
+          "description": "Integrate with your existing tools and workflows using our powerful API.",
+          "icon": "api",
+          "image": "https://example.com/feature4.jpg"
+        }
+      ],
+      "pricing": {
+        "title": "Simple, Transparent Pricing",
+        "description": "Choose the plan that fits your needs. All plans include our core features.",
+        "plans": [
+          {
+            "name": "Free",
+            "price": 0,
+            "currency": "USD",
+            "billing_cycle": "monthly",
+            "features": [
+              "1 Status Page",
+              "5 Components",
+              "Basic Monitoring",
+              "Email Support"
+            ],
+            "cta_button": "Get Started",
+            "cta_url": "/signup?plan=free",
+            "is_popular": false
+          },
+          {
+            "name": "Pro",
+            "price": 2999,
+            "currency": "USD",
+            "billing_cycle": "monthly",
+            "features": [
+              "Unlimited Status Pages",
+              "Unlimited Components",
+              "Advanced Monitoring",
+              "Custom Domains",
+              "API Access",
+              "Priority Support"
+            ],
+            "cta_button": "Start Free Trial",
+            "cta_url": "/signup?plan=pro",
+            "is_popular": true
+          },
+          {
+            "name": "Enterprise",
+            "price": 9999,
+            "currency": "USD",
+            "billing_cycle": "monthly",
+            "features": [
+              "Everything in Pro",
+              "SLA Guarantee",
+              "Dedicated Support",
+              "Custom Integrations",
+              "Advanced Analytics",
+              "SSO Integration"
+            ],
+            "cta_button": "Contact Sales",
+            "cta_url": "/contact?plan=enterprise",
+            "is_popular": false
+          }
+        ]
+      },
+      "testimonials": [
+        {
+          "name": "Sarah Johnson",
+          "company": "TechCorp",
+          "role": "CTO",
+          "content": "This service has transformed how we communicate with our users during outages. The interface is intuitive and the real-time updates are invaluable.",
+          "avatar": "https://example.com/avatar1.jpg",
+          "rating": 5,
+          "is_featured": true
+        },
+        {
+          "name": "Michael Chen",
+          "company": "StartupXYZ",
+          "role": "Founder",
+          "content": "The best status page service we've used. Easy to set up, beautiful design, and our users love the transparency.",
+          "avatar": "https://example.com/avatar2.jpg",
+          "rating": 5,
+          "is_featured": true
+        },
+        {
+          "name": "Emily Rodriguez",
+          "company": "Enterprise Solutions",
+          "role": "DevOps Manager",
+          "content": "The API integration and team collaboration features have streamlined our incident response process significantly.",
+          "avatar": "https://example.com/avatar3.jpg",
+          "rating": 5,
+          "is_featured": false
+        }
+      ],
+      "faqs": [
+        {
+          "question": "What is a status page?",
+          "answer": "A status page is a public-facing webpage that displays the current operational status of your services, systems, and applications. It helps keep your users informed about any ongoing issues or maintenance.",
+          "category": "general",
+          "order": 1,
+          "is_active": true
+        },
+        {
+          "question": "How quickly can I set up a status page?",
+          "answer": "You can have a basic status page up and running in under 5 minutes. Simply sign up, add your services, and customize your page to match your brand.",
+          "category": "setup",
+          "order": 2,
+          "is_active": true
+        },
+        {
+          "question": "Do you offer custom domains?",
+          "answer": "Yes! Pro and Enterprise plans include custom domain support, allowing you to host your status page on your own domain (e.g., status.yourcompany.com).",
+          "category": "features",
+          "order": 3,
+          "is_active": true
+        },
+        {
+          "question": "What happens if your service goes down?",
+          "answer": "We have a 99.9% uptime SLA and use multiple monitoring systems to ensure our service remains available. In the rare event of an issue, we communicate transparently through our own status page.",
+          "category": "reliability",
+          "order": 4,
+          "is_active": true
+        },
+        {
+          "question": "Can I integrate with my existing tools?",
+          "answer": "Absolutely! We offer integrations with popular tools like Slack, PagerDuty, Datadog, and many others. Our API also allows for custom integrations.",
+          "category": "integrations",
+          "order": 5,
+          "is_active": true
+        }
+      ]
+    },
+    "articles": [
+      {
+        "title": "Getting Started with Status Pages",
+        "slug": "getting-started-with-status-pages",
+        "content": "Learn how to create your first status page and keep your users informed about service availability.",
+        "excerpt": "A comprehensive guide to setting up your first status page.",
+        "author": "John Doe",
+        "status": "published",
+        "published_at": "2024-01-15T10:30:00Z",
+        "tags": ["getting-started", "status-pages", "tutorial"],
+        "meta_title": "Getting Started with Status Pages - Complete Guide",
+        "meta_description": "Learn how to create your first status page and keep your users informed about service availability."
+      },
+      {
+        "title": "Best Practices for Incident Communication",
+        "slug": "best-practices-incident-communication",
+        "content": "Discover the best practices for communicating with users during service incidents and outages.",
+        "excerpt": "Learn how to communicate effectively during incidents.",
+        "author": "Jane Smith",
+        "status": "published",
+        "published_at": "2024-01-10T14:20:00Z",
+        "tags": ["incidents", "communication", "best-practices"],
+        "meta_title": "Best Practices for Incident Communication",
+        "meta_description": "Discover the best practices for communicating with users during service incidents and outages."
+      }
+    ],
+    "testimonials": [
+      {
+        "name": "Alex Thompson",
+        "company": "CloudTech",
+        "role": "Engineering Manager",
+        "content": "The real-time monitoring and beautiful status pages have improved our user experience significantly.",
+        "avatar": "https://example.com/avatar4.jpg",
+        "rating": 5,
+        "is_featured": true
+      },
+      {
+        "name": "Lisa Wang",
+        "company": "DataFlow",
+        "role": "Product Manager",
+        "content": "Easy to use, reliable, and our customers appreciate the transparency during incidents.",
+        "avatar": "https://example.com/avatar5.jpg",
+        "rating": 5,
+        "is_featured": false
+      }
+    ],
+    "faqs": [
+      {
+        "question": "Is there a free trial available?",
+        "answer": "Yes! We offer a 14-day free trial for all paid plans. No credit card required to start.",
+        "category": "billing",
+        "order": 6,
+        "is_active": true
+      },
+      {
+        "question": "How do I cancel my subscription?",
+        "answer": "You can cancel your subscription at any time from your account settings. Your service will remain active until the end of your current billing period.",
+        "category": "billing",
+        "order": 7,
+        "is_active": true
+      }
+    ],
+    "article_categories": [
+      "getting-started",
+      "tutorials",
+      "best-practices",
+      "incidents",
+      "monitoring",
+      "integrations",
+      "api",
+      "security"
+    ],
+    "article_tags": [
+      "status-pages",
+      "monitoring",
+      "incidents",
+      "communication",
+      "best-practices",
+      "tutorial",
+      "getting-started",
+      "api",
+      "integrations",
+      "security"
+    ],
+    "testimonial_categories": [
+      "enterprise",
+      "startup",
+      "developer",
+      "devops",
+      "product"
+    ],
+    "faq_categories": [
+      "general",
+      "setup",
+      "features",
+      "billing",
+      "integrations",
+      "reliability",
+      "security",
+      "support"
+    ]
+  }
+}
+

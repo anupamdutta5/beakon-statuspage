@@ -1,0 +1,58 @@
+package events
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+// TenantEventType represents the type of tenant event
+type TenantEventType string
+
+const (
+	TenantCreated  TenantEventType = "tenant.created"
+	TenantUpdated  TenantEventType = "tenant.updated"
+	TenantDeleted  TenantEventType = "tenant.deleted"
+	TenantRestored TenantEventType = "tenant.restored"
+	TenantUsers    TenantEventType = "tenant.users.updated"
+)
+
+// TenantEvent represents a tenant lifecycle event
+type TenantEvent struct {
+	EventID     string          `json:"event_id"`
+	EventType   TenantEventType `json:"event_type"`
+	TenantID    uuid.UUID       `json:"tenant_id"`
+	Timestamp   time.Time       `json:"timestamp"`
+	Data        TenantData      `json:"data"`
+	Metadata    EventMetadata   `json:"metadata"`
+}
+
+// TenantData contains the tenant information
+type TenantData struct {
+	ID            uuid.UUID  `json:"id"`
+	Name          string     `json:"name"`
+	Slug          string     `json:"slug"`
+	Domain        *string    `json:"domain,omitempty"`
+	Subdomain     *string    `json:"subdomain,omitempty"`
+	ContactEmail  string     `json:"contact_email"`
+	BillingEmail  *string    `json:"billing_email,omitempty"`
+	PlanID        uuid.UUID  `json:"plan_id"`
+	Status        string     `json:"status"`
+	MaxUsers      int        `json:"max_users"`
+	Settings      *string    `json:"settings,omitempty"`
+	Branding      *string    `json:"branding,omitempty"`
+	Features      *string    `json:"features,omitempty"`
+	IsActive      bool       `json:"is_active"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+	DeletedAt     *time.Time `json:"deleted_at,omitempty"`
+}
+
+// EventMetadata contains metadata about the event
+type EventMetadata struct {
+	Source        string `json:"source"`        // "saas-admin-service"
+	CorrelationID string `json:"correlation_id"`
+	UserID        string `json:"user_id,omitempty"`
+	IPAddress     string `json:"ip_address,omitempty"`
+	UserAgent     string `json:"user_agent,omitempty"`
+}

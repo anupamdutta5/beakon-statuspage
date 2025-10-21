@@ -1,0 +1,643 @@
+openapi: 3.0.3
+info:
+  title: Notification Service API
+  description: API contract for the Notification Service
+  version: 1.0.0
+  contact:
+    name: Notification Service Team
+    email: notification-service@statuspage.com
+
+servers:
+  - url: http://localhost:8008
+    description: Development server
+  - url: https://notification-service.statuspage.com
+    description: Production server
+
+paths:
+  /notifications:
+    get:
+      summary: List notifications
+      description: Get a list of notifications with optional filtering
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, sent, delivered, failed]
+        - name: channel
+          in: query
+          schema:
+            type: string
+            enum: [email, sms, webhook, push, slack]
+      responses:
+        '200':
+          description: List of notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notifications:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Send notification
+      description: Send a new notification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendNotificationRequest'
+      responses:
+        '201':
+          description: Notification sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /notifications/{notification_id}:
+    get:
+      summary: Get notification
+      description: Get a specific notification by ID
+      parameters:
+        - name: notification_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Notification details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update notification
+      description: Update an existing notification
+      parameters:
+        - name: notification_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateNotificationRequest'
+      responses:
+        '200':
+          description: Notification updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete notification
+      description: Delete a notification
+      parameters:
+        - name: notification_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Notification deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /notifications/{notification_id}/retry:
+    post:
+      summary: Retry notification
+      description: Retry a failed notification
+      parameters:
+        - name: notification_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Notification retry initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /templates:
+    get:
+      summary: List notification templates
+      description: Get a list of notification templates
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: channel
+          in: query
+          schema:
+            type: string
+            enum: [email, sms, webhook, push, slack]
+      responses:
+        '200':
+          description: List of notification templates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templates:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NotificationTemplate'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create notification template
+      description: Create a new notification template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTemplateRequest'
+      responses:
+        '201':
+          description: Template created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTemplate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /templates/{template_id}:
+    get:
+      summary: Get notification template
+      description: Get a specific notification template by ID
+      parameters:
+        - name: template_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Template details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTemplate'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update notification template
+      description: Update an existing notification template
+      parameters:
+        - name: template_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTemplateRequest'
+      responses:
+        '200':
+          description: Template updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTemplate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete notification template
+      description: Delete a notification template
+      parameters:
+        - name: template_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Template deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /channels:
+    get:
+      summary: List notification channels
+      description: Get available notification channels for a tenant
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of notification channels
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  channels:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NotificationChannel'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    Notification:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - channel
+        - recipient
+        - subject
+        - message
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique notification identifier
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        channel:
+          type: string
+          enum: [email, sms, webhook, push, slack]
+          description: Notification channel
+        recipient:
+          type: string
+          description: Notification recipient
+        subject:
+          type: string
+          description: Notification subject
+        message:
+          type: string
+          description: Notification message
+        template_id:
+          type: string
+          description: Template identifier
+        status:
+          type: string
+          enum: [pending, sent, delivered, failed]
+          description: Notification status
+        sent_at:
+          type: string
+          format: date-time
+          description: Sent timestamp
+        delivered_at:
+          type: string
+          format: date-time
+          description: Delivered timestamp
+        error_message:
+          type: string
+          description: Error message if failed
+        retry_count:
+          type: integer
+          description: Number of retry attempts
+        metadata:
+          type: object
+          description: Additional notification metadata
+        created_at:
+          type: string
+          format: date-time
+          description: Notification creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Notification last update timestamp
+
+    NotificationTemplate:
+      type: object
+      required:
+        - id
+        - name
+        - tenant_id
+        - channel
+        - subject
+        - body
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique template identifier
+        name:
+          type: string
+          description: Template name
+        description:
+          type: string
+          description: Template description
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        channel:
+          type: string
+          enum: [email, sms, webhook, push, slack]
+          description: Template channel
+        subject:
+          type: string
+          description: Template subject
+        body:
+          type: string
+          description: Template body
+        variables:
+          type: array
+          items:
+            type: string
+          description: Available template variables
+        is_active:
+          type: boolean
+          description: Whether template is active
+        created_at:
+          type: string
+          format: date-time
+          description: Template creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Template last update timestamp
+
+    NotificationChannel:
+      type: object
+      required:
+        - type
+        - name
+        - is_configured
+      properties:
+        type:
+          type: string
+          enum: [email, sms, webhook, push, slack]
+          description: Channel type
+        name:
+          type: string
+          description: Channel name
+        is_configured:
+          type: boolean
+          description: Whether channel is configured
+        settings:
+          type: object
+          description: Channel-specific settings
+        limits:
+          type: object
+          properties:
+            daily_limit:
+              type: integer
+            monthly_limit:
+              type: integer
+            rate_limit:
+              type: integer
+
+    SendNotificationRequest:
+      type: object
+      required:
+        - tenant_id
+        - channel
+        - recipient
+        - subject
+        - message
+      properties:
+        tenant_id:
+          type: string
+        channel:
+          type: string
+          enum: [email, sms, webhook, push, slack]
+        recipient:
+          type: string
+        subject:
+          type: string
+        message:
+          type: string
+        template_id:
+          type: string
+        template_variables:
+          type: object
+        metadata:
+          type: object
+        scheduled_at:
+          type: string
+          format: date-time
+
+    UpdateNotificationRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, sent, delivered, failed]
+        error_message:
+          type: string
+        metadata:
+          type: object
+
+    CreateTemplateRequest:
+      type: object
+      required:
+        - name
+        - tenant_id
+        - channel
+        - subject
+        - body
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        tenant_id:
+          type: string
+        channel:
+          type: string
+          enum: [email, sms, webhook, push, slack]
+        subject:
+          type: string
+        body:
+          type: string
+        variables:
+          type: array
+          items:
+            type: string
+        is_active:
+          type: boolean
+          default: true
+
+    UpdateTemplateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        subject:
+          type: string
+        body:
+          type: string
+        variables:
+          type: array
+          items:
+            type: string
+        is_active:
+          type: boolean
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+

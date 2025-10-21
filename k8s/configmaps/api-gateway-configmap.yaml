@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-gateway-config
+  namespace: beakon
+  labels:
+    app: api-gateway
+    component: configuration
+data:
+  config.yml: |
+    # API Gateway Configuration for Kubernetes
+    service:
+      name: api-gateway
+      version: 1.0.0
+      environment: ${ENVIRONMENT:-production}
+
+    server:
+      host: ${SERVER_HOST:-0.0.0.0}
+      port: ${SERVER_PORT:-8080}
+      read_timeout: ${SERVER_READ_TIMEOUT:-30s}
+      write_timeout: ${SERVER_WRITE_TIMEOUT:-30s}
+      idle_timeout: ${SERVER_IDLE_TIMEOUT:-120s}
+
+    # Database Configuration
+    database:
+      host: ${DB_HOST:-postgres.beakon.svc.cluster.local}
+      port: ${DB_PORT:-5432}
+      user: ${DB_USER:-postgres}
+      password: ${DB_PASSWORD}
+      name: ${DB_NAME:-api_gateway_db}
+      ssl_mode: ${DB_SSL_MODE:-disable}
+
+    # JWT Authentication
+    jwt:
+      secret: ${JWT_SECRET}
+      issuer: ${JWT_ISSUER:-beakon-api-gateway}
+      expiration: ${JWT_EXPIRATION:-24h}
+
+    downstream_services:
+      user-service:
+        url: http://user-service.beakon.svc.cluster.local:8081
+        timeout: 30s
+        retries: 3
+
+      tenant-admin-service:
+        url: http://tenant-admin-service.beakon.svc.cluster.local:8099
+        timeout: 30s
+        retries: 3
+
+      component-service:
+        url: http://component-service.beakon.svc.cluster.local:8084
+        timeout: 30s
+        retries: 3
+
+      incident-service:
+        url: http://incident-service.beakon.svc.cluster.local:8086
+        timeout: 30s
+        retries: 3
+
+      notification-service:
+        url: http://notification-service.beakon.svc.cluster.local:8085
+        timeout: 30s
+        retries: 3
+
+      payment-service:
+        url: http://payment-service.beakon.svc.cluster.local:8088
+        timeout: 30s
+        retries: 3
+
+      analytics-service:
+        url: http://analytics-service.beakon.svc.cluster.local:8090
+        timeout: 30s
+        retries: 3
+
+      monitoring-service:
+        url: http://monitoring-service.beakon.svc.cluster.local:8092
+        timeout: 30s
+        retries: 3
+
+    circuit_breaker:
+      enabled: true
+      failure_threshold: 0.6
+      timeout: 60s
+
+    rate_limiting:
+      enabled: true
+      requests_per_second: 1000
+      burst: 2000
+
+    logging:
+      level: info
+      format: json
+
+    monitoring:
+      enabled: true
+      metrics_port: 9090

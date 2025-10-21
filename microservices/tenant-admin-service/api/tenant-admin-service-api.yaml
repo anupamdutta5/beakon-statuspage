@@ -1,0 +1,874 @@
+openapi: 3.0.3
+info:
+  title: Tenant Admin Service API
+  description: API contract for the Tenant Admin Service
+  version: 1.0.0
+  contact:
+    name: Tenant Admin Service Team
+    email: tenant-admin-service@statuspage.com
+
+servers:
+  - url: http://localhost:8010
+    description: Development server
+  - url: https://tenant-admin-service.statuspage.com
+    description: Production server
+
+paths:
+  /admin/users:
+    get:
+      summary: List tenant users
+      description: Get a list of users for the tenant
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [admin, user, viewer]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, suspended]
+      responses:
+        '200':
+          description: List of tenant users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TenantUser'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create tenant user
+      description: Create a new user for the tenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenantUserRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantUser'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/users/{user_id}:
+    get:
+      summary: Get tenant user
+      description: Get a specific user for the tenant
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantUser'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update tenant user
+      description: Update a user for the tenant
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTenantUserRequest'
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantUser'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete tenant user
+      description: Delete a user from the tenant
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: User deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/settings:
+    get:
+      summary: Get tenant settings
+      description: Get tenant-specific settings
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tenant settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantSettings'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update tenant settings
+      description: Update tenant-specific settings
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTenantSettingsRequest'
+      responses:
+        '200':
+          description: Settings updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantSettings'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/billing:
+    get:
+      summary: Get tenant billing information
+      description: Get billing information for the tenant
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Billing information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantBilling'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/usage:
+    get:
+      summary: Get tenant usage statistics
+      description: Get usage statistics for the tenant
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [24h, 7d, 30d, 90d]
+            default: 30d
+      responses:
+        '200':
+          description: Usage statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantUsage'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/feature-flags:
+    get:
+      summary: Get tenant feature flags
+      description: Get feature flags for the tenant
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tenant feature flags
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  feature_flags:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TenantFeatureFlag'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/feature-flags/{flag_id}:
+    put:
+      summary: Update tenant feature flag
+      description: Update a feature flag for the tenant
+      parameters:
+        - name: flag_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTenantFeatureFlagRequest'
+      responses:
+        '200':
+          description: Feature flag updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantFeatureFlag'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/audit-logs:
+    get:
+      summary: Get tenant audit logs
+      description: Get audit logs for the tenant
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: user_id
+          in: query
+          schema:
+            type: string
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: List of audit logs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  audit_logs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TenantAuditLog'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    TenantUser:
+      type: object
+      required:
+        - id
+        - email
+        - name
+        - tenant_id
+        - role
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique user identifier
+        email:
+          type: string
+          format: email
+          description: User email address
+        name:
+          type: string
+          description: User full name
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        role:
+          type: string
+          enum: [admin, user, viewer]
+          description: User role
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+          description: User status
+        last_login:
+          type: string
+          format: date-time
+          description: Last login timestamp
+        permissions:
+          type: array
+          items:
+            type: string
+          description: User permissions
+        created_at:
+          type: string
+          format: date-time
+          description: User creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: User last update timestamp
+
+    TenantSettings:
+      type: object
+      required:
+        - tenant_id
+        - branding
+        - notifications
+        - features
+        - limits
+      properties:
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        branding:
+          type: object
+          properties:
+            logo_url:
+              type: string
+            primary_color:
+              type: string
+            secondary_color:
+              type: string
+            favicon_url:
+              type: string
+            custom_css:
+              type: string
+        notifications:
+          type: object
+          properties:
+            email_enabled:
+              type: boolean
+            sms_enabled:
+              type: boolean
+            webhook_url:
+              type: string
+            slack_webhook:
+              type: string
+            notification_channels:
+              type: array
+              items:
+                type: string
+        features:
+          type: object
+          properties:
+            custom_domain:
+              type: boolean
+            sso:
+              type: boolean
+            api_access:
+              type: boolean
+            advanced_analytics:
+              type: boolean
+            custom_branding:
+              type: boolean
+        limits:
+          type: object
+          properties:
+            max_users:
+              type: integer
+            max_components:
+              type: integer
+            max_incidents:
+              type: integer
+            max_monitors:
+              type: integer
+            api_rate_limit:
+              type: integer
+        updated_at:
+          type: string
+          format: date-time
+          description: Settings last update timestamp
+
+    TenantBilling:
+      type: object
+      required:
+        - tenant_id
+        - plan
+        - status
+        - current_period
+      properties:
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        plan:
+          type: string
+          enum: [free, basic, pro, enterprise]
+          description: Current plan
+        status:
+          type: string
+          enum: [active, past_due, cancelled, trialing]
+          description: Billing status
+        current_period_start:
+          type: string
+          format: date-time
+          description: Current billing period start
+        current_period_end:
+          type: string
+          format: date-time
+          description: Current billing period end
+        amount:
+          type: number
+          format: decimal
+          description: Plan amount
+        currency:
+          type: string
+          description: Currency code
+        payment_method:
+          type: string
+          description: Payment method
+        next_billing_date:
+          type: string
+          format: date-time
+          description: Next billing date
+        usage:
+          type: object
+          properties:
+            users:
+              type: integer
+            components:
+              type: integer
+            incidents:
+              type: integer
+            monitors:
+              type: integer
+            api_calls:
+              type: integer
+
+    TenantUsage:
+      type: object
+      required:
+        - tenant_id
+        - period
+        - usage_metrics
+      properties:
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        period:
+          type: string
+          description: Usage period
+        usage_metrics:
+          type: object
+          properties:
+            page_views:
+              type: integer
+            unique_visitors:
+              type: integer
+            api_calls:
+              type: integer
+            incidents_created:
+              type: integer
+            components_updated:
+              type: integer
+            notifications_sent:
+              type: integer
+        limits:
+          type: object
+          properties:
+            max_users:
+              type: integer
+            max_components:
+              type: integer
+            max_incidents:
+              type: integer
+            max_monitors:
+              type: integer
+            api_rate_limit:
+              type: integer
+        utilization:
+          type: object
+          properties:
+            users_utilization:
+              type: number
+              format: float
+            components_utilization:
+              type: number
+              format: float
+            incidents_utilization:
+              type: number
+              format: float
+            monitors_utilization:
+              type: number
+              format: float
+        generated_at:
+          type: string
+          format: date-time
+          description: Usage report generation timestamp
+
+    TenantFeatureFlag:
+      type: object
+      required:
+        - id
+        - name
+        - key
+        - enabled
+        - tenant_id
+      properties:
+        id:
+          type: string
+          description: Unique feature flag identifier
+        name:
+          type: string
+          description: Feature flag name
+        key:
+          type: string
+          description: Feature flag key
+        description:
+          type: string
+          description: Feature flag description
+        enabled:
+          type: boolean
+          description: Whether flag is enabled for tenant
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        rollout_percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Rollout percentage
+        created_at:
+          type: string
+          format: date-time
+          description: Flag creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Flag last update timestamp
+
+    TenantAuditLog:
+      type: object
+      required:
+        - id
+        - action
+        - resource_type
+        - resource_id
+        - user_id
+        - tenant_id
+        - timestamp
+      properties:
+        id:
+          type: string
+          description: Unique audit log identifier
+        action:
+          type: string
+          description: Action performed
+        resource_type:
+          type: string
+          description: Type of resource
+        resource_id:
+          type: string
+          description: Resource identifier
+        user_id:
+          type: string
+          description: User who performed the action
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        details:
+          type: object
+          description: Additional action details
+        ip_address:
+          type: string
+          description: IP address
+        user_agent:
+          type: string
+          description: User agent
+        timestamp:
+          type: string
+          format: date-time
+          description: Action timestamp
+
+    CreateTenantUserRequest:
+      type: object
+      required:
+        - email
+        - name
+        - tenant_id
+        - role
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        tenant_id:
+          type: string
+        role:
+          type: string
+          enum: [admin, user, viewer]
+        permissions:
+          type: array
+          items:
+            type: string
+
+    UpdateTenantUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        role:
+          type: string
+          enum: [admin, user, viewer]
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+        permissions:
+          type: array
+          items:
+            type: string
+
+    UpdateTenantSettingsRequest:
+      type: object
+      properties:
+        branding:
+          type: object
+          properties:
+            logo_url:
+              type: string
+            primary_color:
+              type: string
+            secondary_color:
+              type: string
+            favicon_url:
+              type: string
+            custom_css:
+              type: string
+        notifications:
+          type: object
+          properties:
+            email_enabled:
+              type: boolean
+            sms_enabled:
+              type: boolean
+            webhook_url:
+              type: string
+            slack_webhook:
+              type: string
+            notification_channels:
+              type: array
+              items:
+                type: string
+        features:
+          type: object
+          properties:
+            custom_domain:
+              type: boolean
+            sso:
+              type: boolean
+            api_access:
+              type: boolean
+            advanced_analytics:
+              type: boolean
+            custom_branding:
+              type: boolean
+
+    UpdateTenantFeatureFlagRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        rollout_percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <meta name="description" content="{{.Description}}">
+    <link rel="stylesheet" href="/static/css/animations.css">
+    <link rel="stylesheet" href="/static/css/tailwind-directives.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .signup-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            width: 100%;
+            max-width: 500px;
+            animation: fadeInUp 0.6s ease-out;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-row {
+            display: flex;
+            gap: 15px;
+        }
+        .form-row .form-group {
+            flex: 1;
+        }
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #374151;
+        }
+        .form-input, .form-select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.8);
+        }
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(102, 126, 234, 0.4);
+        }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .plan-info {
+            background: #f8fafc;
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border: 2px solid #e2e8f0;
+        }
+        .plan-info.pro {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-color: #667eea;
+        }
+        .plan-info.enterprise {
+            background: linear-gradient(135deg, #2d3748, #4a5568);
+            color: white;
+            border-color: #2d3748;
+        }
+        .text-center {
+            text-align: center;
+        }
+        .mt-4 {
+            margin-top: 1rem;
+        }
+        .text-sm {
+            font-size: 14px;
+        }
+        .text-blue-600 {
+            color: #2563eb;
+            text-decoration: none;
+        }
+        .text-blue-600:hover {
+            text-decoration: underline;
+        }
+        .alert {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .alert-error {
+            background-color: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+        .alert-success {
+            background-color: #f0fdf4;
+            color: #16a34a;
+            border: 1px solid #bbf7d0;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="signup-container">
+        <div class="text-center mb-8">
+            <h1 style="font-size: 28px; font-weight: 700; color: #1f2937; margin-bottom: 8px;">Get started today</h1>
+            <p style="color: #6b7280;">Create your StatusPage Pro account</p>
+        </div>
+
+        {{if ne .Plan "free"}}
+        <div class="plan-info {{.Plan}}">
+            <h3 style="margin: 0 0 8px 0; font-weight: 600;">{{if eq .Plan "pro"}}Pro Plan - $29.99/month{{else if eq .Plan "enterprise"}}Enterprise Plan - $99.99/month{{end}}</h3>
+            <p style="margin: 0; opacity: 0.9;">You'll be redirected to payment after signup</p>
+        </div>
+        {{end}}
+
+        <div id="alert" class="alert"></div>
+
+        <form id="signupForm">
+            <input type="hidden" name="plan" value="{{.Plan}}">
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label" for="name">Full Name</label>
+                    <input type="text" id="name" name="name" class="form-input" required
+                           placeholder="Enter your full name" minlength="2">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="company">Company</label>
+                    <input type="text" id="company" name="company" class="form-input"
+                           placeholder="Your company name">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="email">Email</label>
+                <input type="email" id="email" name="email" class="form-input" required
+                       placeholder="Enter your email address">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="password">Password</label>
+                <input type="password" id="password" name="password" class="form-input" required
+                       placeholder="Create a password" minlength="6">
+            </div>
+
+            <button type="submit" class="btn" id="signupBtn">
+                {{if eq .Plan "free"}}Create Free Account{{else}}Continue to Payment{{end}}
+            </button>
+
+            <div class="loading" id="loading">
+                <p>Creating your account...</p>
+            </div>
+        </form>
+
+        <div class="text-center mt-4">
+            <p class="text-sm">
+                Already have an account?
+                <a href="/login" class="text-blue-600">Sign in</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('signupForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const btn = document.getElementById('signupBtn');
+            const loading = document.getElementById('loading');
+            const alert = document.getElementById('alert');
+
+            // Get form data
+            const formData = new FormData(e.target);
+            const data = {
+                name: formData.get('name'),
+                email: formData.get('email'),
+                password: formData.get('password'),
+                company: formData.get('company'),
+                plan: formData.get('plan')
+            };
+
+            // Disable button and show loading
+            btn.disabled = true;
+            loading.style.display = 'block';
+            alert.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/v1/auth/signup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Success
+                    alert.className = 'alert alert-success';
+                    alert.textContent = result.message || 'Account created successfully!';
+                    alert.style.display = 'block';
+
+                    // Store user data if provided
+                    if (result.user) {
+                        localStorage.setItem('user_data', JSON.stringify(result.user));
+                    }
+
+                    // Redirect after short delay
+                    setTimeout(() => {
+                        window.location.href = result.redirect || '/dashboard';
+                    }, 1500);
+                } else {
+                    // Error
+                    alert.className = 'alert alert-error';
+                    alert.textContent = result.error || 'Signup failed. Please try again.';
+                    alert.style.display = 'block';
+                }
+            } catch (error) {
+                // Network error
+                alert.className = 'alert alert-error';
+                alert.textContent = 'Connection error. Please try again.';
+                alert.style.display = 'block';
+            } finally {
+                // Re-enable button and hide loading
+                btn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

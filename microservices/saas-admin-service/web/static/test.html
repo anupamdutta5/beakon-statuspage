@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Admin Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.ico">
+    <link rel="icon" href="/static/favicon.ico" sizes="any">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .chart-container { width: 400px; height: 200px; margin: 20px 0; }
+        .alert { padding: 10px; border-radius: 4px; }
+        .alert-warning { background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; }
+    </style>
+</head>
+<body>
+    <h1>Test Admin Dashboard</h1>
+
+    <div class="chart-container">
+        <h3>Response Time Chart</h3>
+        <canvas id="responseTimeChart"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <h3>Service Status Chart</h3>
+        <canvas id="serviceStatusChart"></canvas>
+    </div>
+
+    <!-- JavaScript Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js" onload="initializeChartsWhenReady()"></script>
+    <script>
+        // Initialize Charts after Chart.js is loaded
+        function initializeChartsWhenReady() {
+            document.addEventListener('DOMContentLoaded', function() {
+                initializeCharts();
+            });
+
+            // If DOM is already loaded, initialize immediately
+            if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                initializeCharts();
+            }
+        }
+
+        function initializeCharts() {
+            console.log('Initializing charts...');
+
+            // Check if Chart.js is loaded
+            if (typeof Chart === 'undefined') {
+                console.error('Chart.js is not loaded. Charts will not be displayed.');
+                // Show fallback message in chart containers
+                const chartContainers = ['responseTimeChart', 'serviceStatusChart'];
+                chartContainers.forEach(containerId => {
+                    const container = document.getElementById(containerId);
+                    if (container) {
+                        const parent = container.parentElement;
+                        parent.innerHTML = '<div class="alert alert-warning">Chart library failed to load. Please refresh the page.</div>';
+                    }
+                });
+                return;
+            }
+
+            console.log('Chart.js loaded successfully');
+
+            // Response Time Chart
+            const ctx1 = document.getElementById('responseTimeChart');
+            if (!ctx1) {
+                console.warn('responseTimeChart canvas not found');
+                return;
+            }
+
+            try {
+                new Chart(ctx1, {
+                    type: 'line',
+                    data: {
+                        labels: ['12:00', '12:15', '12:30', '12:45', '13:00', '13:15', '13:30'],
+                        datasets: [{
+                            label: 'Response Time (ms)',
+                            data: [245, 232, 251, 239, 245, 238, 245],
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+                console.log('Response time chart created successfully');
+            } catch (error) {
+                console.error('Error creating response time chart:', error);
+            }
+
+            // Service Status Chart
+            const ctx2 = document.getElementById('serviceStatusChart');
+            if (!ctx2) {
+                console.warn('serviceStatusChart canvas not found');
+                return;
+            }
+
+            try {
+                new Chart(ctx2, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Operational', 'Degraded', 'Outage'],
+                        datasets: [{
+                            data: [20, 3, 1],
+                            backgroundColor: ['#22c55e', '#f59e0b', '#ef4444'],
+                            borderWidth: 0,
+                            cutout: '70%'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            }
+                        }
+                    }
+                });
+                console.log('Service status chart created successfully');
+            } catch (error) {
+                console.error('Error creating service status chart:', error);
+            }
+        }
+    </script>
+</body>
+</html>

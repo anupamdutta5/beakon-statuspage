@@ -1,0 +1,522 @@
+openapi: 3.0.3
+info:
+  title: Incident Service API
+  description: API contract for the Incident Service
+  version: 1.0.0
+  contact:
+    name: Incident Service Team
+    email: incident-service@statuspage.com
+
+servers:
+  - url: http://localhost:8004
+    description: Development server
+  - url: https://incident-service.statuspage.com
+    description: Production server
+
+paths:
+  /incidents:
+    get:
+      summary: List incidents
+      description: Get a list of incidents with optional filtering
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [investigating, identified, monitoring, resolved]
+        - name: impact
+          in: query
+          schema:
+            type: string
+            enum: [minor, major, critical]
+      responses:
+        '200':
+          description: List of incidents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  incidents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Incident'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create incident
+      description: Create a new incident
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIncidentRequest'
+      responses:
+        '201':
+          description: Incident created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /incidents/{incident_id}:
+    get:
+      summary: Get incident
+      description: Get a specific incident by ID
+      parameters:
+        - name: incident_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Incident details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update incident
+      description: Update an existing incident
+      parameters:
+        - name: incident_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateIncidentRequest'
+      responses:
+        '200':
+          description: Incident updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete incident
+      description: Delete an incident
+      parameters:
+        - name: incident_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Incident deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /incidents/{incident_id}/updates:
+    get:
+      summary: Get incident updates
+      description: Get all updates for a specific incident
+      parameters:
+        - name: incident_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of incident updates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updates:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/IncidentUpdate'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Add incident update
+      description: Add an update to an incident
+      parameters:
+        - name: incident_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIncidentUpdateRequest'
+      responses:
+        '201':
+          description: Incident update created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentUpdate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /incidents/{incident_id}/updates/{update_id}:
+    get:
+      summary: Get incident update
+      description: Get a specific incident update by ID
+      parameters:
+        - name: incident_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: update_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Incident update details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentUpdate'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update incident update
+      description: Update an existing incident update
+      parameters:
+        - name: incident_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: update_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateIncidentUpdateRequest'
+      responses:
+        '200':
+          description: Incident update updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentUpdate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete incident update
+      description: Delete an incident update
+      parameters:
+        - name: incident_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: update_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Incident update deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    Incident:
+      type: object
+      required:
+        - id
+        - name
+        - tenant_id
+        - status
+        - impact
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique incident identifier
+        name:
+          type: string
+          description: Incident name
+        message:
+          type: string
+          description: Incident message
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        status:
+          type: string
+          enum: [investigating, identified, monitoring, resolved]
+          description: Incident status
+        impact:
+          type: string
+          enum: [minor, major, critical]
+          description: Incident impact level
+        affected_components:
+          type: array
+          items:
+            type: string
+          description: List of affected component IDs
+        started_at:
+          type: string
+          format: date-time
+          description: Incident start time
+        resolved_at:
+          type: string
+          format: date-time
+          description: Incident resolution time
+        created_at:
+          type: string
+          format: date-time
+          description: Incident creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Incident last update timestamp
+
+    IncidentUpdate:
+      type: object
+      required:
+        - id
+        - incident_id
+        - status
+        - message
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique incident update identifier
+        incident_id:
+          type: string
+          description: Incident identifier
+        status:
+          type: string
+          enum: [investigating, identified, monitoring, resolved]
+          description: Update status
+        message:
+          type: string
+          description: Update message
+        created_at:
+          type: string
+          format: date-time
+          description: Update creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Update last update timestamp
+
+    CreateIncidentRequest:
+      type: object
+      required:
+        - name
+        - tenant_id
+        - impact
+      properties:
+        name:
+          type: string
+        message:
+          type: string
+        tenant_id:
+          type: string
+        impact:
+          type: string
+          enum: [minor, major, critical]
+        affected_components:
+          type: array
+          items:
+            type: string
+        started_at:
+          type: string
+          format: date-time
+
+    UpdateIncidentRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        message:
+          type: string
+        status:
+          type: string
+          enum: [investigating, identified, monitoring, resolved]
+        impact:
+          type: string
+          enum: [minor, major, critical]
+        affected_components:
+          type: array
+          items:
+            type: string
+        resolved_at:
+          type: string
+          format: date-time
+
+    CreateIncidentUpdateRequest:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          enum: [investigating, identified, monitoring, resolved]
+        message:
+          type: string
+
+    UpdateIncidentUpdateRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [investigating, identified, monitoring, resolved]
+        message:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+

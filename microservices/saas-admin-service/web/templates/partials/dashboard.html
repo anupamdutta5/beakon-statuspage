@@ -1,0 +1,414 @@
+{{define "partials/dashboard.html"}}
+        <!-- Content Area -->
+        <div class="content-area">
+            <div class="tab-content">
+                <!-- Dashboard Tab -->
+                <div class="tab-pane fade" id="dashboard">
+                    <!-- Business Stats Cards -->
+                    <div class="row mb-4">
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <div class="card-modern stats-card">
+                                <div class="card-body">
+                                    <i class="fas fa-building stats-icon"></i>
+                                    <div class="stats-value" id="totalTenants">0</div>
+                                    <div class="stats-label">Total Tenants</div>
+                                    <div class="stats-trend trend-up">
+                                        <i class="fas fa-arrow-up"></i>
+                                        <span>+12% this month</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <div class="card-modern stats-card success">
+                                <div class="card-body">
+                                    <i class="fas fa-dollar-sign stats-icon"></i>
+                                    <div class="stats-value" id="monthlyRevenue">$24.5K</div>
+                                    <div class="stats-label">Monthly Revenue</div>
+                                    <div class="stats-trend trend-up">
+                                        <i class="fas fa-arrow-up"></i>
+                                        <span>+8.5% growth</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <div class="card-modern stats-card info">
+                                <div class="card-body">
+                                    <i class="fas fa-credit-card stats-icon"></i>
+                                    <div class="stats-value" id="activeSubscriptions">47</div>
+                                    <div class="stats-label">Active Subscriptions</div>
+                                    <div class="stats-trend trend-up">
+                                        <i class="fas fa-arrow-up"></i>
+                                        <span>+15% new signups</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <div class="card-modern stats-card warning">
+                                <div class="card-body">
+                                    <i class="fas fa-user-times stats-icon"></i>
+                                    <div class="stats-value" id="churnRate">2.1%</div>
+                                    <div class="stats-label">Churn Rate</div>
+                                    <div class="stats-trend trend-down">
+                                        <i class="fas fa-arrow-down"></i>
+                                        <span>-0.3% improved</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Section -->
+                    <div class="row mb-4">
+                        <div class="col-lg-8">
+                            <div class="card-modern chart-card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">Revenue Trends</h5>
+                                    <select class="form-select form-select-sm w-auto">
+                                        <option>Last 30 days</option>
+                                        <option>Last 90 days</option>
+                                        <option>Last 6 months</option>
+                                    </select>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <canvas id="revenueChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card-modern chart-card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Subscription Plans</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <canvas id="subscriptionChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h4 class="mb-3">Quick Actions</h4>
+                            <!-- Debug Notification Test Button (temporary) -->
+                            <div class="alert alert-info mb-3">
+                                <strong>Debug Test:</strong>
+                                <button class="btn btn-sm btn-primary ms-2" onclick="showNotification('Test notification working!', 'success', 3000)">Test Success Notification</button>
+                                <button class="btn btn-sm btn-warning ms-2" onclick="showNotification('Test warning message', 'warning', 3000)">Test Warning</button>
+                                <button class="btn btn-sm btn-danger ms-2" onclick="showNotification('Test error message', 'error', 3000)">Test Error</button>
+                                <button class="btn btn-sm btn-info ms-2" onclick="showSuccessModal('Test Modal', 'This is a test success modal', 'Close', null)">Test Modal</button>
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6 mb-3">
+                            <div class="quick-action-card" onclick="createTenant()">
+                                <i class="fas fa-building quick-action-icon"></i>
+                                <h6>Create Tenant</h6>
+                                <p class="text-muted mb-0">Add a new tenant organization</p>
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6 mb-3">
+                            <div class="quick-action-card" onclick="addPlan()">
+                                <i class="fas fa-layer-group quick-action-icon"></i>
+                                <h6>Add Plan</h6>
+                                <p class="text-muted mb-0">Create new pricing plans</p>
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-6 mb-3">
+                            <div class="quick-action-card" onclick="platformSettings()">
+                                <i class="fas fa-cogs quick-action-icon"></i>
+                                <h6>Platform Settings</h6>
+                                <p class="text-muted mb-0">Configure platform settings</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity & Alerts -->
+                    <div class="row mb-4">
+                        <div class="col-lg-6">
+                            <div class="card-modern">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">Recent Activity</h5>
+                                    <a href="#" class="btn btn-link btn-sm">View All</a>
+                                </div>
+                                <div class="card-body">
+                                    <div class="activity-list">
+                                        <div class="activity-item">
+                                            <div class="activity-icon bg-success">
+                                                <i class="fas fa-plus"></i>
+                                            </div>
+                                            <div class="activity-content">
+                                                <div class="activity-title">New tenant created</div>
+                                                <div class="activity-description">Test Company subscribed to Pro plan</div>
+                                                <div class="activity-time">5 minutes ago</div>
+                                            </div>
+                                        </div>
+                                        <div class="activity-item">
+                                            <div class="activity-icon bg-info">
+                                                <i class="fas fa-credit-card"></i>
+                                            </div>
+                                            <div class="activity-content">
+                                                <div class="activity-title">Payment received</div>
+                                                <div class="activity-description">Acme Corp - Monthly subscription ($199)</div>
+                                                <div class="activity-time">15 minutes ago</div>
+                                            </div>
+                                        </div>
+                                        <div class="activity-item">
+                                            <div class="activity-icon bg-warning">
+                                                <i class="fas fa-exclamation-triangle"></i>
+                                            </div>
+                                            <div class="activity-content">
+                                                <div class="activity-title">Payment failed</div>
+                                                <div class="activity-description">DevCo - Card expired</div>
+                                                <div class="activity-time">1 hour ago</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="card-modern">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">Business Alerts</h5>
+                                    <span class="badge bg-warning">3</span>
+                                </div>
+                                <div class="card-body">
+                                    <div class="alert-list">
+                                        <div class="alert alert-warning d-flex align-items-center">
+                                            <i class="fas fa-credit-card me-2"></i>
+                                            <div class="flex-grow-1">
+                                                <strong>Payment Issues</strong><br>
+                                                <small>2 tenants have failed payments</small>
+                                            </div>
+                                            <button class="btn btn-sm btn-outline-warning">Review</button>
+                                        </div>
+                                        <div class="alert alert-info d-flex align-items-center">
+                                            <i class="fas fa-calendar me-2"></i>
+                                            <div class="flex-grow-1">
+                                                <strong>Trial Expiring</strong><br>
+                                                <small>5 trials expire in 7 days</small>
+                                            </div>
+                                            <button class="btn btn-sm btn-outline-info">Follow Up</button>
+                                        </div>
+                                        <div class="alert alert-success d-flex align-items-center">
+                                            <i class="fas fa-chart-line me-2"></i>
+                                            <div class="flex-grow-1">
+                                                <strong>Growth Target</strong><br>
+                                                <small>Monthly target: 120% achieved</small>
+                                            </div>
+                                            <button class="btn btn-sm btn-outline-success">Details</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tenant Management Table -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card-modern">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">Active Tenants</h5>
+                                    <button class="btn btn-modern btn-primary-modern" onclick="showTab('tenants')">
+                                        <i class="fas fa-users-cog"></i> Manage All Tenants
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Organization</th>
+                                                    <th>Plan</th>
+                                                    <th>Status</th>
+                                                    <th>MRR</th>
+                                                    <th>Users</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="tenantsTableBody">
+                                                <!-- Populated by JavaScript -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tenants Tab -->
+                <div class="tab-pane fade" id="tenants">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <div>
+                            <h3>Tenant Management</h3>
+                            <p class="text-muted mb-0">Manage all tenant organizations on your platform</p>
+                        </div>
+                        <button class="btn btn-modern btn-primary-modern" onclick="createTenant()">
+                            <i class="fas fa-plus"></i> Create New Tenant
+                        </button>
+                    </div>
+
+                    <!-- Stats Cards -->
+                    <div class="row mb-4">
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <div class="card-modern stats-card">
+                                <div class="card-body">
+                                    <i class="fas fa-building stats-icon"></i>
+                                    <div class="stats-value" id="totalTenantsCount">0</div>
+                                    <div class="stats-label">Total Tenants</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <div class="card-modern stats-card success">
+                                <div class="card-body">
+                                    <i class="fas fa-check-circle stats-icon"></i>
+                                    <div class="stats-value" id="activeTenantsCount">0</div>
+                                    <div class="stats-label">Active Tenants</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <div class="card-modern stats-card warning">
+                                <div class="card-body">
+                                    <i class="fas fa-clock stats-icon"></i>
+                                    <div class="stats-value" id="trialTenantsCount">0</div>
+                                    <div class="stats-label">Trial Tenants</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-3">
+                            <div class="card-modern stats-card info">
+                                <div class="card-body">
+                                    <i class="fas fa-dollar-sign stats-icon"></i>
+                                    <div class="stats-value" id="totalMRR">$0</div>
+                                    <div class="stats-label">Total MRR</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Search and Filters -->
+                    <div class="card-modern mb-4">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                        <input type="text" class="form-control" placeholder="Search tenants..." id="tenantSearch">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <select class="form-select" id="statusFilter">
+                                        <option value="">All Status</option>
+                                        <option value="active">Active</option>
+                                        <option value="trial">Trial</option>
+                                        <option value="suspended">Suspended</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <select class="form-select" id="planFilter">
+                                        <option value="">All Plans</option>
+                                        <option value="Starter">Starter</option>
+                                        <option value="Pro">Pro</option>
+                                        <option value="Enterprise">Enterprise</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tenants Table -->
+                    <div class="card-modern">
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Organization</th>
+                                            <th>Domain</th>
+                                            <th>Plan</th>
+                                            <th>Status</th>
+                                            <th>Users</th>
+                                            <th>Max Users</th>
+                                            <th>Components</th>
+                                            <th>MRR</th>
+                                            <th>Created</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tenantsPageTableBody">
+                                        <!-- Populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="billing">
+                    <h3>Billing & Subscriptions</h3>
+                    <div class="row">
+                        <div class="col-lg-4">
+                            <div class="card-modern text-center">
+                                <div class="card-body">
+                                    <h2 class="text-success">$24,580</h2>
+                                    <p>Monthly Recurring Revenue</p>
+                                    <span class="badge bg-success">+12.5%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card-modern text-center">
+                                <div class="card-body">
+                                    <h2 class="text-primary">$294,960</h2>
+                                    <p>Annual Recurring Revenue</p>
+                                    <span class="badge bg-primary">+18.2%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card-modern text-center">
+                                <div class="card-body">
+                                    <h2 class="text-info">96.8%</h2>
+                                    <p>Collection Rate</p>
+                                    <span class="badge bg-info">+2.1%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="pricing-plans">
+                    <h3>Pricing Plans</h3>
+                    <p>Pricing plan management interface coming soon...</p>
+                </div>
+
+                <div class="tab-pane fade" id="analytics">
+                    <h3>Business Analytics</h3>
+                    <p>Advanced business analytics coming soon...</p>
+                </div>
+
+                <div class="tab-pane fade" id="platform-settings">
+                    <h3>Platform Settings</h3>
+                    <p>Platform configuration settings coming soon...</p>
+                </div>
+
+                <div class="tab-pane fade" id="reports">
+                    <h3>Business Reports</h3>
+                    <p>Business reporting interface coming soon...</p>
+                </div>
+
+                {{template "partials/custom_domains.html" .}}
+            </div>
+        </div>
+{{end}}

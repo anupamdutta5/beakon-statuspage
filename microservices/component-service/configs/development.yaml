@@ -1,0 +1,66 @@
+environment: development
+
+service:
+  name: component-service
+  version: 1.0.0
+  description: Component Service for StatusPage
+  tags:
+    - component
+    - microservice
+  metadata:
+    owner: platform-team
+    maintainer: devops@company.com
+
+server:
+  host: ${SERVER_HOST:localhost}
+  port: ${SERVER_PORT:8084}
+  read_timeout: 30
+  write_timeout: 30
+  idle_timeout: 120
+
+database:
+  host: ${DB_HOST:localhost}
+  port: ${DB_PORT:5432}
+  user: ${DB_USER:statuspage_user}
+  password: ${DB_PASSWORD}
+  name: ${DB_NAME:statuspage_component}
+  ssl_mode: disable
+  max_conns: 25
+  min_conns: 5
+  max_idle: 10
+  max_lifetime: 3600
+
+# API Gateway configuration - all inter-service calls should route through gateway
+api_gateway:
+  url: ${API_GATEWAY_URL:http://localhost:8080}
+
+cache:
+  provider: redis
+  host: ${REDIS_HOST:localhost}
+  port: ${REDIS_PORT:6379}
+  password: ${REDIS_PASSWORD:}
+  db: 0
+  ttl: 300
+  key_prefix: "statuspage:component-service"
+
+logging:
+  level: ${LOG_LEVEL:debug}
+  format: json
+  output: stdout
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 24
+  issuer: statuspage-dev
+
+monitoring:
+  enabled: true
+  metrics_port: ${METRICS_PORT:9094}
+  health_port: ${HEALTH_PORT:8085}
+  log_level: ${LOG_LEVEL:debug}
+  check_interval: 30s
+  timeout: 10s
+  retry_attempts: 3
+
+features:
+  use_database_service: ${FEATURE_USE_DATABASE_SERVICE:false}

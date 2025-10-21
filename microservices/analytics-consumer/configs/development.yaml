@@ -1,0 +1,52 @@
+environment: development
+
+consumer:
+  name: analytics-consumer
+  version: 1.0.0
+  description: Analytics Consumer for StatusPage
+  tags:
+    - analytics
+    - consumer
+    - event-driven
+  metadata:
+    owner: platform-team
+    maintainer: devops@company.com
+
+kafka:
+  brokers:
+    - localhost:9092
+  group_id: analytics-consumer-dev
+  auto_offset_reset: earliest
+  enable_auto_commit: true
+
+database:
+  host: ${DB_HOST:localhost}
+  port: ${DB_PORT:5432}
+  user: ${DB_USER:statuspage_user}
+  password: ${DB_PASSWORD}
+  name: ${DB_NAME:statuspage_analytics_consumer}
+  ssl_mode: disable
+  max_conns: 25
+  min_conns: 5
+  max_idle: 10
+  max_lifetime: 3600
+
+cache:
+  provider: redis
+  host: ${REDIS_HOST:localhost}
+  port: ${REDIS_PORT:6379}
+  password: ${REDIS_PASSWORD:}
+  db: 0
+  ttl: 300
+  key_prefix: "statuspage:analytics-consumer"
+
+logging:
+  level: ${LOG_LEVEL:debug}
+  format: json
+  output: stdout
+
+processing:
+  batch_size: 100
+  max_retries: 3
+  retry_delay: 5s
+  timeout: 30s

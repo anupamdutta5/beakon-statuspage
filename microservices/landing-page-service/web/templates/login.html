@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <meta name="description" content="{{.Description}}">
+    <link rel="stylesheet" href="/static/css/animations.css">
+    <link rel="stylesheet" href="/static/css/tailwind-directives.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .login-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            width: 100%;
+            max-width: 400px;
+            animation: fadeInUp 0.6s ease-out;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #374151;
+        }
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.8);
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(102, 126, 234, 0.4);
+        }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .text-center {
+            text-align: center;
+        }
+        .mt-4 {
+            margin-top: 1rem;
+        }
+        .text-sm {
+            font-size: 14px;
+        }
+        .text-blue-600 {
+            color: #2563eb;
+            text-decoration: none;
+        }
+        .text-blue-600:hover {
+            text-decoration: underline;
+        }
+        .alert {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .alert-error {
+            background-color: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+        .alert-success {
+            background-color: #f0fdf4;
+            color: #16a34a;
+            border: 1px solid #bbf7d0;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="text-center mb-8">
+            <h1 style="font-size: 28px; font-weight: 700; color: #1f2937; margin-bottom: 8px;">Welcome back</h1>
+            <p style="color: #6b7280;">Sign in to your StatusPage Pro account</p>
+        </div>
+
+        <div id="alert" class="alert"></div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label class="form-label" for="email">Email</label>
+                <input type="email" id="email" name="email" class="form-input" required
+                       placeholder="Enter your email">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="password">Password</label>
+                <input type="password" id="password" name="password" class="form-input" required
+                       placeholder="Enter your password" minlength="6">
+            </div>
+
+            <button type="submit" class="btn" id="loginBtn">
+                Sign In
+            </button>
+
+            <div class="loading" id="loading">
+                <p>Signing in...</p>
+            </div>
+        </form>
+
+        <div class="text-center mt-4">
+            <p class="text-sm">
+                Don't have an account?
+                <a href="/signup" class="text-blue-600">Get started</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const btn = document.getElementById('loginBtn');
+            const loading = document.getElementById('loading');
+            const alert = document.getElementById('alert');
+
+            // Get form data
+            const formData = new FormData(e.target);
+            const data = {
+                email: formData.get('email'),
+                password: formData.get('password')
+            };
+
+            // Disable button and show loading
+            btn.disabled = true;
+            loading.style.display = 'block';
+            alert.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Success
+                    alert.className = 'alert alert-success';
+                    alert.textContent = result.message || 'Login successful!';
+                    alert.style.display = 'block';
+
+                    // Store token if provided
+                    if (result.token) {
+                        localStorage.setItem('auth_token', result.token);
+                    }
+
+                    // Redirect after short delay
+                    setTimeout(() => {
+                        window.location.href = result.redirect || 'http://localhost:8099/admin';
+                    }, 1000);
+                } else {
+                    // Error
+                    alert.className = 'alert alert-error';
+                    alert.textContent = result.error || 'Login failed. Please try again.';
+                    alert.style.display = 'block';
+                }
+            } catch (error) {
+                // Network error
+                alert.className = 'alert alert-error';
+                alert.textContent = 'Connection error. Please try again.';
+                alert.style.display = 'block';
+            } finally {
+                // Re-enable button and hide loading
+                btn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

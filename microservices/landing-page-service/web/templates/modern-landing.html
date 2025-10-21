@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="{{.MetaDescription}}">
+    <meta name="keywords" content="{{.Keywords}}">
+
+    <!-- SEO Meta Tags -->
+    <meta property="og:title" content="{{.OGTitle}}">
+    <meta property="og:description" content="{{.OGDescription}}">
+    <meta property="og:image" content="{{.OGImage}}">
+    <meta property="og:url" content="{{.OGURL}}">
+    <meta property="og:type" content="website">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{.TwitterTitle}}">
+    <meta name="twitter:description" content="{{.TwitterDescription}}">
+    <meta name="twitter:image" content="{{.TwitterImage}}">
+
+    <link rel="canonical" href="{{.CanonicalURL}}">
+
+    <title>{{.Title}}</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="/static/css/modern-landing.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {{.SchemaMarkup}}
+    </script>
+</head>
+<body>
+    <!-- Announcement Bar -->
+    <div class="announcement-bar" id="announcementBar">
+        <div class="container">
+            <p>🎉 New: Real-time collaboration features now available! <a href="/features">Learn more →</a></p>
+            <button class="announcement-close" onclick="closeAnnouncement()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <img src="/static/images/logo.svg" alt="Beakon" class="nav-logo">
+                <span class="nav-title">Beakon</span>
+            </div>
+
+            <div class="nav-menu" id="navMenu">
+                <a href="#features" class="nav-link">Features</a>
+                <a href="#pricing" class="nav-link">Pricing</a>
+                <a href="#customers" class="nav-link">Customers</a>
+                <a href="/docs" class="nav-link">Docs</a>
+                <a href="/blog" class="nav-link">Blog</a>
+            </div>
+
+            <div class="nav-actions">
+                <a href="/demo" class="nav-demo">Live Demo</a>
+                <a href="/login" class="nav-login">Sign In</a>
+                <a href="/signup" class="btn-nav-cta">Start Free Trial</a>
+                <button class="nav-toggle" id="navToggle">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section with Animation -->
+    <section class="hero-modern">
+        <div class="hero-background">
+            <div class="hero-gradient"></div>
+            <div class="hero-pattern"></div>
+        </div>
+
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-badge">
+                    <span class="badge-new">NEW</span>
+                    <span>AI-powered incident detection</span>
+                </div>
+
+                <h1 class="hero-title" data-ab-test="1" data-ab-element="text">
+                    Keep your customers informed
+                    <span class="hero-highlight">when it matters most</span>
+                </h1>
+
+                <p class="hero-subtitle">
+                    Build trust with beautiful status pages. Monitor services, communicate incidents,
+                    and keep your team in sync—all from one powerful platform.
+                </p>
+
+                <div class="hero-cta-group">
+                    <button class="btn-primary-large" data-ab-test="2" data-ab-element="button">
+                        Start Free 14-Day Trial
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                    <button class="btn-secondary-large">
+                        <i class="fas fa-play-circle"></i>
+                        Watch Demo
+                    </button>
+                </div>
+
+                <div class="hero-trust">
+                    <p>Trusted by 5,000+ companies worldwide</p>
+                    <div class="trust-logos">
+                        <img src="/static/images/logo1.svg" alt="Company 1">
+                        <img src="/static/images/logo2.svg" alt="Company 2">
+                        <img src="/static/images/logo3.svg" alt="Company 3">
+                        <img src="/static/images/logo4.svg" alt="Company 4">
+                        <img src="/static/images/logo5.svg" alt="Company 5">
+                    </div>
+                </div>
+            </div>
+
+            <div class="hero-visual">
+                <div class="browser-mockup">
+                    <div class="browser-bar">
+                        <div class="browser-dots">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                        <div class="browser-url">status.yourcompany.com</div>
+                    </div>
+                    <img src="/static/images/dashboard-preview.png" alt="Dashboard Preview" class="hero-image">
+                </div>
+
+                <!-- Floating Elements -->
+                <div class="floating-card uptime-card">
+                    <i class="fas fa-check-circle"></i>
+                    <div>
+                        <span class="card-value">99.99%</span>
+                        <span class="card-label">Uptime</span>
+                    </div>
+                </div>
+
+                <div class="floating-card incident-card">
+                    <i class="fas fa-bell"></i>
+                    <div>
+                        <span class="card-value">< 30s</span>
+                        <span class="card-label">Alert Time</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Social Proof Bar -->
+    <section class="social-proof">
+        <div class="container">
+            <div class="proof-stats">
+                <div class="stat">
+                    <span class="stat-number">10M+</span>
+                    <span class="stat-label">Status Checks Daily</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-number">99.99%</span>
+                    <span class="stat-label">Platform Uptime</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-number">5,000+</span>
+                    <span class="stat-label">Happy Customers</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-number">< 1min</span>
+                    <span class="stat-label">Setup Time</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section with Icons -->
+    <section class="features-modern" id="features">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">FEATURES</span>
+                <h2 class="section-title">Everything you need for reliable communication</h2>
+                <p class="section-subtitle">
+                    Powerful features that help you maintain transparency and build customer trust
+                </p>
+            </div>
+
+            <div class="features-grid">
+                {{range .Features}}
+                <div class="feature-card" data-aos="fade-up">
+                    <div class="feature-icon-wrapper">
+                        <i class="{{.IconClass}}"></i>
+                    </div>
+                    <h3>{{.Title}}</h3>
+                    <p>{{.Description}}</p>
+                    <a href="#" class="feature-link">Learn more →</a>
+                </div>
+                {{end}}
+            </div>
+
+            <!-- Feature Showcase -->
+            <div class="feature-showcase">
+                <div class="showcase-content">
+                    <h3>Real-time monitoring that never sleeps</h3>
+                    <p>Our global monitoring network checks your services every 30 seconds from multiple locations worldwide.</p>
+
+                    <ul class="feature-list">
+                        <li><i class="fas fa-check"></i> Multi-region monitoring</li>
+                        <li><i class="fas fa-check"></i> Custom check intervals</li>
+                        <li><i class="fas fa-check"></i> SSL certificate monitoring</li>
+                        <li><i class="fas fa-check"></i> API endpoint testing</li>
+                    </ul>
+
+                    <button class="btn-primary">
+                        Explore Monitoring
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+
+                <div class="showcase-visual">
+                    <img src="/static/images/monitoring-map.svg" alt="Global Monitoring">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works -->
+    <section class="how-it-works">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">HOW IT WORKS</span>
+                <h2 class="section-title">Get started in minutes</h2>
+            </div>
+
+            <div class="steps-timeline">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h3>Create Your Status Page</h3>
+                    <p>Choose a template and customize it with your brand colors and logo</p>
+                </div>
+
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h3>Add Your Services</h3>
+                    <p>List all your services and components that customers depend on</p>
+                </div>
+
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h3>Set Up Monitoring</h3>
+                    <p>Configure automated checks or integrate with your existing tools</p>
+                </div>
+
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <h3>Keep Customers Informed</h3>
+                    <p>Automatic updates when incidents occur, building trust through transparency</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials with Carousel -->
+    <section class="testimonials" id="customers">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">TESTIMONIALS</span>
+                <h2 class="section-title">Loved by teams worldwide</h2>
+            </div>
+
+            <div class="testimonials-carousel">
+                {{range .Testimonials}}
+                <div class="testimonial-card">
+                    <div class="testimonial-rating">
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                        <i class="fas fa-star"></i>
+                    </div>
+
+                    <p class="testimonial-text">"{{.Content}}"</p>
+
+                    <div class="testimonial-author">
+                        <img src="{{.AuthorImage}}" alt="{{.Author}}">
+                        <div>
+                            <strong>{{.Author}}</strong>
+                            <span>{{.Role}}, {{.Company}}</span>
+                        </div>
+                    </div>
+                </div>
+                {{end}}
+            </div>
+
+            <div class="testimonial-nav">
+                <button class="carousel-prev"><i class="fas fa-chevron-left"></i></button>
+                <button class="carousel-next"><i class="fas fa-chevron-right"></i></button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section class="pricing-modern" id="pricing">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">PRICING</span>
+                <h2 class="section-title">Simple, transparent pricing</h2>
+                <p class="section-subtitle">Start free, upgrade when you need more</p>
+
+                <div class="pricing-toggle">
+                    <span>Monthly</span>
+                    <label class="toggle">
+                        <input type="checkbox" id="pricingToggle">
+                        <span class="slider"></span>
+                    </label>
+                    <span>Yearly <span class="badge-save">Save 20%</span></span>
+                </div>
+            </div>
+
+            <div class="pricing-cards">
+                <div class="pricing-card">
+                    <h3>Free</h3>
+                    <div class="price">
+                        <span class="currency">$</span>
+                        <span class="amount">0</span>
+                        <span class="period">/month</span>
+                    </div>
+
+                    <ul class="pricing-features">
+                        <li><i class="fas fa-check"></i> Up to 5 services</li>
+                        <li><i class="fas fa-check"></i> Basic status page</li>
+                        <li><i class="fas fa-check"></i> Email notifications</li>
+                        <li><i class="fas fa-check"></i> 30-day history</li>
+                        <li><i class="fas fa-times"></i> Custom domain</li>
+                        <li><i class="fas fa-times"></i> API access</li>
+                    </ul>
+
+                    <button class="btn-outline-full">Get Started</button>
+                </div>
+
+                <div class="pricing-card popular">
+                    <span class="popular-badge">Most Popular</span>
+                    <h3>Pro</h3>
+                    <div class="price">
+                        <span class="currency">$</span>
+                        <span class="amount" data-monthly="29" data-yearly="23">29</span>
+                        <span class="period">/month</span>
+                    </div>
+
+                    <ul class="pricing-features">
+                        <li><i class="fas fa-check"></i> Up to 25 services</li>
+                        <li><i class="fas fa-check"></i> Custom domain</li>
+                        <li><i class="fas fa-check"></i> SMS & webhook alerts</li>
+                        <li><i class="fas fa-check"></i> Unlimited history</li>
+                        <li><i class="fas fa-check"></i> API access</li>
+                        <li><i class="fas fa-check"></i> Priority support</li>
+                    </ul>
+
+                    <button class="btn-primary-full">Start Free Trial</button>
+                </div>
+
+                <div class="pricing-card">
+                    <h3>Enterprise</h3>
+                    <div class="price">
+                        <span class="currency">$</span>
+                        <span class="amount" data-monthly="99" data-yearly="79">99</span>
+                        <span class="period">/month</span>
+                    </div>
+
+                    <ul class="pricing-features">
+                        <li><i class="fas fa-check"></i> Unlimited services</li>
+                        <li><i class="fas fa-check"></i> Multiple status pages</li>
+                        <li><i class="fas fa-check"></i> White-label option</li>
+                        <li><i class="fas fa-check"></i> SLA reporting</li>
+                        <li><i class="fas fa-check"></i> Custom integrations</li>
+                        <li><i class="fas fa-check"></i> Dedicated support</li>
+                    </ul>
+
+                    <button class="btn-outline-full">Contact Sales</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="faq-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">FAQ</span>
+                <h2 class="section-title">Frequently asked questions</h2>
+            </div>
+
+            <div class="faq-grid">
+                {{range .FAQs}}
+                <div class="faq-item">
+                    <button class="faq-question">
+                        {{.Question}}
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="faq-answer">
+                        <p>{{.Answer}}</p>
+                    </div>
+                </div>
+                {{end}}
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="container">
+            <div class="cta-content">
+                <h2>Ready to build trust with transparency?</h2>
+                <p>Join thousands of companies using Beakon to keep their customers informed</p>
+
+                <div class="cta-buttons">
+                    <button class="btn-cta-primary">
+                        Start Your Free Trial
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                    <button class="btn-cta-secondary">
+                        Schedule a Demo
+                    </button>
+                </div>
+
+                <p class="cta-note">
+                    <i class="fas fa-check-circle"></i> No credit card required
+                    <i class="fas fa-check-circle"></i> 14-day free trial
+                    <i class="fas fa-check-circle"></i> Cancel anytime
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-main">
+                <div class="footer-brand">
+                    <img src="/static/images/logo.svg" alt="Beakon" class="footer-logo">
+                    <p>Keep your customers informed with beautiful, reliable status pages.</p>
+
+                    <div class="footer-social">
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fab fa-github"></i></a>
+                        <a href="#"><i class="fab fa-linkedin"></i></a>
+                        <a href="#"><i class="fab fa-discord"></i></a>
+                    </div>
+                </div>
+
+                <div class="footer-links">
+                    <div class="footer-column">
+                        <h4>Product</h4>
+                        <a href="/features">Features</a>
+                        <a href="/pricing">Pricing</a>
+                        <a href="/changelog">Changelog</a>
+                        <a href="/roadmap">Roadmap</a>
+                        <a href="/api">API</a>
+                    </div>
+
+                    <div class="footer-column">
+                        <h4>Company</h4>
+                        <a href="/about">About</a>
+                        <a href="/blog">Blog</a>
+                        <a href="/customers">Customers</a>
+                        <a href="/careers">Careers</a>
+                        <a href="/contact">Contact</a>
+                    </div>
+
+                    <div class="footer-column">
+                        <h4>Resources</h4>
+                        <a href="/docs">Documentation</a>
+                        <a href="/guides">Guides</a>
+                        <a href="/templates">Templates</a>
+                        <a href="/community">Community</a>
+                        <a href="/support">Support</a>
+                    </div>
+
+                    <div class="footer-column">
+                        <h4>Legal</h4>
+                        <a href="/privacy">Privacy Policy</a>
+                        <a href="/terms">Terms of Service</a>
+                        <a href="/security">Security</a>
+                        <a href="/gdpr">GDPR</a>
+                        <a href="/sla">SLA</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <p>&copy; 2024 Beakon. All rights reserved.</p>
+                <div class="footer-badges">
+                    <img src="/static/images/soc2.svg" alt="SOC2 Compliant">
+                    <img src="/static/images/gdpr.svg" alt="GDPR Compliant">
+                    <img src="/static/images/iso.svg" alt="ISO Certified">
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="/static/js/modern-landing.js"></script>
+    <script src="/static/js/ab-test.js"></script>
+
+    <!-- Analytics -->
+    <script>
+        // Web Vitals tracking
+        if ('PerformanceObserver' in window) {
+            // Track Core Web Vitals
+        }
+    </script>
+</body>
+</html>

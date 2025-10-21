@@ -1,0 +1,145 @@
+{
+  "environment": "testing",
+  "log_level": "debug",
+  "timeout": "10m",
+  "retry_attempts": 5,
+  "retry_delay": "2s",
+  "cleanup_on_exit": true,
+  "parallel_tests": false,
+  "coverage_report": true,
+  "test_data_dir": "./testdata",
+  "server": {
+    "port": "8084",
+    "host": "localhost",
+    "read_timeout": "30s",
+    "write_timeout": "30s",
+    "idle_timeout": "120s"
+  },
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "statuspage_component_test",
+    "user": "postgres",
+    "password": "postgres",
+    "ssl_mode": "disable",
+    "max_connections": 10,
+    "max_idle_connections": 5,
+    "connection_max_lifetime": "1h"
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "password": "",
+    "db": 0,
+    "pool_size": 10,
+    "min_idle_connections": 5
+  },
+  "services": {
+    "tenant_service": {
+      "base_url": "http://localhost:8082",
+      "timeout": "5s"
+    },
+    "incident_service": {
+      "base_url": "http://localhost:8085",
+      "timeout": "5s"
+    },
+    "monitoring_service": {
+      "base_url": "http://localhost:8087",
+      "timeout": "5s"
+    }
+  },
+  "test_scenarios": {
+    "create_component": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "update_component": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "delete_component": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "list_components": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "update_component_status": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_components_by_category": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "get_component_metrics": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "bulk_update_status": {
+      "enabled": true,
+      "timeout": "5s"
+    },
+    "performance_test": {
+      "enabled": true,
+      "timeout": "10s",
+      "bulk_operations": 20
+    }
+  },
+  "mock_data": {
+    "components": [
+      {
+        "name": "API Server",
+        "description": "Main API server component",
+        "status": "operational",
+        "category": "API",
+        "tenant_id": "test-tenant-id",
+        "metadata": {
+          "version": "1.0.0",
+          "region": "us-east-1"
+        }
+      },
+      {
+        "name": "Database",
+        "description": "Primary database",
+        "status": "operational",
+        "category": "Database",
+        "tenant_id": "test-tenant-id",
+        "metadata": {
+          "version": "13.0",
+          "region": "us-east-1"
+        }
+      },
+      {
+        "name": "CDN",
+        "description": "Content delivery network",
+        "status": "operational",
+        "category": "CDN",
+        "tenant_id": "test-tenant-id",
+        "metadata": {
+          "provider": "cloudflare",
+          "region": "global"
+        }
+      }
+    ],
+    "statuses": [
+      "operational",
+      "degraded_performance",
+      "partial_outage",
+      "major_outage",
+      "maintenance"
+    ],
+    "categories": [
+      "API",
+      "Database",
+      "CDN",
+      "Monitoring",
+      "Authentication",
+      "Storage",
+      "Queue",
+      "Cache"
+    ]
+  }
+}
+

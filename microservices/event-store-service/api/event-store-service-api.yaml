@@ -1,0 +1,788 @@
+openapi: 3.0.3
+info:
+  title: Event Store Service API
+  description: API contract for the Event Store Service
+  version: 1.0.0
+  contact:
+    name: Event Store Service Team
+    email: event-store-service@statuspage.com
+
+servers:
+  - url: http://localhost:8014
+    description: Development server
+  - url: https://event-store-service.statuspage.com
+    description: Production server
+
+paths:
+  /events:
+    get:
+      summary: List events
+      description: Get a list of events with optional filtering
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: event_type
+          in: query
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          schema:
+            type: string
+        - name: aggregate_id
+          in: query
+          schema:
+            type: string
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: List of events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Store event
+      description: Store a new event in the event store
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreEventRequest'
+      responses:
+        '201':
+          description: Event stored successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /events/{event_id}:
+    get:
+      summary: Get event
+      description: Get a specific event by ID
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Event details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /events/streams/{stream_id}:
+    get:
+      summary: Get event stream
+      description: Get events for a specific stream
+      parameters:
+        - name: stream_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: from_version
+          in: query
+          schema:
+            type: integer
+        - name: to_version
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Event stream
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stream_id:
+                    type: string
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /events/streams/{stream_id}/snapshot:
+    get:
+      summary: Get stream snapshot
+      description: Get the latest snapshot for a stream
+      parameters:
+        - name: stream_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Stream snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create stream snapshot
+      description: Create a snapshot for a stream
+      parameters:
+        - name: stream_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSnapshotRequest'
+      responses:
+        '201':
+          description: Snapshot created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /events/projections:
+    get:
+      summary: List projections
+      description: Get a list of event projections
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, paused, stopped, failed]
+      responses:
+        '200':
+          description: List of projections
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  projections:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Projection'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create projection
+      description: Create a new event projection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectionRequest'
+      responses:
+        '201':
+          description: Projection created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Projection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /events/projections/{projection_id}:
+    get:
+      summary: Get projection
+      description: Get a specific projection by ID
+      parameters:
+        - name: projection_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Projection details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Projection'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update projection
+      description: Update an existing projection
+      parameters:
+        - name: projection_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectionRequest'
+      responses:
+        '200':
+          description: Projection updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Projection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete projection
+      description: Delete a projection
+      parameters:
+        - name: projection_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Projection deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /events/projections/{projection_id}/start:
+    post:
+      summary: Start projection
+      description: Start a projection
+      parameters:
+        - name: projection_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Projection started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Projection'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /events/projections/{projection_id}/stop:
+    post:
+      summary: Stop projection
+      description: Stop a projection
+      parameters:
+        - name: projection_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Projection stopped successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Projection'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /events/projections/{projection_id}/reset:
+    post:
+      summary: Reset projection
+      description: Reset a projection to its initial state
+      parameters:
+        - name: projection_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Projection reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Projection'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /events/statistics:
+    get:
+      summary: Get event store statistics
+      description: Get event store performance and usage statistics
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [1h, 24h, 7d, 30d]
+            default: 24h
+      responses:
+        '200':
+          description: Event store statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventStoreStatistics'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /events/health:
+    get:
+      summary: Event store health check
+      description: Check the health status of the event store
+      responses:
+        '200':
+          description: Event store is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+        '503':
+          description: Event store is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    Event:
+      type: object
+      required:
+        - id
+        - event_type
+        - aggregate_id
+        - aggregate_type
+        - version
+        - data
+        - metadata
+        - timestamp
+      properties:
+        id:
+          type: string
+          description: Unique event identifier
+        event_type:
+          type: string
+          description: Event type
+        aggregate_id:
+          type: string
+          description: Aggregate identifier
+        aggregate_type:
+          type: string
+          description: Aggregate type
+        version:
+          type: integer
+          description: Event version
+        data:
+          type: object
+          description: Event data
+        metadata:
+          type: object
+          description: Event metadata
+        correlation_id:
+          type: string
+          description: Correlation identifier
+        causation_id:
+          type: string
+          description: Causation identifier
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        user_id:
+          type: string
+          description: User identifier
+        timestamp:
+          type: string
+          format: date-time
+          description: Event timestamp
+        created_at:
+          type: string
+          format: date-time
+          description: Event creation timestamp
+
+    Snapshot:
+      type: object
+      required:
+        - id
+        - stream_id
+        - version
+        - data
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique snapshot identifier
+        stream_id:
+          type: string
+          description: Stream identifier
+        version:
+          type: integer
+          description: Snapshot version
+        data:
+          type: object
+          description: Snapshot data
+        metadata:
+          type: object
+          description: Snapshot metadata
+        created_at:
+          type: string
+          format: date-time
+          description: Snapshot creation timestamp
+
+    Projection:
+      type: object
+      required:
+        - id
+        - name
+        - query
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique projection identifier
+        name:
+          type: string
+          description: Projection name
+        description:
+          type: string
+          description: Projection description
+        query:
+          type: string
+          description: Projection query
+        status:
+          type: string
+          enum: [active, paused, stopped, failed]
+          description: Projection status
+        last_processed_event:
+          type: string
+          description: Last processed event ID
+        last_processed_position:
+          type: integer
+          description: Last processed position
+        error_message:
+          type: string
+          description: Error message if projection failed
+        created_at:
+          type: string
+          format: date-time
+          description: Projection creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Projection last update timestamp
+
+    EventStoreStatistics:
+      type: object
+      required:
+        - period
+        - total_events
+        - total_streams
+        - total_projections
+      properties:
+        period:
+          type: string
+          description: Statistics period
+        total_events:
+          type: integer
+          description: Total number of events
+        total_streams:
+          type: integer
+          description: Total number of streams
+        total_projections:
+          type: integer
+          description: Total number of projections
+        events_per_second:
+          type: number
+          format: float
+          description: Events processed per second
+        average_event_size:
+          type: number
+          format: float
+          description: Average event size in bytes
+        storage_usage:
+          type: number
+          format: float
+          description: Storage usage in bytes
+        memory_usage:
+          type: number
+          format: float
+          description: Memory usage in bytes
+        generated_at:
+          type: string
+          format: date-time
+          description: Statistics generation timestamp
+
+    HealthStatus:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy, degraded]
+          description: Health status
+        timestamp:
+          type: string
+          format: date-time
+          description: Health check timestamp
+        details:
+          type: object
+          properties:
+            event_store_connection:
+              type: boolean
+            projection_engine:
+              type: boolean
+            storage_available:
+              type: boolean
+            memory_usage:
+              type: number
+              format: float
+            cpu_usage:
+              type: number
+              format: float
+
+    StoreEventRequest:
+      type: object
+      required:
+        - event_type
+        - aggregate_id
+        - aggregate_type
+        - data
+      properties:
+        event_type:
+          type: string
+        aggregate_id:
+          type: string
+        aggregate_type:
+          type: string
+        data:
+          type: object
+        metadata:
+          type: object
+        correlation_id:
+          type: string
+        causation_id:
+          type: string
+        tenant_id:
+          type: string
+        user_id:
+          type: string
+
+    CreateSnapshotRequest:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: object
+        metadata:
+          type: object
+
+    CreateProjectionRequest:
+      type: object
+      required:
+        - name
+        - query
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        query:
+          type: string
+
+    UpdateProjectionRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        query:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+
