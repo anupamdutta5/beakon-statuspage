@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"github.com/google/uuid"
+
 	"errors"
 	"net/http"
 	"os"
@@ -104,24 +106,24 @@ func (h *TenantAdminHandler) Login(c *gin.Context) {
 
 	h.logger.Info("User logged in successfully",
 		zap.String("email", user.Email),
-		zap.Uint("user_id", user.ID),
+		zap.String("user_id", user.ID.String()),
 		zap.Any("tenant_id", tenantID))
 
 	// Create RBAC session automatically for protected route access
 	var sessionID string
-	if tenantIDStr, ok := tenantID.(string); ok {
+	if tenantIDUUID, ok := tenantID.(uuid.UUID); ok {
 		// Call RBAC service to create session
-		session, err := h.rbacService.CreateSession(c.Request.Context(), user.ID, tenantIDStr, c.ClientIP(), c.Request.UserAgent(), tokenExpiry)
+		session, err := h.rbacService.CreateSession(c.Request.Context(), user.ID, tenantIDUUID, c.ClientIP(), c.Request.UserAgent(), tokenExpiry)
 		if err != nil {
 			h.logger.Warn("Failed to create session (non-critical)",
 				zap.Error(err),
-				zap.Uint("user_id", user.ID))
+				zap.String("user_id", user.ID.String()))
 			// Don't fail login if session creation fails - log warning and continue
 		} else {
 			sessionID = session.ID
 			h.logger.Info("Session created automatically",
 				zap.String("session_id", sessionID),
-				zap.Uint("user_id", user.ID))
+				zap.String("user_id", user.ID.String()))
 		}
 	}
 
@@ -170,8 +172,17 @@ func (h *TenantAdminHandler) Login(c *gin.Context) {
 
 // Logout handles user logout.
 func (h *TenantAdminHandler) Logout(c *gin.Context) {
-	// In production, this would invalidate the JWT token on the server side
-	// For now, we rely on client-side token removal
+	// Clear the auth_token cookie by setting MaxAge to -1
+	c.SetCookie(
+		"auth_token",  // name
+		"",            // value (empty)
+		-1,            // maxAge (-1 deletes the cookie)
+		"/",           // path
+		"",            // domain
+		false,         // secure
+		true,          // httpOnly
+	)
+
 	h.logger.Info("User logged out successfully")
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
 }

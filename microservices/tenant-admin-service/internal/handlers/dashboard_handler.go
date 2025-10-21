@@ -151,3 +151,93 @@ func (h *TenantAdminHandler) generateTenantDashboardData(tenantID uuid.UUID, ten
 
 	return dashboardData
 }
+
+// GetDashboardStats retrieves aggregated statistics for the API dashboard.
+// GET /api/v1/dashboard/stats
+// This endpoint provides JSON data for the React frontend dashboard.
+func (h *TenantAdminHandler) GetDashboardStats(c *gin.Context) {
+	// Extract tenant ID from middleware context
+	tenantIDStr, exists := c.Get("tenant_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Tenant context not found"})
+		return
+	}
+
+	tenantID, err := uuid.Parse(tenantIDStr.(string))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		return
+	}
+
+	// Initialize stats map
+	stats := make(map[string]interface{})
+
+	// Get status pages count
+	var statusPagesCount int64
+	if err := h.service.GetDB().Table("status_pages").
+		Where("tenant_id = ? AND deleted_at IS NULL", tenantID).
+		Count(&statusPagesCount).Error; err != nil {
+		h.logger.Error("Failed to count status pages",
+			zap.String("tenant_id", tenantID.String()),
+			zap.Error(err))
+		statusPagesCount = 0
+	}
+	stats["status_pages"] = statusPagesCount
+
+	// Components count - now available from component_service
+	var componentsCount int64
+	if err := h.service.GetDB().Table("components").
+		Where("tenant_id = ? AND deleted_at IS NULL", tenantID).
+		Count(&componentsCount).Error; err != nil {
+		h.logger.Warn("Failed to count components",
+			zap.String("tenant_id", tenantID.String()),
+			zap.Error(err))
+		componentsCount = 0
+	}
+	stats["components"] = componentsCount
+
+	// Active incidents count - now available from incident_service
+	var activeIncidentsCount int64
+	if err := h.service.GetDB().Table("incidents").
+		Where("tenant_id = ? AND status != ? AND deleted_at IS NULL", tenantID, "resolved").
+		Count(&activeIncidentsCount).Error; err != nil {
+		h.logger.Warn("Failed to count active incidents",
+			zap.String("tenant_id", tenantID.String()),
+			zap.Error(err))
+		activeIncidentsCount = 0
+	}
+	stats["active_incidents"] = activeIncidentsCount
+
+	// Subscribers count - now available from subscriber_service
+	var subscribersCount int64
+	if err := h.service.GetDB().Table("saas_subscribers").
+		Where("tenant_id = ? AND deleted_at IS NULL", tenantID).
+		Count(&subscribersCount).Error; err != nil {
+		h.logger.Warn("Failed to count subscribers",
+			zap.String("tenant_id", tenantID.String()),
+			zap.Error(err))
+		subscribersCount = 0
+	}
+	stats["subscribers"] = subscribersCount
+
+	// Calculate system health
+	systemHealth := "healthy"
+	if activeIncidentsCount > 0 {
+		systemHealth = "degraded"
+	}
+
+	// Check for critical incidents
+	var criticalIncidentsCount int64
+	if err := h.service.GetDB().Table("incidents").
+		Where("tenant_id = ? AND impact = ? AND status != ? AND deleted_at IS NULL", tenantID, "critical", "resolved").
+		Count(&criticalIncidentsCount).Error; err == nil && criticalIncidentsCount > 0 {
+		systemHealth = "critical"
+	}
+
+	stats["system_health"] = systemHealth
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    stats,
+	})
+}

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/anupamdutta5/tenant-admin-service/internal/models"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -35,7 +37,7 @@ func (s *DBSessionStore) Create(ctx context.Context, session *models.Session) er
 
 	s.logger.Debug("Session created in database",
 		zap.String("session_id", session.ID),
-		zap.Uint("user_id", session.UserID))
+		zap.String("user_id", session.UserID.String()))
 
 	return nil
 }
@@ -108,7 +110,7 @@ func (s *DBSessionStore) Delete(ctx context.Context, sessionID string) error {
 }
 
 // GetUserSessions gets all active sessions for a user
-func (s *DBSessionStore) GetUserSessions(ctx context.Context, userID uint) ([]*models.Session, error) {
+func (s *DBSessionStore) GetUserSessions(ctx context.Context, userID uuid.UUID) ([]*models.Session, error) {
 	var sessions []*models.Session
 
 	err := s.db.WithContext(ctx).
@@ -118,33 +120,33 @@ func (s *DBSessionStore) GetUserSessions(ctx context.Context, userID uint) ([]*m
 
 	if err != nil {
 		s.logger.Error("Failed to get user sessions from database",
-			zap.Uint("user_id", userID),
+			zap.String("user_id", userID.String()),
 			zap.Error(err))
 		return nil, fmt.Errorf("failed to get user sessions: %w", err)
 	}
 
 	s.logger.Debug("Retrieved user sessions from database",
-		zap.Uint("user_id", userID),
+		zap.String("user_id", userID.String()),
 		zap.Int("count", len(sessions)))
 
 	return sessions, nil
 }
 
 // DeleteUserSessions deletes all sessions for a user
-func (s *DBSessionStore) DeleteUserSessions(ctx context.Context, userID uint) error {
+func (s *DBSessionStore) DeleteUserSessions(ctx context.Context, userID uuid.UUID) error {
 	result := s.db.WithContext(ctx).
 		Where("user_id = ?", userID).
 		Delete(&models.Session{})
 
 	if result.Error != nil {
 		s.logger.Error("Failed to delete user sessions from database",
-			zap.Uint("user_id", userID),
+			zap.String("user_id", userID.String()),
 			zap.Error(result.Error))
 		return fmt.Errorf("failed to delete user sessions: %w", result.Error)
 	}
 
 	s.logger.Info("Deleted user sessions from database",
-		zap.Uint("user_id", userID),
+		zap.String("user_id", userID.String()),
 		zap.Int64("count", result.RowsAffected))
 
 	return nil

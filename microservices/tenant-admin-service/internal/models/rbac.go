@@ -4,13 +4,14 @@ package models
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 // Role represents a role in the RBAC system
 type Role struct {
-	ID          uint      `json:"id" gorm:"primaryKey"`
-	TenantID    uint      `json:"tenant_id" gorm:"not null;index"`
+	ID          uuid.UUID `json:"id" gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	TenantID    uuid.UUID `json:"tenant_id" gorm:"type:uuid;index"`
 	Name        string    `json:"name" gorm:"not null;size:100"`
 	DisplayName string    `json:"display_name" gorm:"not null;size:255"`
 	Description string    `json:"description" gorm:"type:text"`
@@ -30,7 +31,7 @@ type Role struct {
 
 // Permission represents a permission in the RBAC system
 type Permission struct {
-	ID          uint      `json:"id" gorm:"primaryKey"`
+	ID          uuid.UUID `json:"id" gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
 	Name        string    `json:"name" gorm:"not null;size:100;uniqueIndex"`
 	DisplayName string    `json:"display_name" gorm:"not null;size:255"`
 	Description string    `json:"description" gorm:"type:text"`
@@ -45,16 +46,16 @@ type Permission struct {
 
 // UserRole represents the relationship between users and roles
 type UserRole struct {
-	ID         uint      `json:"id" gorm:"primaryKey"`
-	UserID     uint      `json:"user_id" gorm:"not null;index"`
-	RoleID     uint      `json:"role_id" gorm:"not null;index"`
-	TenantID   uint      `json:"tenant_id" gorm:"not null;index"`
-	AssignedBy uint      `json:"assigned_by" gorm:"not null"`
-	AssignedAt time.Time `json:"assigned_at" gorm:"default:CURRENT_TIMESTAMP"`
+	ID         uuid.UUID  `json:"id" gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	UserID     uuid.UUID  `json:"user_id" gorm:"type:uuid;not null;index"`
+	RoleID     uuid.UUID  `json:"role_id" gorm:"type:uuid;not null;index"`
+	TenantID   uuid.UUID  `json:"tenant_id" gorm:"type:uuid;not null;index"`
+	AssignedBy uuid.UUID  `json:"assigned_by" gorm:"type:uuid;not null"`
+	AssignedAt time.Time  `json:"assigned_at" gorm:"default:CURRENT_TIMESTAMP"`
 	ExpiresAt  *time.Time `json:"expires_at"`
-	IsActive   bool      `json:"is_active" gorm:"default:true"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	IsActive   bool       `json:"is_active" gorm:"default:true"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 
 	// Relationships
 	Role Role `json:"role" gorm:"foreignKey:RoleID"`
@@ -62,12 +63,12 @@ type UserRole struct {
 
 // Team represents a team within a tenant for grouping users
 type Team struct {
-	ID          uint      `json:"id" gorm:"primaryKey"`
-	TenantID    uint      `json:"tenant_id" gorm:"not null;index"`
+	ID          uuid.UUID `json:"id" gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	TenantID    uuid.UUID `json:"tenant_id" gorm:"type:uuid;not null;index"`
 	Name        string    `json:"name" gorm:"not null;size:100"`
 	Description string    `json:"description" gorm:"type:text"`
 	IsActive    bool      `json:"is_active" gorm:"default:true"`
-	CreatedBy   uint      `json:"created_by" gorm:"not null"`
+	CreatedBy   uuid.UUID `json:"created_by" gorm:"type:uuid;not null"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 
@@ -81,12 +82,12 @@ type Team struct {
 
 // TeamMember represents the relationship between teams and users
 type TeamMember struct {
-	ID        uint      `json:"id" gorm:"primaryKey"`
-	TeamID    uint      `json:"team_id" gorm:"not null;index"`
-	UserID    uint      `json:"user_id" gorm:"not null;index"`
-	TenantID  uint      `json:"tenant_id" gorm:"not null;index"`
+	ID        uuid.UUID `json:"id" gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	TeamID    uuid.UUID `json:"team_id" gorm:"type:uuid;not null;index"`
+	UserID    uuid.UUID `json:"user_id" gorm:"type:uuid;not null;index"`
+	TenantID  uuid.UUID `json:"tenant_id" gorm:"type:uuid;not null;index"`
 	Role      string    `json:"role" gorm:"not null;size:50;default:'member'"` // member, admin, lead
-	AddedBy   uint      `json:"added_by" gorm:"not null"`
+	AddedBy   uuid.UUID `json:"added_by" gorm:"type:uuid;not null"`
 	AddedAt   time.Time `json:"added_at" gorm:"default:CURRENT_TIMESTAMP"`
 	IsActive  bool      `json:"is_active" gorm:"default:true"`
 	CreatedAt time.Time `json:"created_at"`
@@ -98,16 +99,16 @@ type TeamMember struct {
 
 // TeamRole represents roles assigned to entire teams
 type TeamRole struct {
-	ID         uint      `json:"id" gorm:"primaryKey"`
-	TeamID     uint      `json:"team_id" gorm:"not null;index"`
-	RoleID     uint      `json:"role_id" gorm:"not null;index"`
-	TenantID   uint      `json:"tenant_id" gorm:"not null;index"`
-	AssignedBy uint      `json:"assigned_by" gorm:"not null"`
-	AssignedAt time.Time `json:"assigned_at" gorm:"default:CURRENT_TIMESTAMP"`
+	ID         uuid.UUID  `json:"id" gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	TeamID     uuid.UUID  `json:"team_id" gorm:"type:uuid;not null;index"`
+	RoleID     uuid.UUID  `json:"role_id" gorm:"type:uuid;not null;index"`
+	TenantID   uuid.UUID  `json:"tenant_id" gorm:"type:uuid;not null;index"`
+	AssignedBy uuid.UUID  `json:"assigned_by" gorm:"type:uuid;not null"`
+	AssignedAt time.Time  `json:"assigned_at" gorm:"default:CURRENT_TIMESTAMP"`
 	ExpiresAt  *time.Time `json:"expires_at"`
-	IsActive   bool      `json:"is_active" gorm:"default:true"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	IsActive   bool       `json:"is_active" gorm:"default:true"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 
 	// Relationships
 	Team Team `json:"team" gorm:"foreignKey:TeamID"`
@@ -116,25 +117,25 @@ type TeamRole struct {
 
 // AuditLog represents audit trail for RBAC actions
 type AuditLog struct {
-	ID          uint      `json:"id" gorm:"primaryKey"`
-	TenantID    uint      `json:"tenant_id" gorm:"not null;index"`
-	UserID      uint      `json:"user_id" gorm:"not null;index"`
-	Action      string    `json:"action" gorm:"not null;size:100"`
-	Resource    string    `json:"resource" gorm:"not null;size:100"`
-	ResourceID  *uint     `json:"resource_id" gorm:"index"`
-	Details     string    `json:"details" gorm:"type:text"`
-	IPAddress   string    `json:"ip_address" gorm:"size:45"`
-	UserAgent   string    `json:"user_agent" gorm:"type:text"`
-	Success     bool      `json:"success" gorm:"default:true"`
-	ErrorMessage string   `json:"error_message" gorm:"type:text"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID           uuid.UUID  `json:"id" gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	TenantID     uuid.UUID  `json:"tenant_id" gorm:"type:uuid;not null;index"`
+	UserID       uuid.UUID  `json:"user_id" gorm:"type:uuid;not null;index"`
+	Action       string     `json:"action" gorm:"not null;size:100"`
+	Resource     string     `json:"resource" gorm:"not null;size:100"`
+	ResourceID   *uuid.UUID `json:"resource_id" gorm:"type:uuid;index"`
+	Details      string     `json:"details" gorm:"type:text"`
+	IPAddress    string     `json:"ip_address" gorm:"size:45"`
+	UserAgent    string     `json:"user_agent" gorm:"type:text"`
+	Success      bool       `json:"success" gorm:"default:true"`
+	ErrorMessage string     `json:"error_message" gorm:"type:text"`
+	CreatedAt    time.Time  `json:"created_at"`
 }
 
 // Session represents user sessions for tracking active users
 type Session struct {
 	ID         string    `json:"id" gorm:"primaryKey;size:128"`
-	UserID     uint      `json:"user_id" gorm:"not null;index"`
-	TenantID   string    `json:"tenant_id" gorm:"type:uuid;not null;index"` // Changed to string to support UUID
+	UserID     uuid.UUID `json:"user_id" gorm:"type:uuid;not null;index"`
+	TenantID   uuid.UUID `json:"tenant_id" gorm:"type:uuid;not null;index"`
 	IPAddress  string    `json:"ip_address" gorm:"size:45"`
 	UserAgent  string    `json:"user_agent" gorm:"type:text"`
 	LastSeenAt time.Time `json:"last_seen_at" gorm:"column:last_seen;default:CURRENT_TIMESTAMP"`
@@ -146,11 +147,11 @@ type Session struct {
 // UserSession represents a refresh token session for long-lived authentication
 // Used for JWT refresh token flow (OAuth 2.0 pattern)
 type UserSession struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
+	ID        uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey" json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-	UserID    uint      `gorm:"not null;index" json:"user_id"`
-	TenantID  string    `gorm:"type:uuid;not null;index" json:"tenant_id"`
+	UserID    uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
+	TenantID  uuid.UUID `gorm:"type:uuid;not null;index" json:"tenant_id"`
 	Token     string    `gorm:"not null;uniqueIndex;size:255" json:"token"` // Refresh token (base64)
 	ExpiresAt time.Time `gorm:"not null;index" json:"expires_at"`
 	IPAddress string    `gorm:"type:text" json:"ip_address"`

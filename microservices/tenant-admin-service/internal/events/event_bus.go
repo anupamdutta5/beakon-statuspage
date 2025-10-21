@@ -2,7 +2,7 @@ package events
 
 import (
 	"context"
-	"encoding/json"
+	// "encoding/json" // Unused
 	"fmt"
 	"sync"
 	"time"

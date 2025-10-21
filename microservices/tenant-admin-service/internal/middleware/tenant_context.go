@@ -28,7 +28,11 @@ func TenantContextMiddleware(db *gorm.DB, logger *zap.Logger, baseDomain string)
 		var tenantID uint
 
 		// 1. Try to extract subdomain from Host header
-		host := c.Request.Host
+		// Check X-Forwarded-Host first (for proxied requests from Next.js)
+		host := c.Request.Header.Get("X-Forwarded-Host")
+		if host == "" {
+			host = c.Request.Host
+		}
 		subdomain := extractSubdomain(host, baseDomain)
 
 		if subdomain != "" && subdomain != "www" {
@@ -70,16 +74,21 @@ func TenantContextMiddleware(db *gorm.DB, logger *zap.Logger, baseDomain string)
 			}
 
 			err := db.Table("tenants").
-				Where("slug = ?", tenantSlug).
+				Where("subdomain = ?", tenantSlug).
 				First(&tenant).Error
 
 			if err != nil {
-				if err != gorm.ErrRecordNotFound {
+				if err == gorm.ErrRecordNotFound {
+					logger.Warn("Tenant not found",
+						zap.String("tenant_slug", tenantSlug),
+						zap.String("host", host))
+				} else {
 					logger.Error("Failed to lookup tenant",
 						zap.String("tenant_slug", tenantSlug),
 						zap.Error(err))
 				}
-				// Don't fail the request - just continue without tenant context
+				// Mark tenant as not found for RequireTenant middleware
+				c.Set("tenant_not_found", true)
 			} else {
 				// Set tenant context
 				c.Set("tenant_id", tenant.ID)
@@ -180,10 +189,65 @@ func GetTenantSlug(c *gin.Context) (string, bool) {
 // RequireTenant is middleware that ensures a tenant context exists
 func RequireTenant() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Check if tenant was explicitly not found (invalid subdomain provided)
+		if notFound, exists := c.Get("tenant_not_found"); exists && notFound.(bool) {
+			// Return simple HTML error page
+			c.Data(404, "text/html; charset=utf-8", []byte(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tenant Not Found</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f5f5f5; }
+        .error-box { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; max-width: 500px; }
+        h1 { color: #e74c3c; margin: 0 0 20px 0; }
+        p { color: #555; margin: 10px 0; }
+        .icon { font-size: 64px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="error-box">
+        <div class="icon">⚠️</div>
+        <h1>Tenant Not Found</h1>
+        <p>The tenant you're trying to access does not exist.</p>
+        <p>Please check the subdomain and try again.</p>
+    </div>
+</body>
+</html>`))
+			c.Abort()
+			return
+		}
+
+		// Check if tenant context exists
 		if _, exists := GetTenantID(c); !exists {
-			c.JSON(400, gin.H{
-				"error": "Tenant context required. Please access via subdomain (e.g., tenant.localhost) or provide ?tenant=X parameter",
-			})
+			// Return simple HTML error page
+			c.Data(400, "text/html; charset=utf-8", []byte(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tenant Required</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f5f5f5; }
+        .error-box { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; max-width: 500px; }
+        h1 { color: #3498db; margin: 0 0 20px 0; }
+        p { color: #555; margin: 10px 0; }
+        .icon { font-size: 64px; margin-bottom: 20px; }
+        code { background: #f8f8f8; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div class="error-box">
+        <div class="icon">🔒</div>
+        <h1>Tenant Required</h1>
+        <p>Please access this service via a tenant subdomain.</p>
+        <p>Example: <code>yourtenant.localhost:8099</code></p>
+    </div>
+</body>
+</html>`))
 			c.Abort()
 			return
 		}

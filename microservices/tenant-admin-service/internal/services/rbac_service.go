@@ -2,6 +2,8 @@
 package services
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -55,15 +57,15 @@ func (s *RBACService) CreateRole(ctx context.Context, role *models.Role) error {
 	}
 
 	s.logger.Info("Role created successfully",
-		zap.Uint("role_id", role.ID),
+		zap.String("role_id", role.ID.String()),
 		zap.String("role_name", role.Name),
-		zap.Uint("tenant_id", role.TenantID))
+		zap.String("tenant_id", role.TenantID.String()))
 
 	return nil
 }
 
 // GetRoles retrieves roles for a tenant
-func (s *RBACService) GetRoles(ctx context.Context, tenantID uint, includeInactive bool) ([]models.Role, error) {
+func (s *RBACService) GetRoles(ctx context.Context, tenantID uuid.UUID, includeInactive bool) ([]models.Role, error) {
 	var roles []models.Role
 	query := s.db.WithContext(ctx).Where("tenant_id = ?", tenantID)
 
@@ -89,7 +91,7 @@ func (s *RBACService) GetRoles(ctx context.Context, tenantID uint, includeInacti
 }
 
 // GetRole retrieves a specific role
-func (s *RBACService) GetRole(ctx context.Context, roleID, tenantID uint) (*models.Role, error) {
+func (s *RBACService) GetRole(ctx context.Context, roleID, tenantID uuid.UUID) (*models.Role, error) {
 	var role models.Role
 	err := s.db.WithContext(ctx).Where("id = ? AND tenant_id = ?", roleID, tenantID).
 		Preload("Permissions").First(&role).Error
@@ -105,7 +107,7 @@ func (s *RBACService) GetRole(ctx context.Context, roleID, tenantID uint) (*mode
 }
 
 // UpdateRole updates an existing role
-func (s *RBACService) UpdateRole(ctx context.Context, roleID, tenantID uint, updates map[string]interface{}) error {
+func (s *RBACService) UpdateRole(ctx context.Context, roleID, tenantID uuid.UUID, updates map[string]interface{}) error {
 	result := s.db.WithContext(ctx).Model(&models.Role{}).
 		Where("id = ? AND tenant_id = ?", roleID, tenantID).Updates(updates)
 
@@ -119,14 +121,14 @@ func (s *RBACService) UpdateRole(ctx context.Context, roleID, tenantID uint, upd
 	}
 
 	s.logger.Info("Role updated successfully",
-		zap.Uint("role_id", roleID),
-		zap.Uint("tenant_id", tenantID))
+		zap.String("role_id", roleID.String()),
+		zap.String("tenant_id", tenantID.String()))
 
 	return nil
 }
 
 // DeleteRole soft deletes a role
-func (s *RBACService) DeleteRole(ctx context.Context, roleID, tenantID uint) error {
+func (s *RBACService) DeleteRole(ctx context.Context, roleID, tenantID uuid.UUID) error {
 	// Check if role is being used
 	var userRoleCount int64
 	s.db.WithContext(ctx).Model(&models.UserRole{}).Where("role_id = ? AND is_active = ?", roleID, true).Count(&userRoleCount)
@@ -148,8 +150,8 @@ func (s *RBACService) DeleteRole(ctx context.Context, roleID, tenantID uint) err
 	}
 
 	s.logger.Info("Role deleted successfully",
-		zap.Uint("role_id", roleID),
-		zap.Uint("tenant_id", tenantID))
+		zap.String("role_id", roleID.String()),
+		zap.String("tenant_id", tenantID.String()))
 
 	return nil
 }
@@ -169,7 +171,7 @@ func (s *RBACService) GetPermissions(ctx context.Context) ([]models.Permission, 
 }
 
 // AssignPermissionsToRole assigns permissions to a role
-func (s *RBACService) AssignPermissionsToRole(ctx context.Context, roleID, tenantID uint, permissionIDs []uint) error {
+func (s *RBACService) AssignPermissionsToRole(ctx context.Context, roleID, tenantID uuid.UUID, permissionIDs []uint) error {
 	// Verify role exists and belongs to tenant
 	var role models.Role
 	err := s.db.WithContext(ctx).Where("id = ? AND tenant_id = ?", roleID, tenantID).First(&role).Error
@@ -195,7 +197,7 @@ func (s *RBACService) AssignPermissionsToRole(ctx context.Context, roleID, tenan
 	}
 
 	s.logger.Info("Permissions assigned to role successfully",
-		zap.Uint("role_id", roleID),
+		zap.String("role_id", roleID.String()),
 		zap.Int("permission_count", len(permissionIDs)))
 
 	return nil
@@ -204,7 +206,7 @@ func (s *RBACService) AssignPermissionsToRole(ctx context.Context, roleID, tenan
 // User Role Management
 
 // AssignRoleToUser assigns a role to a user
-func (s *RBACService) AssignRoleToUser(ctx context.Context, userID, roleID, tenantID, assignedBy uint, expiresAt *time.Time) error {
+func (s *RBACService) AssignRoleToUser(ctx context.Context, userID, roleID, tenantID, assignedBy uuid.UUID, expiresAt *time.Time) error {
 	// Check if assignment already exists
 	var existing models.UserRole
 	err := s.db.WithContext(ctx).Where("user_id = ? AND role_id = ? AND tenant_id = ? AND is_active = ?",
@@ -232,15 +234,15 @@ func (s *RBACService) AssignRoleToUser(ctx context.Context, userID, roleID, tena
 	}
 
 	s.logger.Info("Role assigned to user successfully",
-		zap.Uint("user_id", userID),
-		zap.Uint("role_id", roleID),
-		zap.Uint("tenant_id", tenantID))
+		zap.String("user_id", userID.String()),
+		zap.String("role_id", roleID.String()),
+		zap.String("tenant_id", tenantID.String()))
 
 	return nil
 }
 
 // RemoveRoleFromUser removes a role from a user
-func (s *RBACService) RemoveRoleFromUser(ctx context.Context, userID, roleID, tenantID uint) error {
+func (s *RBACService) RemoveRoleFromUser(ctx context.Context, userID, roleID, tenantID uuid.UUID) error {
 	result := s.db.WithContext(ctx).Model(&models.UserRole{}).
 		Where("user_id = ? AND role_id = ? AND tenant_id = ?", userID, roleID, tenantID).
 		Update("is_active", false)
@@ -255,15 +257,15 @@ func (s *RBACService) RemoveRoleFromUser(ctx context.Context, userID, roleID, te
 	}
 
 	s.logger.Info("Role removed from user successfully",
-		zap.Uint("user_id", userID),
-		zap.Uint("role_id", roleID),
-		zap.Uint("tenant_id", tenantID))
+		zap.String("user_id", userID.String()),
+		zap.String("role_id", roleID.String()),
+		zap.String("tenant_id", tenantID.String()))
 
 	return nil
 }
 
 // GetUserRoles retrieves roles for a user
-func (s *RBACService) GetUserRoles(ctx context.Context, userID, tenantID uint) ([]models.UserRole, error) {
+func (s *RBACService) GetUserRoles(ctx context.Context, userID, tenantID uuid.UUID) ([]models.UserRole, error) {
 	var userRoles []models.UserRole
 	err := s.db.WithContext(ctx).Where("user_id = ? AND tenant_id = ? AND is_active = ?", userID, tenantID, true).
 		Preload("Role").Preload("Role.Permissions").Find(&userRoles).Error
@@ -276,7 +278,7 @@ func (s *RBACService) GetUserRoles(ctx context.Context, userID, tenantID uint) (
 }
 
 // GetUserPermissions retrieves all permissions for a user
-func (s *RBACService) GetUserPermissions(ctx context.Context, userID, tenantID uint) ([]string, error) {
+func (s *RBACService) GetUserPermissions(ctx context.Context, userID, tenantID uuid.UUID) ([]string, error) {
 	var permissions []string
 
 	// Get permissions from direct role assignments
@@ -331,7 +333,7 @@ func (s *RBACService) GetUserPermissions(ctx context.Context, userID, tenantID u
 }
 
 // CheckPermission checks if a user has a specific permission
-func (s *RBACService) CheckPermission(ctx context.Context, userID, tenantID uint, permission string) (bool, error) {
+func (s *RBACService) CheckPermission(ctx context.Context, userID, tenantID uuid.UUID, permission string) (bool, error) {
 	permissions, err := s.GetUserPermissions(ctx, userID, tenantID)
 	if err != nil {
 		return false, err
@@ -356,15 +358,15 @@ func (s *RBACService) CreateTeam(ctx context.Context, team *models.Team) error {
 	}
 
 	s.logger.Info("Team created successfully",
-		zap.Uint("team_id", team.ID),
+		zap.String("team_id", team.ID.String()),
 		zap.String("team_name", team.Name),
-		zap.Uint("tenant_id", team.TenantID))
+		zap.String("tenant_id", team.TenantID.String()))
 
 	return nil
 }
 
 // AddUserToTeam adds a user to a team
-func (s *RBACService) AddUserToTeam(ctx context.Context, teamID, userID, tenantID, addedBy uint, role string) error {
+func (s *RBACService) AddUserToTeam(ctx context.Context, teamID, userID, tenantID, addedBy uuid.UUID, role string) error {
 	// Check if user is already in team
 	var existing models.TeamMember
 	err := s.db.WithContext(ctx).Where("team_id = ? AND user_id = ? AND is_active = ?",
@@ -396,8 +398,8 @@ func (s *RBACService) AddUserToTeam(ctx context.Context, teamID, userID, tenantI
 	}
 
 	s.logger.Info("User added to team successfully",
-		zap.Uint("user_id", userID),
-		zap.Uint("team_id", teamID),
+		zap.String("user_id", userID.String()),
+		zap.String("team_id", teamID.String()),
 		zap.String("role", role))
 
 	return nil
@@ -407,7 +409,7 @@ func (s *RBACService) AddUserToTeam(ctx context.Context, teamID, userID, tenantI
 
 // CreateSession creates a new user session
 // Updated to accept tenantID as string (UUID) instead of uint
-func (s *RBACService) CreateSession(ctx context.Context, userID uint, tenantID string, ipAddress, userAgent string, duration time.Duration) (*models.Session, error) {
+func (s *RBACService) CreateSession(ctx context.Context, userID uuid.UUID, tenantID uuid.UUID, ipAddress, userAgent string, duration time.Duration) (*models.Session, error) {
 	// Generate secure session ID
 	sessionID, err := s.generateSessionID()
 	if err != nil {
@@ -451,8 +453,8 @@ func (s *RBACService) ValidateSession(ctx context.Context, sessionID string) (*m
 			// Return a mock session for service-to-service communication
 			return &models.Session{
 				ID:         sessionID,
-				UserID:     1, // Service user ID
-				TenantID:   "00000000-0000-0000-0000-000000000000", // Default tenant UUID for admin operations
+				UserID:     uuid.MustParse("00000000-0000-0000-0000-000000000001"), // Service user UUID
+				TenantID:   uuid.MustParse("00000000-0000-0000-0000-000000000000"), // Default tenant UUID for admin operations
 				CreatedAt:  time.Now(),
 				LastSeenAt: time.Now(),
 				ExpiresAt:  time.Now().Add(24 * time.Hour),
@@ -498,7 +500,7 @@ func (s *RBACService) ValidateSession(ctx context.Context, sessionID string) (*m
 // Audit Logging
 
 // LogAuditEvent logs an audit event
-func (s *RBACService) LogAuditEvent(ctx context.Context, tenantID, userID uint, action, resource string, resourceID *uint, details, ipAddress, userAgent string, success bool, errorMessage string) error {
+func (s *RBACService) LogAuditEvent(ctx context.Context, tenantID, userID uuid.UUID, action, resource string, resourceID *uuid.UUID, details, ipAddress, userAgent string, success bool, errorMessage string) error {
 	auditLog := &models.AuditLog{
 		TenantID:     tenantID,
 		UserID:       userID,
@@ -521,7 +523,7 @@ func (s *RBACService) LogAuditEvent(ctx context.Context, tenantID, userID uint, 
 }
 
 // InitializeDefaultRoles initializes default roles and permissions for a tenant
-func (s *RBACService) InitializeDefaultRoles(ctx context.Context, tenantID uint) error {
+func (s *RBACService) InitializeDefaultRoles(ctx context.Context, tenantID uuid.UUID) error {
 	// Create permissions if they don't exist
 	for _, perm := range models.DefaultPermissions {
 		var existing models.Permission
@@ -555,7 +557,7 @@ func (s *RBACService) InitializeDefaultRoles(ctx context.Context, tenantID uint)
 		}
 	}
 
-	s.logger.Info("Default roles initialized for tenant", zap.Uint("tenant_id", tenantID))
+	s.logger.Info("Default roles initialized for tenant", zap.String("tenant_id", tenantID.String()))
 	return nil
 }
 
@@ -563,7 +565,7 @@ func (s *RBACService) InitializeDefaultRoles(ctx context.Context, tenantID uint)
 
 // CreateSimpleSession creates a new session with simplified parameters for API use
 // Updated to accept tenantID as string (UUID) instead of uint
-func (s *RBACService) CreateSimpleSession(ctx context.Context, userID uint, tenantID string) (*models.Session, error) {
+func (s *RBACService) CreateSimpleSession(ctx context.Context, userID uuid.UUID, tenantID uuid.UUID) (*models.Session, error) {
 	// Use default values for API calls
 	return s.CreateSession(ctx, userID, tenantID, "service-to-service", "admin-api", 24*time.Hour)
 }

@@ -149,45 +149,68 @@ API Gateway (8080) [JWT auth, routing, rate limiting]
 
 ## 📚 Where to Find Detailed Info
 
+### Essential Reading (Read These First!)
+1. **[README.md](README.md)** - Project overview
+2. **[CLAUDE.md](CLAUDE.md)** - Developer onboarding guide (750 lines)
+3. **[microservices/QUICK_START.md](microservices/QUICK_START.md)** - 15-minute setup
+4. **[docs/INDEX.md](docs/INDEX.md)** - Complete documentation map
+
 ### Quick Lookups
-- **All service details**: `/Beakon/SERVICE_CATALOG.md` (1137 lines - comprehensive)
-- **Database schemas**: `/Beakon/DATABASE_ARCHITECTURE.md`
-- **Deployment**: `/Beakon/DEPLOYMENT_GUIDE.md`
-- **Operations**: `/Beakon/OPERATIONAL_RUNBOOK.md`
+- **All service details**: [SERVICE_CATALOG.md](SERVICE_CATALOG.md) (1261 lines - comprehensive)
+- **Database schemas**: [DATABASE_ARCHITECTURE.md](DATABASE_ARCHITECTURE.md)
+- **Authentication**: [AUTHENTICATION_GUIDE.md](AUTHENTICATION_GUIDE.md)
+- **Deployment**: [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
+- **Operations**: [OPERATIONAL_RUNBOOK.md](OPERATIONAL_RUNBOOK.md)
 
 ### Service-Specific
-- **Service README**: `/microservices/<service-name>/README.md`
-- **Complex services**: `/microservices/<service-name>/ARCHITECTURE.md`
+- **Service README**: `microservices/<service-name>/README.md`
+- **Complex services**: `microservices/<service-name>/ARCHITECTURE.md`
   - tenant-admin-service (RBAC, multi-tenant)
   - saas-admin-service (platform admin)
 
-### Development
-- **Start services**: `/microservices/README.md` (scripts: start-dev.sh, stop-dev.sh)
-- **Inter-service comms**: `/microservices/API_GATEWAY_COMMUNICATION_GUIDE.md`
+### Development Guides
+- **Quick Setup**: [microservices/QUICK_START.md](microservices/QUICK_START.md) - 15-minute setup
+- **Frontend Guide**: [microservices/FRONTEND_GUIDE.md](microservices/FRONTEND_GUIDE.md) - Complete frontend development
+- **Testing**: [microservices/docs/testing/TESTING_GUIDE.md](microservices/docs/testing/TESTING_GUIDE.md) - 500+ lines
+- **Security**: [microservices/docs/testing/SECURITY_ROADMAP.md](microservices/docs/testing/SECURITY_ROADMAP.md)
+- **Inter-service comms**: [microservices/docs/architecture/API_GATEWAY_COMMUNICATION_GUIDE.md](microservices/docs/architecture/API_GATEWAY_COMMUNICATION_GUIDE.md)
 
 ---
 
 ## 🔄 Recent Major Changes (October 2025)
 
-### 1. Service Consolidation
+### 1. Frontend-Backend Separation (Oct 21, 2025)
+- **Split Frontends**: SaaS Admin (3001) & Tenant Admin (3002) → Separate Next.js apps
+- **Why**: Independent scaling, proper SSR, fast refresh, production-ready Docker builds
+- **Middleware Auth**: Server-side authentication prevents auth bypasses
+- **Repositories**:
+  - https://github.com/anupamdutta5/saas-admin-frontend
+  - https://github.com/anupamdutta5/tenant-admin-frontend
+
+### 2. Documentation Consolidation (Oct 21, 2025)
+- **Before**: 120+ markdown files (duplicates, outdated, confusing)
+- **After**: 25 essential files (clear hierarchy, no duplicates)
+- **Archived**: 50+ historical docs (preserved, not deleted)
+- **New Files**:
+  - [microservices/QUICK_START.md](microservices/QUICK_START.md) - 15-minute setup
+  - [microservices/FRONTEND_GUIDE.md](microservices/FRONTEND_GUIDE.md) - Complete frontend guide
+  - [docs/INDEX.md](docs/INDEX.md) - Documentation map
+- **Structure**: Root → Microservices → Service (clear hierarchy)
+
+### 3. Service Consolidation (Sept 2025)
 - Merged `tenant-service` → `tenant-admin-service`
 - Reason: Unified tenant management, reduced complexity
 
-### 2. Session Management Fixes
+### 4. Session Management Fixes (Sept 2025)
 - Fixed UUID type mismatches (uint → string)
 - Fixed column name (`last_seen_at` → `last_seen`)
 - Disabled Redis, using database-only sessions
 - Added auto-session creation on login
 
-### 3. RBAC Implementation
+### 5. RBAC Implementation (Sept 2025)
 - Full role-based access control in tenant-admin-service
 - Session validation, role management, permission system
 - Audit logging for all RBAC operations
-
-### 4. Documentation Cleanup
-- Removed 36 duplicate/outdated docs
-- Consolidated to 28 essential files
-- Created this AI_CONTEXT.md for fast onboarding
 
 ---
 
@@ -251,6 +274,6 @@ When working on a service:
 
 ---
 
-**Last Updated**: October 14, 2025
-**Total Services**: 20 active (19 HTTP + 1 deprecated + 4 consumers + 1 shared lib)
-**Documentation Files**: 29 total (optimal for AI context)
+**Last Updated**: October 21, 2025
+**Total Services**: 21 active (19 backend + 2 frontend + 1 deprecated + 4 consumers + 1 shared lib)
+**Documentation Files**: 25 essential files (50+ archived, see [docs/INDEX.md](docs/INDEX.md))

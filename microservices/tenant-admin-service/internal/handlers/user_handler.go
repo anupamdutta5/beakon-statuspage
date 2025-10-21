@@ -26,6 +26,21 @@ func NewUserHandler(service *services.TenantAdminService, logger *zap.Logger) *U
 	}
 }
 
+// getTenantIDFromContext extracts and validates tenant ID from context
+func (h *UserHandler) getTenantIDFromContext(c *gin.Context) (uuid.UUID, error) {
+	tenantIDStr, exists := c.Get("tenant_id")
+	if !exists {
+		return uuid.Nil, http.ErrNoCookie // Using as a sentinel error
+	}
+
+	tenantID, err := uuid.Parse(tenantIDStr.(string))
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	return tenantID, nil
+}
+
 // CreateUserRequest represents the request body for creating a user
 type CreateUserRequest struct {
 	Email     string `json:"email" binding:"required,email"`
@@ -44,12 +59,18 @@ type UpdateUserRequest struct {
 }
 
 // GetUsers retrieves all users for a tenant
-// GET /api/v1/tenants/:tenant_id/users
+// GET /api/v1/users
 func (h *UserHandler) GetUsers(c *gin.Context) {
-	tenantIDStr := c.Param("tenant_id")
-	tenantID, err := uuid.Parse(tenantIDStr)
+	// Extract tenant ID from context (set by TenantMiddleware)
+	tenantIDStr, exists := c.Get("tenant_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Tenant context not found"})
+		return
+	}
+
+	tenantID, err := uuid.Parse(tenantIDStr.(string))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID in context"})
 		return
 	}
 
@@ -72,7 +93,7 @@ func (h *UserHandler) GetUsers(c *gin.Context) {
 	users, total, err := h.service.GetUsers(c.Request.Context(), tenantID, limit, offset)
 	if err != nil {
 		h.logger.Error("Failed to get users",
-			zap.String("tenant_id", tenantIDStr),
+			zap.String("tenant_id", tenantID.String()),
 			zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch users"})
 		return
@@ -87,31 +108,31 @@ func (h *UserHandler) GetUsers(c *gin.Context) {
 }
 
 // GetUser retrieves a single user by ID
-// GET /api/v1/tenants/:tenant_id/users/:user_id
+// GET /api/v1/users/:id
 func (h *UserHandler) GetUser(c *gin.Context) {
-	tenantIDStr := c.Param("tenant_id")
-	tenantID, err := uuid.Parse(tenantIDStr)
+	// Extract tenant ID from context (set by TenantMiddleware)
+	tenantID, err := h.getTenantIDFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Tenant context not found"})
 		return
 	}
 
-	userIDStr := c.Param("user_id")
-	userID, err := strconv.ParseUint(userIDStr, 10, 32)
+	userIDStr := c.Param("id")
+	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
 		return
 	}
 
 	// Fetch user
-	user, err := h.service.GetUserByID(c.Request.Context(), tenantID, uint(userID))
+	user, err := h.service.GetUserByID(c.Request.Context(), tenantID, userID)
 	if err != nil {
 		if err == services.ErrNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 			return
 		}
 		h.logger.Error("Failed to get user",
-			zap.String("tenant_id", tenantIDStr),
+			zap.String("tenant_id", tenantID.String()),
 			zap.String("user_id", userIDStr),
 			zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch user"})
@@ -122,12 +143,12 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 }
 
 // CreateUser creates a new user for a tenant
-// POST /api/v1/tenants/:tenant_id/users
+// POST /api/v1/users
 func (h *UserHandler) CreateUser(c *gin.Context) {
-	tenantIDStr := c.Param("tenant_id")
-	tenantID, err := uuid.Parse(tenantIDStr)
+	// Extract tenant ID from context (set by TenantMiddleware)
+	tenantID, err := h.getTenantIDFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Tenant context not found"})
 		return
 	}
 
@@ -160,7 +181,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		}
 
 		h.logger.Error("Failed to create user",
-			zap.String("tenant_id", tenantIDStr),
+			zap.String("tenant_id", tenantID.String()),
 			zap.String("email", req.Email),
 			zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
@@ -174,19 +195,19 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 }
 
 // UpdateUser updates user information
-// PUT /api/v1/tenants/:tenant_id/users/:user_id
+// PUT /api/v1/users/:id
 func (h *UserHandler) UpdateUser(c *gin.Context) {
-	tenantIDStr := c.Param("tenant_id")
-	tenantID, err := uuid.Parse(tenantIDStr)
+	// Extract tenant ID from context (set by TenantMiddleware)
+	tenantID, err := h.getTenantIDFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Tenant context not found"})
 		return
 	}
 
-	userIDStr := c.Param("user_id")
-	userID, err := strconv.ParseUint(userIDStr, 10, 32)
+	userIDStr := c.Param("id")
+	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
 		return
 	}
 
@@ -217,13 +238,13 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	}
 
 	// Update user
-	if err := h.service.UpdateUser(c.Request.Context(), tenantID, uint(userID), updates); err != nil {
+	if err := h.service.UpdateUser(c.Request.Context(), tenantID, userID, updates); err != nil {
 		if err == services.ErrNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 			return
 		}
 		h.logger.Error("Failed to update user",
-			zap.String("tenant_id", tenantIDStr),
+			zap.String("tenant_id", tenantID.String()),
 			zap.String("user_id", userIDStr),
 			zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
@@ -234,30 +255,30 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 }
 
 // DeleteUser soft-deletes a user
-// DELETE /api/v1/tenants/:tenant_id/users/:user_id
+// DELETE /api/v1/users/:id
 func (h *UserHandler) DeleteUser(c *gin.Context) {
-	tenantIDStr := c.Param("tenant_id")
-	tenantID, err := uuid.Parse(tenantIDStr)
+	// Extract tenant ID from context (set by TenantMiddleware)
+	tenantID, err := h.getTenantIDFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Tenant context not found"})
 		return
 	}
 
-	userIDStr := c.Param("user_id")
-	userID, err := strconv.ParseUint(userIDStr, 10, 32)
+	userIDStr := c.Param("id")
+	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
 		return
 	}
 
 	// Delete user
-	if err := h.service.DeleteUser(c.Request.Context(), tenantID, uint(userID)); err != nil {
+	if err := h.service.DeleteUser(c.Request.Context(), tenantID, userID); err != nil {
 		if err == services.ErrNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 			return
 		}
 		h.logger.Error("Failed to delete user",
-			zap.String("tenant_id", tenantIDStr),
+			zap.String("tenant_id", tenantID.String()),
 			zap.String("user_id", userIDStr),
 			zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user"})
@@ -268,12 +289,12 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 }
 
 // GetUserStats retrieves user count and limit statistics for a tenant
-// GET /api/v1/users/:tenant_id/stats
+// GET /api/v1/users/stats
 func (h *UserHandler) GetUserStats(c *gin.Context) {
-	tenantIDStr := c.Param("tenant_id")
-	tenantID, err := uuid.Parse(tenantIDStr)
+	// Extract tenant ID from context (set by TenantMiddleware)
+	tenantID, err := h.getTenantIDFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Tenant context not found"})
 		return
 	}
 
@@ -281,11 +302,61 @@ func (h *UserHandler) GetUserStats(c *gin.Context) {
 	stats, err := h.service.GetTenantUserStats(c.Request.Context(), tenantID)
 	if err != nil {
 		h.logger.Error("Failed to get tenant user stats",
-			zap.String("tenant_id", tenantIDStr),
+			zap.String("tenant_id", tenantID.String()),
 			zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch user statistics"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": stats})
+}
+
+// UpdateCredentialsRequest represents the request to update tenant owner credentials
+type UpdateCredentialsRequest struct {
+	TenantID    string `json:"tenant_id" binding:"required"`
+	OldEmail    string `json:"old_email" binding:"required,email"`
+	NewEmail    string `json:"new_email" binding:"required,email"`
+	NewPassword string `json:"new_password"` // Optional
+}
+
+// UpdateCredentials updates the tenant owner's email and/or password
+// PUT /api/v1/admin/update-credentials
+func (h *UserHandler) UpdateCredentials(c *gin.Context) {
+	var req UpdateCredentialsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Parse tenant ID
+	tenantID, err := uuid.Parse(req.TenantID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		return
+	}
+
+	// Update credentials using service
+	if err := h.service.UpdateCredentialsByEmail(
+		c.Request.Context(),
+		tenantID,
+		req.OldEmail,
+		req.NewEmail,
+		req.NewPassword,
+	); err != nil {
+		if err == services.ErrNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Tenant owner not found"})
+			return
+		}
+		h.logger.Error("Failed to update credentials",
+			zap.String("tenant_id", req.TenantID),
+			zap.String("old_email", req.OldEmail),
+			zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update credentials"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "Credentials updated successfully",
+	})
 }
