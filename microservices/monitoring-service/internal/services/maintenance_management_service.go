@@ -423,6 +423,66 @@ func (s *MaintenanceManagementService) GetMaintenanceStatistics(tenantID uint, s
 	return stats, nil
 }
 
+// AutoStartMaintenanceWindows automatically starts scheduled maintenance windows.
+func (s *MaintenanceManagementService) AutoStartMaintenanceWindows() error {
+	now := time.Now()
 
+	var windows []models.MaintenanceWindow
+	err := s.db.Where("status = ? AND start_time <= ? AND start_time > ?",
+		"scheduled", now, now.Add(-5*time.Minute)).Find(&windows).Error
 
+	if err != nil {
+		return fmt.Errorf("failed to fetch scheduled maintenance windows: %w", err)
+	}
 
+	for _, window := range windows {
+		window.Status = "in_progress"
+
+		if err := s.db.Save(&window).Error; err != nil {
+			s.logger.Error("Failed to auto-start maintenance window",
+				zap.Error(err),
+				zap.Uint("window_id", window.ID),
+			)
+			continue
+		}
+
+		s.logger.Info("Auto-started maintenance window",
+			zap.Uint("window_id", window.ID),
+			zap.String("title", window.Title),
+		)
+	}
+
+	return nil
+}
+
+// AutoCompleteMaintenanceWindows automatically completes expired maintenance windows.
+func (s *MaintenanceManagementService) AutoCompleteMaintenanceWindows() error {
+	now := time.Now()
+
+	var windows []models.MaintenanceWindow
+	err := s.db.Where("status = ? AND end_time <= ?",
+		"in_progress", now).Find(&windows).Error
+
+	if err != nil {
+		return fmt.Errorf("failed to fetch in-progress maintenance windows: %w", err)
+	}
+
+	for _, window := range windows {
+		window.Status = "completed"
+
+		if err := s.db.Save(&window).Error; err != nil {
+			s.logger.Error("Failed to auto-complete maintenance window",
+				zap.Error(err),
+				zap.Uint("window_id", window.ID),
+			)
+			continue
+		}
+
+		s.logger.Info("Auto-completed maintenance window",
+			zap.Uint("window_id", window.ID),
+			zap.String("title", window.Title),
+		)
+	}
+
+	return nil
+}

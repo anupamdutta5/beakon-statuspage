@@ -34,7 +34,32 @@ echo -e "${BLUE}Orchestrating per-service database initialization${NC}"
 echo ""
 
 # Service directories that have init-db.sh scripts
-SERVICES=("landing-page-service" "saas-admin-service" "tenant-admin-service")
+# Ordered by dependency: core services first, then feature services, then consumers
+SERVICES=(
+    # Core authentication & tenant management (no dependencies)
+    "user-service"
+    "tenant-admin-service"
+    "saas-admin-service"
+
+    # Core features (depend on tenant/user)
+    "component-service"
+    "incident-service"
+    "notification-service"
+    "monitoring-service"
+
+    # Supporting services
+    "payment-service"
+    "branding-service"
+    "event-store-service"
+    "landing-page-service"
+
+    # Analytics & consumers (depend on events)
+    "analytics-service"
+    "analytics-consumer"
+    "audit-consumer"
+    "billing-consumer"
+    "notification-consumer"
+)
 
 # If specific service provided, run only that one
 if [ -n "$1" ]; then

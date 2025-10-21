@@ -16,6 +16,7 @@ type Tenant struct {
 	DeletedAt    gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 	Name         string         `gorm:"not null" json:"name"`
 	Slug         string         `gorm:"uniqueIndex;not null" json:"slug"`
+	Email        string         `gorm:"not null" json:"email"` // Primary email (legacy field, mapped from contact_email)
 	Domain       string         `gorm:"uniqueIndex" json:"domain"`
 	Subdomain    string         `gorm:"uniqueIndex" json:"subdomain"`
 	ContactEmail string         `gorm:"not null" json:"contact_email"`
@@ -72,7 +73,7 @@ type TenantAdmin struct {
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 	TenantID    uuid.UUID      `gorm:"type:uuid;not null;index" json:"tenant_id"`
-	UserID      uint           `gorm:"not null;index" json:"user_id"`
+	UserID      uuid.UUID      `gorm:"type:uuid;not null;index" json:"user_id"`
 	Role        string         `gorm:"not null;index" json:"role"`   // owner, admin, manager, viewer
 	Status      string         `gorm:"default:active" json:"status"` // active, inactive, suspended
 	Permissions string         `gorm:"type:text" json:"permissions"` // JSON array of permissions
@@ -176,7 +177,7 @@ type TenantActivity struct {
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 	TenantID    uuid.UUID      `gorm:"type:uuid;not null;index" json:"tenant_id"`
-	UserID      uint           `gorm:"not null;index" json:"user_id"`
+	UserID      uuid.UUID      `gorm:"type:uuid;not null;index" json:"user_id"`
 	Action      string         `gorm:"not null;index" json:"action"`
 	Resource    string         `gorm:"not null;index" json:"resource"`
 	ResourceID  string         `gorm:"index" json:"resource_id"`
@@ -302,7 +303,7 @@ func (TenantStats) TableName() string {
 
 // User represents an admin user who can log into tenant dashboards.
 type User struct {
-	ID           uint           `gorm:"primarykey" json:"id"`
+	ID           uuid.UUID      `gorm:"type:uuid;default:uuid_generate_v4();primaryKey" json:"id"`
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
@@ -310,7 +311,7 @@ type User struct {
 	PasswordHash string         `gorm:"not null" json:"-"`
 	FirstName    string         `json:"first_name"`
 	LastName     string         `json:"last_name"`
-	TenantID     *uuid.UUID     `gorm:"index" json:"tenant_id,omitempty"`
+	TenantID     uuid.UUID      `gorm:"type:uuid;index" json:"tenant_id,omitempty"`
 	Role         string         `gorm:"type:varchar(50);default:admin" json:"role"`
 	IsActive     bool           `gorm:"default:true" json:"is_active"`
 	LastLoginAt  *time.Time     `json:"last_login_at"`

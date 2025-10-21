@@ -767,6 +767,114 @@ func (h *TenantAdminHandler) CreateTenant(c *gin.Context) {
 	})
 }
 
+// SyncTenantRequest represents tenant sync data from SaaS Admin
+type SyncTenantRequest struct {
+	ID           string `json:"id" binding:"required"`          // UUID from SaaS Admin
+	Name         string `json:"name" binding:"required"`
+	Slug         string `json:"slug" binding:"required"`
+	ContactEmail string `json:"contact_email" binding:"required"`
+	Domain       string `json:"domain"`
+	Subdomain    string `json:"subdomain"`
+	PlanID       string `json:"plan_id"`
+	MaxUsers     *int64 `json:"max_users"`
+}
+
+// SyncTenant handles idempotent tenant synchronization from SaaS Admin
+// This endpoint is designed to be called by SaaS Admin service when a tenant is created/updated
+// It ensures eventual consistency between saas_admin and tenant_admin_db databases
+func (h *TenantAdminHandler) SyncTenant(c *gin.Context) {
+	var req SyncTenantRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Error("Failed to bind sync tenant data", zap.Error(err))
+		RespondWithError(c, http.StatusBadRequest, "Invalid sync data: "+err.Error())
+		return
+	}
+
+	// Parse UUID
+	tenantUUID, err := uuid.Parse(req.ID)
+	if err != nil {
+		h.logger.Error("Invalid tenant UUID", zap.Error(err), zap.String("id", req.ID))
+		RespondWithError(c, http.StatusBadRequest, "Invalid tenant ID format")
+		return
+	}
+
+	h.logger.Info("Syncing tenant from SaaS Admin",
+		zap.String("tenant_id", req.ID),
+		zap.String("name", req.Name),
+		zap.String("slug", req.Slug))
+
+	// Check if tenant already exists (idempotent)
+	existingTenant, err := h.service.GetTenantByUUID(tenantUUID)
+	if err == nil && existingTenant != nil {
+		// Tenant exists - update it
+		h.logger.Info("Tenant already exists, updating",
+			zap.String("tenant_id", req.ID),
+			zap.String("slug", req.Slug))
+
+		existingTenant.Name = req.Name
+		existingTenant.Slug = req.Slug
+		existingTenant.ContactEmail = req.ContactEmail
+		existingTenant.Domain = req.Domain
+		existingTenant.Subdomain = req.Subdomain
+
+		if err := h.service.UpdateTenant(existingTenant); err != nil {
+			h.logger.Error("Failed to update existing tenant during sync", zap.Error(err))
+			RespondWithError(c, http.StatusInternalServerError, "Failed to sync tenant (update failed)")
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Tenant synced successfully (updated)",
+			"data":    existingTenant,
+			"action":  "updated",
+		})
+		return
+	}
+
+	// Tenant doesn't exist - create it with complete data
+	var maxUsers *int
+	if req.MaxUsers != nil {
+		val := int(*req.MaxUsers)
+		maxUsers = &val
+	}
+
+	tenant := &models.Tenant{
+		ID:           tenantUUID,
+		Name:         req.Name,
+		Slug:         req.Slug,
+		ContactEmail: req.ContactEmail,
+		Domain:       req.Domain,
+		Subdomain:    req.Subdomain,
+		Status:       "active",
+		IsActive:     true,
+		MaxUsers:     maxUsers,
+	}
+
+	if err := h.service.SyncTenantFromSaaS(tenant); err != nil {
+		h.logger.Error("Failed to create tenant during sync", zap.Error(err))
+		RespondWithError(c, http.StatusInternalServerError, "Failed to sync tenant (create failed)")
+		return
+	}
+
+	// Fetch the created tenant to get all fields populated
+	syncedTenant, err := h.service.GetTenantByUUID(tenantUUID)
+	if err != nil {
+		h.logger.Warn("Tenant created but failed to fetch", zap.Error(err))
+		// Use the tenant we created as fallback
+		syncedTenant = tenant
+	}
+
+	h.logger.Info("Tenant synced successfully (created)",
+		zap.String("tenant_id", req.ID),
+		zap.String("slug", req.Slug))
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Tenant synced successfully (created)",
+		"data":    syncedTenant,
+		"action":  "created",
+	})
+}
+
 // GetTenant handles getting a tenant by ID.
 func (h *TenantAdminHandler) GetTenant(c *gin.Context) {
 	id, ok := ParseUintParam(c, "id")

@@ -1,6 +1,8 @@
 package sessions
 
 import (
+	"github.com/google/uuid"
+
 	"context"
 	"encoding/json"
 	"fmt"
@@ -97,14 +99,14 @@ func (s *RedisSessionStore) Create(ctx context.Context, session *models.Session)
 		if err := s.cache.Set(ctx, userKey, existingSessions, s.ttl); err != nil {
 			s.logger.Warn("Failed to update user session index",
 				zap.String("session_id", session.ID),
-				zap.Uint("user_id", session.UserID),
+				zap.String("user_id", session.UserID.String()),
 				zap.Error(err))
 		}
 	}
 
 	s.logger.Debug("Session created in Redis",
 		zap.String("session_id", session.ID),
-		zap.Uint("user_id", session.UserID))
+		zap.String("user_id", session.UserID.String()))
 
 	return nil
 }
@@ -221,14 +223,14 @@ func (s *RedisSessionStore) Delete(ctx context.Context, sessionID string) error 
 			if err := s.cache.Set(ctx, userKey, newSessions, s.ttl); err != nil {
 				s.logger.Warn("Failed to update user session index",
 					zap.String("session_id", sessionID),
-					zap.Uint("user_id", session.UserID),
+					zap.String("user_id", session.UserID.String()),
 					zap.Error(err))
 			}
 		} else {
 			// Delete the key if no sessions remain
 			if err := s.cache.Delete(ctx, userKey); err != nil {
 				s.logger.Warn("Failed to delete user session index",
-					zap.Uint("user_id", session.UserID),
+					zap.String("user_id", session.UserID.String()),
 					zap.Error(err))
 			}
 		}
@@ -241,7 +243,7 @@ func (s *RedisSessionStore) Delete(ctx context.Context, sessionID string) error 
 }
 
 // GetUserSessions gets all sessions for a user
-func (s *RedisSessionStore) GetUserSessions(ctx context.Context, userID uint) ([]*models.Session, error) {
+func (s *RedisSessionStore) GetUserSessions(ctx context.Context, userID uuid.UUID) ([]*models.Session, error) {
 	// Get all session IDs for user
 	sessionIDs := s.getUserSessionIDs(ctx, userID)
 
@@ -264,7 +266,7 @@ func (s *RedisSessionStore) GetUserSessions(ctx context.Context, userID uint) ([
 }
 
 // DeleteUserSessions deletes all sessions for a user
-func (s *RedisSessionStore) DeleteUserSessions(ctx context.Context, userID uint) error {
+func (s *RedisSessionStore) DeleteUserSessions(ctx context.Context, userID uuid.UUID) error {
 	sessions, err := s.GetUserSessions(ctx, userID)
 	if err != nil {
 		return err
@@ -274,7 +276,7 @@ func (s *RedisSessionStore) DeleteUserSessions(ctx context.Context, userID uint)
 		if err := s.Delete(ctx, session.ID); err != nil {
 			s.logger.Warn("Failed to delete user session",
 				zap.String("session_id", session.ID),
-				zap.Uint("user_id", userID),
+				zap.String("user_id", userID.String()),
 				zap.Error(err))
 		}
 	}
@@ -283,12 +285,12 @@ func (s *RedisSessionStore) DeleteUserSessions(ctx context.Context, userID uint)
 	userKey := s.getUserSessionsKey(userID)
 	if err := s.cache.Delete(ctx, userKey); err != nil {
 		s.logger.Warn("Failed to delete user sessions index",
-			zap.Uint("user_id", userID),
+			zap.String("user_id", userID.String()),
 			zap.Error(err))
 	}
 
 	s.logger.Info("Deleted all user sessions",
-		zap.Uint("user_id", userID),
+		zap.String("user_id", userID.String()),
 		zap.Int("count", len(sessions)))
 
 	return nil
@@ -307,8 +309,8 @@ func (s *RedisSessionStore) getSessionKey(sessionID string) string {
 }
 
 // getUserSessionsKey returns the Redis key for user's sessions set
-func (s *RedisSessionStore) getUserSessionsKey(userID uint) string {
-	return fmt.Sprintf("user_sessions:%d", userID)
+func (s *RedisSessionStore) getUserSessionsKey(userID uuid.UUID) string {
+	return fmt.Sprintf("user_sessions:%s", userID.String())
 }
 
 // SetTTL updates the default TTL for new sessions
@@ -328,7 +330,7 @@ func (s *RedisSessionStore) HealthCheck(ctx context.Context) error {
 }
 
 // getUserSessionIDs retrieves the list of session IDs for a user
-func (s *RedisSessionStore) getUserSessionIDs(ctx context.Context, userID uint) []string {
+func (s *RedisSessionStore) getUserSessionIDs(ctx context.Context, userID uuid.UUID) []string {
 	userKey := s.getUserSessionsKey(userID)
 
 	// Get session IDs from cache

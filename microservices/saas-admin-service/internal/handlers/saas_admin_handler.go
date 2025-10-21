@@ -10,13 +10,17 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/anupamdutta5/saas-admin-service/internal/auth"
 	"github.com/anupamdutta5/saas-admin-service/internal/config"
+	"github.com/anupamdutta5/saas-admin-service/internal/events"
 	"github.com/anupamdutta5/saas-admin-service/internal/models"
 	"github.com/anupamdutta5/saas-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -26,22 +30,36 @@ type SaaSAdminHandler struct {
 	service              *services.SaaSAdminService
 	serviceURLs          config.ServiceURLs
 	tenantAdminServiceURL string
+	tenantAdminDB        *gorm.DB // Direct connection to tenant_admin_db for credential sync (deprecated, use events)
+	eventPublisher       *events.Publisher // RabbitMQ event publisher for tenant lifecycle events
 	logger               *zap.Logger
+	jwtManager           *auth.JWTManager
 }
 
 // NewSaaSAdminHandler creates a new SaaS admin handler.
-func NewSaaSAdminHandler(service *services.SaaSAdminService, serviceURLs config.ServiceURLs, logger *zap.Logger) *SaaSAdminHandler {
+func NewSaaSAdminHandler(service *services.SaaSAdminService, tenantAdminDB *gorm.DB, eventPublisher *events.Publisher, serviceURLs config.ServiceURLs, logger *zap.Logger) *SaaSAdminHandler {
 	tenantAdminURL := os.Getenv("TENANT_ADMIN_SERVICE_URL")
 	if tenantAdminURL == "" {
 		tenantAdminURL = "http://localhost:8099"
 	}
+
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = "default-secret-key-change-in-production"
+	}
+
+	// Create JWT manager with 24-hour token expiration
+	jwtManager := auth.NewJWTManager(jwtSecret, 24*time.Hour)
 
 	return &SaaSAdminHandler{
 		httpClient:            &http.Client{},
 		service:               service,
 		serviceURLs:           serviceURLs,
 		tenantAdminServiceURL: tenantAdminURL,
+		tenantAdminDB:         tenantAdminDB,
+		eventPublisher:        eventPublisher,
 		logger:                logger,
+		jwtManager:            jwtManager,
 	}
 }
 
@@ -1187,6 +1205,8 @@ func (h *SaaSAdminHandler) GetTenants(c *gin.Context) {
 			"domain":        tenant.Domain,
 			"subdomain":     tenant.Subdomain,
 			"contact_email": tenant.ContactEmail,
+			"billing_email": tenant.BillingEmail,
+			"plan_id":       tenant.PlanID,
 			"status":        tenant.Status,
 			"is_active":     tenant.IsActive,
 			"created_at":    tenant.CreatedAt,
@@ -1198,6 +1218,10 @@ func (h *SaaSAdminHandler) GetTenants(c *gin.Context) {
 		} else {
 			tenantData["max_users"] = nil
 		}
+
+		// Get user count from tenant-admin service (placeholder - will be 0 for now)
+		// TODO: Call tenant-admin service GET /api/v1/users/{tenant_id}/stats to get actual user count
+		tenantData["user_count"] = 0
 
 		tenantList = append(tenantList, tenantData)
 	}
@@ -1288,12 +1312,36 @@ func (h *SaaSAdminHandler) CreateTenant(c *gin.Context) {
 		zap.String("tenant_id", tenant.ID.String()),
 		zap.String("name", tenant.Name))
 
-	// Call tenant-admin service API to create tenant there (service-to-service call)
-	if err := h.createTenantInTenantAdminService(tenant, req.AdminEmail, req.AdminPassword); err != nil {
-		h.logger.Error("Failed to create tenant in tenant-admin service",
-			zap.Error(err),
-			zap.String("tenant_id", tenant.ID.String()))
-		// Log but don't fail - tenant is already created in saas_admin
+	// Publish tenant created event to RabbitMQ
+	if h.eventPublisher != nil {
+		metadata := events.EventMetadata{
+			Source:        "saas-admin-service",
+			CorrelationID: c.GetString("X-Correlation-ID"),
+			UserID:        c.GetString("user_id"),
+			IPAddress:     c.ClientIP(),
+			UserAgent:     c.Request.UserAgent(),
+		}
+
+		event := events.NewTenantCreatedEvent(tenant, metadata)
+		if err := h.eventPublisher.PublishTenantEvent(c.Request.Context(), event); err != nil {
+			h.logger.Error("Failed to publish tenant created event",
+				zap.Error(err),
+				zap.String("tenant_id", tenant.ID.String()))
+			// Log but don't fail - tenant is already created in saas_admin
+			// The tenant-admin service will need to be synced manually or via retry mechanism
+		} else {
+			h.logger.Info("Published tenant created event",
+				zap.String("event_id", event.EventID),
+				zap.String("tenant_id", tenant.ID.String()))
+		}
+	} else {
+		h.logger.Warn("Event publisher not configured, falling back to HTTP sync")
+		// Fallback to old HTTP method if event publisher is not available
+		if err := h.createTenantInTenantAdminService(tenant, req.AdminEmail, req.AdminPassword); err != nil {
+			h.logger.Error("Failed to create tenant in tenant-admin service",
+				zap.Error(err),
+				zap.String("tenant_id", tenant.ID.String()))
+		}
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
@@ -1388,8 +1436,19 @@ func (h *SaaSAdminHandler) UpdateTenant(c *gin.Context) {
 		return
 	}
 
-	var updates models.SaaSTenant
-	if err := c.ShouldBindJSON(&updates); err != nil {
+	// Get current tenant data BEFORE update (needed for credential sync)
+	oldTenant, err := h.service.GetTenant(c.Request.Context(), tenantID)
+	if err != nil {
+		h.logger.Error("Failed to get tenant for update", zap.Error(err))
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Tenant not found",
+		})
+		return
+	}
+
+	// Parse request body - includes optional password field not in model
+	var requestBody map[string]interface{}
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
 		h.logger.Error("Invalid request body", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid request body",
@@ -1397,14 +1456,82 @@ func (h *SaaSAdminHandler) UpdateTenant(c *gin.Context) {
 		return
 	}
 
+	// Extract password if provided (not stored in saas_admin database)
+	newPassword, _ := requestBody["password"].(string)
+
+	// Convert map back to SaaSTenant for service layer (exclude password)
+	delete(requestBody, "password")
+	updatesJSON, _ := json.Marshal(requestBody)
+	var updates models.SaaSTenant
+	json.Unmarshal(updatesJSON, &updates)
+
 	h.logger.Info("Updating tenant", zap.String("id", tenantIDStr))
 
+	// Update tenant in saas_admin database
 	if err := h.service.UpdateTenant(c.Request.Context(), tenantID, &updates); err != nil {
 		h.logger.Error("Failed to update tenant", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to update tenant",
 		})
 		return
+	}
+
+	// Get updated tenant data for event publishing
+	updatedTenant, err := h.service.GetTenant(c.Request.Context(), tenantID)
+	if err != nil {
+		h.logger.Error("Failed to get updated tenant", zap.Error(err))
+		// Continue anyway, we'll use old data
+		updatedTenant = oldTenant
+	}
+
+	// Publish tenant updated event to RabbitMQ
+	if h.eventPublisher != nil {
+		metadata := events.EventMetadata{
+			Source:        "saas-admin-service",
+			CorrelationID: c.GetString("X-Correlation-ID"),
+			UserID:        c.GetString("user_id"),
+			IPAddress:     c.ClientIP(),
+			UserAgent:     c.Request.UserAgent(),
+		}
+
+		event := events.NewTenantUpdatedEvent(updatedTenant, metadata)
+		if err := h.eventPublisher.PublishTenantEvent(c.Request.Context(), event); err != nil {
+			h.logger.Error("Failed to publish tenant updated event",
+				zap.Error(err),
+				zap.String("tenant_id", updatedTenant.ID.String()))
+		} else {
+			h.logger.Info("Published tenant updated event",
+				zap.String("event_id", event.EventID),
+				zap.String("tenant_id", updatedTenant.ID.String()))
+		}
+	} else {
+		h.logger.Warn("Event publisher not configured, falling back to direct sync")
+
+		// Fallback: Sync credentials to tenant-admin service if contact_email or password changed
+		newEmail := updates.ContactEmail
+		if newEmail == "" {
+			newEmail = oldTenant.ContactEmail // No change
+		}
+
+		if newEmail != oldTenant.ContactEmail || newPassword != "" {
+			h.logger.Info("Syncing credential changes directly to tenant_admin_db",
+				zap.String("tenant_id", tenantIDStr),
+				zap.Bool("email_changed", newEmail != oldTenant.ContactEmail),
+				zap.Bool("password_changed", newPassword != ""))
+
+			// Update credentials directly in tenant_admin_db (atomic operation)
+			if err := h.updateTenantCredentialsDirect(
+				tenantID,                // UUID (not string)
+				oldTenant.ContactEmail, // old email
+				newEmail,                // new email
+				newPassword,             // new password (empty string if not changed)
+			); err != nil {
+				// Log error but don't fail the entire update
+				h.logger.Error("Failed to sync credentials to tenant_admin_db",
+					zap.Error(err),
+					zap.String("tenant_id", tenantIDStr))
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1452,18 +1579,159 @@ func (h *SaaSAdminHandler) DeleteTenant(c *gin.Context) {
 		return
 	}
 
-	// Delete from tenant-admin service (cascade deletion)
-	if err := h.deleteTenantFromTenantAdminService(tenant.Slug); err != nil {
-		h.logger.Error("Failed to delete tenant from tenant-admin service",
-			zap.Error(err),
-			zap.String("tenant_id", tenantID.String()),
-			zap.String("slug", tenant.Slug))
-		// Log but don't fail - tenant is already deleted from saas_admin
+	// Publish tenant deleted event to RabbitMQ
+	if h.eventPublisher != nil {
+		metadata := events.EventMetadata{
+			Source:        "saas-admin-service",
+			CorrelationID: c.GetString("X-Correlation-ID"),
+			UserID:        c.GetString("user_id"),
+			IPAddress:     c.ClientIP(),
+			UserAgent:     c.Request.UserAgent(),
+		}
+
+		event := events.NewTenantDeletedEvent(tenant, metadata)
+		if err := h.eventPublisher.PublishTenantEvent(c.Request.Context(), event); err != nil {
+			h.logger.Error("Failed to publish tenant deleted event",
+				zap.Error(err),
+				zap.String("tenant_id", tenant.ID.String()))
+		} else {
+			h.logger.Info("Published tenant deleted event",
+				zap.String("event_id", event.EventID),
+				zap.String("tenant_id", tenant.ID.String()))
+		}
+	} else {
+		h.logger.Warn("Event publisher not configured, falling back to direct deletion")
+
+		// Fallback: Delete from tenant-admin service (cascade deletion)
+		if err := h.deleteTenantFromTenantAdminService(tenant.Slug); err != nil {
+			h.logger.Error("Failed to delete tenant from tenant-admin service",
+				zap.Error(err),
+				zap.String("tenant_id", tenantID.String()),
+				zap.String("slug", tenant.Slug))
+			// Log but don't fail - tenant is already deleted from saas_admin
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
 		"message": "Tenant deleted successfully",
+	})
+}
+
+// GetArchivedTenants lists all soft-deleted tenants
+func (h *SaaSAdminHandler) GetArchivedTenants(c *gin.Context) {
+	h.logger.Info("Listing archived tenants")
+
+	archivedTenants, err := h.service.ListArchivedTenants(c.Request.Context())
+	if err != nil {
+		h.logger.Error("Failed to list archived tenants", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get archived tenants",
+		})
+		return
+	}
+
+	// Convert to response format expected by UI
+	tenantList := make([]gin.H, 0, len(archivedTenants))
+	for _, tenant := range archivedTenants {
+		tenantData := gin.H{
+			"id":            tenant.ID,
+			"name":          tenant.Name,
+			"slug":          tenant.Slug,
+			"domain":        tenant.Domain,
+			"subdomain":     tenant.Subdomain,
+			"contact_email": tenant.ContactEmail,
+			"billing_email": tenant.BillingEmail,
+			"plan_id":       tenant.PlanID,
+			"status":        tenant.Status,
+			"is_active":     tenant.IsActive,
+			"created_at":    tenant.CreatedAt,
+			"deleted_at":    tenant.DeletedAt,
+		}
+
+		// Add max_users if it's set (pointer field - nil means unlimited)
+		if tenant.MaxUsers != nil {
+			tenantData["max_users"] = *tenant.MaxUsers
+		} else {
+			tenantData["max_users"] = nil
+		}
+
+		tenantList = append(tenantList, tenantData)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "success",
+		"data":   tenantList,
+		"count":  len(tenantList),
+	})
+}
+
+// RestoreTenant restores a soft-deleted tenant
+func (h *SaaSAdminHandler) RestoreTenant(c *gin.Context) {
+	tenantIDStr := c.Param("id")
+	if tenantIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Tenant ID is required",
+		})
+		return
+	}
+
+	tenantID, err := uuid.Parse(tenantIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid tenant ID",
+		})
+		return
+	}
+
+	h.logger.Info("Restoring tenant", zap.String("id", tenantIDStr))
+
+	// Restore tenant in saas_admin database
+	if err := h.service.RestoreTenant(c.Request.Context(), tenantID); err != nil {
+		h.logger.Error("Failed to restore tenant", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to restore tenant",
+		})
+		return
+	}
+
+	// Get restored tenant data for event publishing
+	restoredTenant, err := h.service.GetTenant(c.Request.Context(), tenantID)
+	if err != nil {
+		h.logger.Error("Failed to get restored tenant", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Tenant restored but failed to get data",
+		})
+		return
+	}
+
+	// Publish tenant restored event to RabbitMQ
+	if h.eventPublisher != nil {
+		metadata := events.EventMetadata{
+			Source:        "saas-admin-service",
+			CorrelationID: c.GetString("X-Correlation-ID"),
+			UserID:        c.GetString("user_id"),
+			IPAddress:     c.ClientIP(),
+			UserAgent:     c.Request.UserAgent(),
+		}
+
+		event := events.NewTenantRestoredEvent(restoredTenant, metadata)
+		if err := h.eventPublisher.PublishTenantEvent(c.Request.Context(), event); err != nil {
+			h.logger.Error("Failed to publish tenant restored event",
+				zap.Error(err),
+				zap.String("tenant_id", restoredTenant.ID.String()))
+		} else {
+			h.logger.Info("Published tenant restored event",
+				zap.String("event_id", event.EventID),
+				zap.String("tenant_id", restoredTenant.ID.String()))
+		}
+	} else {
+		h.logger.Warn("Event publisher not configured, tenant restore will not sync to tenant-admin")
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "Tenant restored successfully",
 	})
 }
 
@@ -1681,60 +1949,35 @@ func (h *SaaSAdminHandler) Login(c *gin.Context) {
 		return
 	}
 
+	h.logger.Info("Login attempt", zap.String("username", req.Username))
+
 	// For demo purposes - in production, validate against user database
-	if req.Username == "admin" && req.Password == "admin123" {
-		// Create session via tenant-admin-service
-		sessionReq := map[string]interface{}{
-			"user_id":   1,
-			"tenant_id": 1,
-		}
-
-		sessionBytes, _ := json.Marshal(sessionReq)
-
-		// Call tenant-admin service to create session
-		req, err := http.NewRequest("POST", h.serviceURLs.TenantAdminService+"/api/v1/sessions", bytes.NewBuffer(sessionBytes))
+	// Default credentials: admin/password
+	if req.Username == "admin" && req.Password == "password" {
+		// Generate JWT token for React frontend
+		token, err := h.jwtManager.GenerateAccessToken(1, "admin", "admin@beakon.io")
 		if err != nil {
-			h.logger.Error("Failed to create session request", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Session creation failed"})
+			h.logger.Error("Failed to generate JWT", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Authentication failed"})
 			return
 		}
 
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer service-token-"+os.Getenv("JWT_SECRET"))
+		h.logger.Info("Login successful", zap.String("username", req.Username))
 
-		resp, err := h.httpClient.Do(req)
-		if err != nil {
-			h.logger.Error("Failed to create session", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Session creation failed"})
-			return
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-			h.logger.Error("Session creation failed", zap.Int("status", resp.StatusCode))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Session creation failed"})
-			return
-		}
-
-		var sessionResp map[string]interface{}
-		if err := json.NewDecoder(resp.Body).Decode(&sessionResp); err != nil {
-			h.logger.Error("Failed to decode session response", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Session creation failed"})
-			return
-		}
-
-		// Set session cookie
-		if sessionID, ok := sessionResp["session_id"]; ok {
-			c.SetCookie("session_id", sessionID.(string), 86400, "/", "", false, true)
-			c.JSON(http.StatusOK, gin.H{
-				"success":    true,
-				"session_id": sessionID,
-				"message":    "Login successful",
-			})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Session ID not returned"})
-		}
+		// Return JWT token for React frontend
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"token":   token,
+			"user": gin.H{
+				"id":       1,
+				"username": "admin",
+				"email":    "admin@beakon.io",
+				"role":     "super_admin",
+			},
+			"message": "Login successful",
+		})
 	} else {
+		h.logger.Warn("Login failed - invalid credentials", zap.String("username", req.Username))
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 	}
 }
@@ -1771,32 +2014,37 @@ func (h *SaaSAdminHandler) Logout(c *gin.Context) {
 
 // CheckAuth checks if the current request is authenticated
 func (h *SaaSAdminHandler) CheckAuth(c *gin.Context) {
-	sessionID, err := c.Cookie("session_id")
+	// Get Authorization header
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"authenticated": false, "error": "No authorization header"})
+		return
+	}
+
+	// Extract token from "Bearer <token>"
+	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+	if tokenString == authHeader {
+		c.JSON(http.StatusUnauthorized, gin.H{"authenticated": false, "error": "Invalid authorization format"})
+		return
+	}
+
+	// Validate JWT token
+	claims, err := h.jwtManager.ValidateAccessToken(tokenString)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"authenticated": false})
+		h.logger.Warn("Invalid JWT token", zap.Error(err))
+		c.JSON(http.StatusUnauthorized, gin.H{"authenticated": false, "error": "Invalid token"})
 		return
 	}
 
-	// Validate session with tenant-admin service
-	req, err := http.NewRequest("GET", h.serviceURLs.TenantAdminService+"/api/v1/sessions/"+sessionID, nil)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"authenticated": false})
-		return
-	}
-
-	req.Header.Set("Authorization", "Bearer service-token-"+os.Getenv("JWT_SECRET"))
-
-	resp, err := h.httpClient.Do(req)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		if resp != nil {
-			resp.Body.Close()
-		}
-		c.JSON(http.StatusUnauthorized, gin.H{"authenticated": false})
-		return
-	}
-	defer resp.Body.Close()
-
-	c.JSON(http.StatusOK, gin.H{"authenticated": true})
+	// Return authenticated user info
+	c.JSON(http.StatusOK, gin.H{
+		"authenticated": true,
+		"user": gin.H{
+			"id":       claims.UserID,
+			"username": claims.Username,
+			"email":    claims.Email,
+		},
+	})
 }
 
 // createTenantInTenantAdminService creates a tenant in the tenant-admin service via API call
@@ -1902,6 +2150,163 @@ func (h *SaaSAdminHandler) deleteTenantFromTenantAdminService(slug string) error
 	h.logger.Info("Successfully deleted tenant from tenant-admin service",
 		zap.String("slug", slug),
 		zap.Uint("tenant_admin_id", tenantResp.Data.ID))
+
+	return nil
+}
+
+// updateTenantCredentialsDirect updates tenant owner credentials directly in tenant_admin_db
+// This ensures atomic updates without HTTP calls or sync issues.
+// Note: This is an exception to the database-per-service pattern for critical credential sync.
+func (h *SaaSAdminHandler) updateTenantCredentialsDirect(tenantID uuid.UUID, oldEmail, newEmail, newPassword string) error {
+	if h.tenantAdminDB == nil {
+		h.logger.Warn("Tenant admin DB connection not available, skipping credential sync")
+		return nil
+	}
+
+	// Start transaction on tenant_admin_db
+	tx := h.tenantAdminDB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			h.logger.Error("Panic during credential update, rolling back",
+				zap.Any("panic", r))
+		}
+	}()
+
+	if tx.Error != nil {
+		return fmt.Errorf("failed to begin transaction: %w", tx.Error)
+	}
+
+	// Find owner user by tenant_id and old email
+	var user models.TenantAdminUser
+	result := tx.Where("tenant_id = ? AND email = ? AND role = ?",
+		tenantID, oldEmail, "owner").First(&user)
+
+	if result.Error != nil {
+		tx.Rollback()
+		if result.Error == gorm.ErrRecordNotFound {
+			h.logger.Warn("Tenant owner not found for credential update",
+				zap.String("tenant_id", tenantID.String()),
+				zap.String("old_email", oldEmail))
+			return fmt.Errorf("tenant owner not found with email %s", oldEmail)
+		}
+		h.logger.Error("Failed to find tenant owner",
+			zap.String("tenant_id", tenantID.String()),
+			zap.String("old_email", oldEmail),
+			zap.Error(result.Error))
+		return fmt.Errorf("database error finding owner: %w", result.Error)
+	}
+
+	// Prepare updates
+	updates := make(map[string]interface{})
+
+	// Update email if changed
+	if newEmail != "" && newEmail != oldEmail {
+		updates["email"] = newEmail
+		h.logger.Info("Updating tenant owner email",
+			zap.String("tenant_id", tenantID.String()),
+			zap.String("old_email", oldEmail),
+			zap.String("new_email", newEmail))
+	}
+
+	// Update password if provided
+	if newPassword != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+		if err != nil {
+			tx.Rollback()
+			h.logger.Error("Failed to hash password", zap.Error(err))
+			return fmt.Errorf("failed to hash password: %w", err)
+		}
+		updates["password_hash"] = string(hashedPassword)
+		h.logger.Info("Updating tenant owner password",
+			zap.String("tenant_id", tenantID.String()),
+			zap.String("email", oldEmail))
+	}
+
+	// Apply updates if any
+	if len(updates) == 0 {
+		tx.Rollback()
+		h.logger.Info("No credential updates to apply",
+			zap.String("tenant_id", tenantID.String()))
+		return nil
+	}
+
+	if err := tx.Model(&user).Updates(updates).Error; err != nil {
+		tx.Rollback()
+		h.logger.Error("Failed to update tenant owner credentials",
+			zap.String("tenant_id", tenantID.String()),
+			zap.String("old_email", oldEmail),
+			zap.Error(err))
+		return fmt.Errorf("failed to update credentials: %w", err)
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		h.logger.Error("Failed to commit credential update transaction",
+			zap.String("tenant_id", tenantID.String()),
+			zap.Error(err))
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	h.logger.Info("Successfully updated tenant owner credentials in database",
+		zap.String("tenant_id", tenantID.String()),
+		zap.String("old_email", oldEmail),
+		zap.String("new_email", newEmail),
+		zap.Bool("password_changed", newPassword != ""))
+
+	return nil
+}
+
+// DEPRECATED: updateTenantAdminCredentials - HTTP-based credential sync (replaced by direct DB access)
+// Keeping for reference but no longer used. Direct DB access via updateTenantCredentialsDirect is now preferred.
+func (h *SaaSAdminHandler) updateTenantAdminCredentials(tenantID, oldEmail, newEmail, newPassword string) error {
+	if h.tenantAdminServiceURL == "" {
+		h.logger.Warn("Tenant admin service URL not configured, skipping credential sync")
+		return nil
+	}
+
+	// Prepare request payload
+	payload := map[string]string{
+		"tenant_id":    tenantID,
+		"old_email":    oldEmail,
+		"new_email":    newEmail,
+		"new_password": newPassword,
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		h.logger.Error("Failed to marshal credential update payload", zap.Error(err))
+		return fmt.Errorf("failed to prepare credential update: %w", err)
+	}
+
+	// Call tenant-admin service UpdateCredentials endpoint
+	updateURL := fmt.Sprintf("%s/api/v1/admin/update-credentials", h.tenantAdminServiceURL)
+	req, err := http.NewRequest("PUT", updateURL, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		h.logger.Error("Failed to create credential update request", zap.Error(err))
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := h.httpClient.Do(req)
+	if err != nil {
+		h.logger.Error("Failed to call tenant-admin credential update", zap.Error(err))
+		return fmt.Errorf("failed to update credentials in tenant-admin service: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		h.logger.Error("Tenant-admin credential update failed",
+			zap.Int("status_code", resp.StatusCode),
+			zap.String("response", string(body)))
+		return fmt.Errorf("tenant-admin returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	h.logger.Info("Successfully synchronized credentials to tenant-admin service",
+		zap.String("tenant_id", tenantID),
+		zap.String("new_email", newEmail))
 
 	return nil
 }

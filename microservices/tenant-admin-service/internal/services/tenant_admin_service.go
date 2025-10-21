@@ -64,7 +64,7 @@ func (s *TenantAdminService) GetDB() *gorm.DB {
 func (s *TenantAdminService) CreateTenantAdmin(ctx context.Context, admin *models.TenantAdmin) error {
 	s.logger.Info("Creating tenant admin",
 		zap.String("tenant_id", admin.TenantID.String()),
-		zap.Uint("user_id", admin.UserID),
+		zap.String("user_id", admin.UserID.String()),
 		zap.String("role", admin.Role))
 
 	if err := s.db.Create(admin).Error; err != nil {
@@ -563,6 +563,53 @@ func (s *TenantAdminService) GetTenantByDomain(domain string) (*models.Tenant, e
 	return &tenant, nil
 }
 
+// GetTenantByUUID retrieves a tenant by UUID (used for sync operations)
+func (s *TenantAdminService) GetTenantByUUID(id uuid.UUID) (*models.Tenant, error) {
+	var tenant models.Tenant
+	if err := s.db.Where("id = ?", id).First(&tenant).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("tenant not found")
+		}
+		s.logger.Error("Failed to get tenant by UUID", zap.Error(err), zap.String("id", id.String()))
+		return nil, fmt.Errorf("failed to get tenant by UUID: %w", err)
+	}
+
+	return &tenant, nil
+}
+
+// SyncTenantFromSaaS creates a tenant record synced from SaaS Admin service
+// Now that schema is properly aligned, we use the full GORM model with all fields
+func (s *TenantAdminService) SyncTenantFromSaaS(tenant *models.Tenant) error {
+	s.logger.Info("Syncing tenant from SaaS Admin",
+		zap.String("id", tenant.ID.String()),
+		zap.String("slug", tenant.Slug))
+
+	// Set email field for backward compatibility (DB has both email and contact_email)
+	// Some queries might still use the old 'email' column
+	if tenant.ContactEmail != "" {
+		// We'll update the tenant model to handle this mapping
+		result := s.db.Exec(`
+			INSERT INTO tenants (id, name, slug, email, contact_email, domain, subdomain, billing_email, status, is_active, max_users, settings, branding, features, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+		`, tenant.ID, tenant.Name, tenant.Slug, tenant.ContactEmail, tenant.ContactEmail, tenant.Domain, tenant.Subdomain, tenant.BillingEmail, tenant.Status, tenant.IsActive, tenant.MaxUsers, tenant.Settings, tenant.Branding, tenant.Features)
+
+		if result.Error != nil {
+			s.logger.Error("Failed to sync tenant from SaaS Admin",
+				zap.Error(result.Error),
+				zap.String("id", tenant.ID.String()))
+			return fmt.Errorf("failed to sync tenant: %w", result.Error)
+		}
+	}
+
+	s.logger.Info("Tenant synced successfully from SaaS Admin",
+		zap.String("id", tenant.ID.String()),
+		zap.String("slug", tenant.Slug),
+		zap.String("domain", tenant.Domain),
+		zap.String("subdomain", tenant.Subdomain))
+
+	return nil
+}
+
 // GetTenants retrieves a list of tenants with pagination.
 func (s *TenantAdminService) GetTenants(limit, offset int) ([]*models.Tenant, int64, error) {
 	var tenants []*models.Tenant
@@ -787,7 +834,7 @@ func (s *TenantAdminService) CreateAdminUser(ctx context.Context, tenantID uuid.
 	user := &models.User{
 		Email:        email,
 		PasswordHash: string(hashedPassword),
-		TenantID:     &tenantID,
+		TenantID:     tenantID,
 		Role:         "owner",
 		IsActive:     true,
 	}
@@ -813,7 +860,7 @@ func (s *TenantAdminService) CreateAdminUser(ctx context.Context, tenantID uuid.
 	s.logger.Info("Admin user created successfully",
 		zap.String("tenant_id", tenantID.String()),
 		zap.String("email", email),
-		zap.Uint("user_id", user.ID))
+		zap.String("user_id", user.ID.String()))
 
 	return nil
 }
@@ -884,7 +931,7 @@ func (s *TenantAdminService) GetUsers(ctx context.Context, tenantID uuid.UUID, l
 }
 
 // GetUserByID retrieves a single user by ID for a specific tenant
-func (s *TenantAdminService) GetUserByID(ctx context.Context, tenantID uuid.UUID, userID uint) (*models.User, error) {
+func (s *TenantAdminService) GetUserByID(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID) (*models.User, error) {
 	if s.db == nil {
 		return nil, ErrDatabaseError
 	}
@@ -902,7 +949,7 @@ func (s *TenantAdminService) GetUserByID(ctx context.Context, tenantID uuid.UUID
 		}
 		s.logger.Error("Failed to fetch user",
 			zap.String("tenant_id", tenantID.String()),
-			zap.Uint("user_id", userID),
+			zap.String("user_id", userID.String()),
 			zap.Error(err))
 		return nil, WrapDatabaseError("fetch user", err)
 	}
@@ -938,7 +985,7 @@ func (s *TenantAdminService) CreateUser(ctx context.Context, tenantID uuid.UUID,
 		PasswordHash: string(hashedPassword),
 		FirstName:    firstName,
 		LastName:     lastName,
-		TenantID:     &tenantID,
+		TenantID:     tenantID,
 		Role:         role,
 		IsActive:     true,
 	}
@@ -985,13 +1032,13 @@ func (s *TenantAdminService) CreateUser(ctx context.Context, tenantID uuid.UUID,
 	s.logger.Info("User created successfully",
 		zap.String("tenant_id", tenantID.String()),
 		zap.String("email", email),
-		zap.Uint("user_id", user.ID))
+		zap.String("user_id", user.ID.String()))
 
 	return user, nil
 }
 
 // UpdateUser updates user information
-func (s *TenantAdminService) UpdateUser(ctx context.Context, tenantID uuid.UUID, userID uint, updates map[string]interface{}) error {
+func (s *TenantAdminService) UpdateUser(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID, updates map[string]interface{}) error {
 	if s.db == nil {
 		return ErrDatabaseError
 	}
@@ -1005,7 +1052,7 @@ func (s *TenantAdminService) UpdateUser(ctx context.Context, tenantID uuid.UUID,
 	if result.Error != nil {
 		s.logger.Error("Failed to update user",
 			zap.String("tenant_id", tenantID.String()),
-			zap.Uint("user_id", userID),
+			zap.String("user_id", userID.String()),
 			zap.Error(result.Error))
 		return WrapDatabaseError("update user", result.Error)
 	}
@@ -1016,13 +1063,13 @@ func (s *TenantAdminService) UpdateUser(ctx context.Context, tenantID uuid.UUID,
 
 	s.logger.Info("User updated successfully",
 		zap.String("tenant_id", tenantID.String()),
-		zap.Uint("user_id", userID))
+		zap.String("user_id", userID.String()))
 
 	return nil
 }
 
 // DeleteUser soft-deletes a user
-func (s *TenantAdminService) DeleteUser(ctx context.Context, tenantID uuid.UUID, userID uint) error {
+func (s *TenantAdminService) DeleteUser(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID) error {
 	if s.db == nil {
 		return ErrDatabaseError
 	}
@@ -1035,7 +1082,7 @@ func (s *TenantAdminService) DeleteUser(ctx context.Context, tenantID uuid.UUID,
 	if result.Error != nil {
 		s.logger.Error("Failed to delete user",
 			zap.String("tenant_id", tenantID.String()),
-			zap.Uint("user_id", userID),
+			zap.String("user_id", userID.String()),
 			zap.Error(result.Error))
 		return WrapDatabaseError("delete user", result.Error)
 	}
@@ -1050,13 +1097,13 @@ func (s *TenantAdminService) DeleteUser(ctx context.Context, tenantID uuid.UUID,
 		Delete(&models.TenantAdmin{}).Error; err != nil {
 		s.logger.Warn("Failed to delete tenant admin relationship",
 			zap.String("tenant_id", tenantID.String()),
-			zap.Uint("user_id", userID),
+			zap.String("user_id", userID.String()),
 			zap.Error(err))
 	}
 
 	s.logger.Info("User deleted successfully",
 		zap.String("tenant_id", tenantID.String()),
-		zap.Uint("user_id", userID))
+		zap.String("user_id", userID.String()))
 
 	return nil
 }
@@ -1104,4 +1151,94 @@ func (s *TenantAdminService) GetTenantUserStats(ctx context.Context, tenantID uu
 	}
 
 	return stats, nil
+}
+
+// UpdateCredentialsByEmail updates user email and/or password based on tenant_id and old email.
+// This is used by the SaaS Admin service to sync credential changes from the SaaS Admin panel.
+func (s *TenantAdminService) UpdateCredentialsByEmail(ctx context.Context, tenantID uuid.UUID, oldEmail, newEmail, newPassword string) error {
+	if s.db == nil {
+		return ErrDatabaseError
+	}
+
+	// Find user by tenant_id and old email with role='owner'
+	var user models.User
+	result := s.db.WithContext(ctx).
+		Where("tenant_id = ? AND email = ? AND role = ?", tenantID.String(), oldEmail, "owner").
+		First(&user)
+
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			s.logger.Warn("Tenant owner not found",
+				zap.String("tenant_id", tenantID.String()),
+				zap.String("old_email", oldEmail))
+			return ErrNotFound
+		}
+		s.logger.Error("Failed to find user by email",
+			zap.String("tenant_id", tenantID.String()),
+			zap.String("old_email", oldEmail),
+			zap.Error(result.Error))
+		return WrapDatabaseError("find user by email", result.Error)
+	}
+
+	// Start transaction
+	tx := s.db.WithContext(ctx).Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Prepare updates
+	updates := make(map[string]interface{})
+
+	// Update email if changed
+	if newEmail != "" && newEmail != oldEmail {
+		updates["email"] = newEmail
+		s.logger.Info("Updating user email",
+			zap.String("tenant_id", tenantID.String()),
+			zap.String("old_email", oldEmail),
+			zap.String("new_email", newEmail))
+	}
+
+	// Update password if provided
+	if newPassword != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+		if err != nil {
+			tx.Rollback()
+			s.logger.Error("Failed to hash password", zap.Error(err))
+			return fmt.Errorf("failed to hash password: %w", err)
+		}
+		updates["password_hash"] = string(hashedPassword)
+		s.logger.Info("Updating user password",
+			zap.String("tenant_id", tenantID.String()),
+			zap.String("email", oldEmail))
+	}
+
+	if len(updates) == 0 {
+		tx.Rollback()
+		return fmt.Errorf("no fields to update")
+	}
+
+	// Apply updates
+	if err := tx.Model(&user).Updates(updates).Error; err != nil {
+		tx.Rollback()
+		s.logger.Error("Failed to update user credentials",
+			zap.String("tenant_id", tenantID.String()),
+			zap.String("old_email", oldEmail),
+			zap.Error(err))
+		return WrapDatabaseError("update user credentials", err)
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		s.logger.Error("Failed to commit credential update transaction", zap.Error(err))
+		return WrapDatabaseError("commit transaction", err)
+	}
+
+	s.logger.Info("User credentials updated successfully",
+		zap.String("tenant_id", tenantID.String()),
+		zap.String("old_email", oldEmail),
+		zap.String("user_id", user.ID.String()))
+
+	return nil
 }

@@ -2,6 +2,8 @@
 package handlers
 
 import (
+	"github.com/google/uuid"
+
 	"net/http"
 	"strconv"
 	"time"
@@ -61,7 +63,7 @@ func (h *RBACHandler) CreateRole(c *gin.Context) {
 	}
 
 	role := &models.Role{
-		TenantID:    tenantID.(uint),
+		TenantID:    tenantID.(uuid.UUID),
 		Name:        req.Name,
 		DisplayName: req.DisplayName,
 		Description: req.Description,
@@ -82,7 +84,7 @@ func (h *RBACHandler) CreateRole(c *gin.Context) {
 	// Log audit event
 	userID, _ := c.Get("user_id")
 	if userID != nil {
-		h.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uint), userID.(uint),
+		h.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uuid.UUID), userID.(uuid.UUID),
 			"create", "role", &role.ID, "Created role: "+role.Name,
 			c.ClientIP(), c.GetHeader("User-Agent"), true, "")
 	}
@@ -103,7 +105,11 @@ func (h *RBACHandler) GetRoles(c *gin.Context) {
 
 	includeInactive := c.Query("include_inactive") == "true"
 
-	roles, err := h.rbacService.GetRoles(c.Request.Context(), tenantID.(uint), includeInactive)
+	roles, err := h.rbacService.GetRoles(c.Request.Context(), tenantID.(uuid.UUID), includeInactive)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
 	if err != nil {
 		h.logger.Error("Failed to get roles", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve roles"})
@@ -125,13 +131,21 @@ func (h *RBACHandler) GetRole(c *gin.Context) {
 	}
 
 	roleIDStr := c.Param("id")
-	roleID, err := strconv.ParseUint(roleIDStr, 10, 32)
+	roleID, err := uuid.Parse(roleIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID format"})
 		return
 	}
 
-	role, err := h.rbacService.GetRole(c.Request.Context(), uint(roleID), tenantID.(uint))
+	role, err := h.rbacService.GetRole(c.Request.Context(), roleID, tenantID.(uuid.UUID))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
 	if err != nil {
 		h.logger.Error("Failed to get role", zap.Error(err))
 		if err.Error() == "role not found" {
@@ -154,9 +168,13 @@ func (h *RBACHandler) UpdateRole(c *gin.Context) {
 	}
 
 	roleIDStr := c.Param("id")
-	roleID, err := strconv.ParseUint(roleIDStr, 10, 32)
+	roleID, err := uuid.Parse(roleIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID format"})
 		return
 	}
 
@@ -183,7 +201,7 @@ func (h *RBACHandler) UpdateRole(c *gin.Context) {
 		updates["is_active"] = *req.IsActive
 	}
 
-	if err := h.rbacService.UpdateRole(c.Request.Context(), uint(roleID), tenantID.(uint), updates); err != nil {
+	if err := h.rbacService.UpdateRole(c.Request.Context(), roleID, tenantID.(uuid.UUID), updates); err != nil {
 		h.logger.Error("Failed to update role", zap.Error(err))
 		if err.Error() == "role not found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
@@ -196,9 +214,8 @@ func (h *RBACHandler) UpdateRole(c *gin.Context) {
 	// Log audit event
 	userID, _ := c.Get("user_id")
 	if userID != nil {
-		roleIDUint := uint(roleID)
-		h.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uint), userID.(uint),
-			"update", "role", &roleIDUint, "Updated role",
+		h.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uuid.UUID), userID.(uuid.UUID),
+			"update", "role", &roleID, "Updated role",
 			c.ClientIP(), c.GetHeader("User-Agent"), true, "")
 	}
 
@@ -214,13 +231,17 @@ func (h *RBACHandler) DeleteRole(c *gin.Context) {
 	}
 
 	roleIDStr := c.Param("id")
-	roleID, err := strconv.ParseUint(roleIDStr, 10, 32)
+	roleID, err := uuid.Parse(roleIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
 		return
 	}
 
-	if err := h.rbacService.DeleteRole(c.Request.Context(), uint(roleID), tenantID.(uint)); err != nil {
+	if err := h.rbacService.DeleteRole(c.Request.Context(), roleID, tenantID.(uuid.UUID)); err != nil {
 		h.logger.Error("Failed to delete role", zap.Error(err))
 		if err.Error() == "role not found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
@@ -235,9 +256,8 @@ func (h *RBACHandler) DeleteRole(c *gin.Context) {
 	// Log audit event
 	userID, _ := c.Get("user_id")
 	if userID != nil {
-		roleIDUint := uint(roleID)
-		h.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uint), userID.(uint),
-			"delete", "role", &roleIDUint, "Deleted role",
+		h.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uuid.UUID), userID.(uuid.UUID),
+			"delete", "role", &roleID, "Deleted role",
 			c.ClientIP(), c.GetHeader("User-Agent"), true, "")
 	}
 
@@ -249,6 +269,10 @@ func (h *RBACHandler) DeleteRole(c *gin.Context) {
 // GetPermissions handles retrieving all permissions
 func (h *RBACHandler) GetPermissions(c *gin.Context) {
 	permissions, err := h.rbacService.GetPermissions(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
 	if err != nil {
 		h.logger.Error("Failed to get permissions", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve permissions"})
@@ -270,7 +294,11 @@ func (h *RBACHandler) AssignPermissionsToRole(c *gin.Context) {
 	}
 
 	roleIDStr := c.Param("id")
-	roleID, err := strconv.ParseUint(roleIDStr, 10, 32)
+	roleID, err := uuid.Parse(roleIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
 		return
@@ -286,7 +314,7 @@ func (h *RBACHandler) AssignPermissionsToRole(c *gin.Context) {
 		return
 	}
 
-	if err := h.rbacService.AssignPermissionsToRole(c.Request.Context(), uint(roleID), tenantID.(uint), req.PermissionIDs); err != nil {
+	if err := h.rbacService.AssignPermissionsToRole(c.Request.Context(), roleID, tenantID.(uuid.UUID), req.PermissionIDs); err != nil {
 		h.logger.Error("Failed to assign permissions to role", zap.Error(err))
 		if err.Error() == "role not found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
@@ -299,9 +327,8 @@ func (h *RBACHandler) AssignPermissionsToRole(c *gin.Context) {
 	// Log audit event
 	userID, _ := c.Get("user_id")
 	if userID != nil {
-		roleIDUint := uint(roleID)
-		h.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uint), userID.(uint),
-			"assign_permissions", "role", &roleIDUint, "Assigned permissions to role",
+		h.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uuid.UUID), userID.(uuid.UUID),
+			"assign_permissions", "role", &roleID, "Assigned permissions to role",
 			c.ClientIP(), c.GetHeader("User-Agent"), true, "")
 	}
 
@@ -319,8 +346,8 @@ func (h *RBACHandler) AssignRoleToUser(c *gin.Context) {
 	}
 
 	var req struct {
-		UserID    uint       `json:"user_id" binding:"required"`
-		RoleID    uint       `json:"role_id" binding:"required"`
+		UserID    uuid.UUID       `json:"user_id" binding:"required"`
+		RoleID    uuid.UUID       `json:"role_id" binding:"required"`
 		ExpiresAt *time.Time `json:"expires_at"`
 	}
 
@@ -336,7 +363,7 @@ func (h *RBACHandler) AssignRoleToUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.rbacService.AssignRoleToUser(c.Request.Context(), req.UserID, req.RoleID, tenantID.(uint), assignedBy.(uint), req.ExpiresAt); err != nil {
+	if err := h.rbacService.AssignRoleToUser(c.Request.Context(), req.UserID, req.RoleID, tenantID.(uuid.UUID), assignedBy.(uuid.UUID), req.ExpiresAt); err != nil {
 		h.logger.Error("Failed to assign role to user", zap.Error(err))
 		if err.Error() == "user already has this role" {
 			c.JSON(http.StatusConflict, gin.H{"error": "User already has this role"})
@@ -347,7 +374,7 @@ func (h *RBACHandler) AssignRoleToUser(c *gin.Context) {
 	}
 
 	// Log audit event
-	h.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uint), assignedBy.(uint),
+	h.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uuid.UUID), assignedBy.(uuid.UUID),
 		"assign_role", "user", &req.UserID, "Assigned role to user",
 		c.ClientIP(), c.GetHeader("User-Agent"), true, "")
 
@@ -363,20 +390,28 @@ func (h *RBACHandler) RemoveRoleFromUser(c *gin.Context) {
 	}
 
 	userIDStr := c.Param("user_id")
-	userID, err := strconv.ParseUint(userIDStr, 10, 32)
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
 
 	roleIDStr := c.Param("role_id")
-	roleID, err := strconv.ParseUint(roleIDStr, 10, 32)
+	roleID, err := uuid.Parse(roleIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
 		return
 	}
 
-	if err := h.rbacService.RemoveRoleFromUser(c.Request.Context(), uint(userID), uint(roleID), tenantID.(uint)); err != nil {
+	if err := h.rbacService.RemoveRoleFromUser(c.Request.Context(), userID, roleID, tenantID.(uuid.UUID)); err != nil {
 		h.logger.Error("Failed to remove role from user", zap.Error(err))
 		if err.Error() == "role assignment not found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Role assignment not found"})
@@ -389,9 +424,8 @@ func (h *RBACHandler) RemoveRoleFromUser(c *gin.Context) {
 	// Log audit event
 	currentUserID, _ := c.Get("user_id")
 	if currentUserID != nil {
-		userIDUint := uint(userID)
-		h.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uint), currentUserID.(uint),
-			"remove_role", "user", &userIDUint, "Removed role from user",
+		h.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uuid.UUID), currentUserID.(uuid.UUID),
+			"remove_role", "user", &userID, "Removed role from user",
 			c.ClientIP(), c.GetHeader("User-Agent"), true, "")
 	}
 
@@ -407,13 +441,21 @@ func (h *RBACHandler) GetUserRoles(c *gin.Context) {
 	}
 
 	userIDStr := c.Param("user_id")
-	userID, err := strconv.ParseUint(userIDStr, 10, 32)
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
 
-	userRoles, err := h.rbacService.GetUserRoles(c.Request.Context(), uint(userID), tenantID.(uint))
+	userRoles, err := h.rbacService.GetUserRoles(c.Request.Context(), userID, tenantID.(uuid.UUID))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
 	if err != nil {
 		h.logger.Error("Failed to get user roles", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve user roles"})
@@ -435,13 +477,21 @@ func (h *RBACHandler) GetUserPermissions(c *gin.Context) {
 	}
 
 	userIDStr := c.Param("user_id")
-	userID, err := strconv.ParseUint(userIDStr, 10, 32)
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
 
-	permissions, err := h.rbacService.GetUserPermissions(c.Request.Context(), uint(userID), tenantID.(uint))
+	permissions, err := h.rbacService.GetUserPermissions(c.Request.Context(), userID, tenantID.(uuid.UUID))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
 	if err != nil {
 		h.logger.Error("Failed to get user permissions", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve user permissions"})
@@ -463,7 +513,11 @@ func (h *RBACHandler) CheckPermission(c *gin.Context) {
 	}
 
 	userIDStr := c.Param("user_id")
-	userID, err := strconv.ParseUint(userIDStr, 10, 32)
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
@@ -475,7 +529,11 @@ func (h *RBACHandler) CheckPermission(c *gin.Context) {
 		return
 	}
 
-	hasPermission, err := h.rbacService.CheckPermission(c.Request.Context(), uint(userID), tenantID.(uint), permission)
+	hasPermission, err := h.rbacService.CheckPermission(c.Request.Context(), userID, tenantID.(uuid.UUID), permission)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
 	if err != nil {
 		h.logger.Error("Failed to check permission", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check permission"})
@@ -523,11 +581,11 @@ func (h *RBACHandler) CreateTeam(c *gin.Context) {
 	}
 
 	team := &models.Team{
-		TenantID:    tenantID.(uint),
+		TenantID:    tenantID.(uuid.UUID),
 		Name:        req.Name,
 		Description: req.Description,
 		IsActive:    isActive,
-		CreatedBy:   createdBy.(uint),
+		CreatedBy:   createdBy.(uuid.UUID),
 	}
 
 	if err := h.rbacService.CreateTeam(c.Request.Context(), team); err != nil {
@@ -537,7 +595,7 @@ func (h *RBACHandler) CreateTeam(c *gin.Context) {
 	}
 
 	// Log audit event
-	h.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uint), createdBy.(uint),
+	h.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uuid.UUID), createdBy.(uuid.UUID),
 		"create", "team", &team.ID, "Created team: "+team.Name,
 		c.ClientIP(), c.GetHeader("User-Agent"), true, "")
 
@@ -556,14 +614,14 @@ func (h *RBACHandler) AddUserToTeam(c *gin.Context) {
 	}
 
 	teamIDStr := c.Param("team_id")
-	teamID, err := strconv.ParseUint(teamIDStr, 10, 32)
+	teamID, err := uuid.Parse(teamIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid team ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid team ID format"})
 		return
 	}
 
 	var req struct {
-		UserID uint   `json:"user_id" binding:"required"`
+		UserID uuid.UUID   `json:"user_id" binding:"required"`
 		Role   string `json:"role"`
 	}
 
@@ -579,7 +637,7 @@ func (h *RBACHandler) AddUserToTeam(c *gin.Context) {
 		return
 	}
 
-	if err := h.rbacService.AddUserToTeam(c.Request.Context(), uint(teamID), req.UserID, tenantID.(uint), addedBy.(uint), req.Role); err != nil {
+	if err := h.rbacService.AddUserToTeam(c.Request.Context(), teamID, req.UserID, tenantID.(uuid.UUID), addedBy.(uuid.UUID), req.Role); err != nil {
 		h.logger.Error("Failed to add user to team", zap.Error(err))
 		if err.Error() == "user is already a member of this team" {
 			c.JSON(http.StatusConflict, gin.H{"error": "User is already a member of this team"})
@@ -590,9 +648,8 @@ func (h *RBACHandler) AddUserToTeam(c *gin.Context) {
 	}
 
 	// Log audit event
-	teamIDUint := uint(teamID)
-	h.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uint), addedBy.(uint),
-		"add_team_member", "team", &teamIDUint, "Added user to team",
+	h.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uuid.UUID), addedBy.(uuid.UUID),
+		"add_team_member", "team", &teamID, "Added user to team",
 		c.ClientIP(), c.GetHeader("User-Agent"), true, "")
 
 	c.JSON(http.StatusOK, gin.H{"message": "User added to team successfully"})
@@ -606,7 +663,7 @@ func (h *RBACHandler) InitializeTenantRoles(c *gin.Context) {
 		return
 	}
 
-	if err := h.rbacService.InitializeDefaultRoles(c.Request.Context(), tenantID.(uint)); err != nil {
+	if err := h.rbacService.InitializeDefaultRoles(c.Request.Context(), tenantID.(uuid.UUID)); err != nil {
 		h.logger.Error("Failed to initialize default roles", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize default roles"})
 		return
@@ -641,6 +698,10 @@ func (h *RBACHandler) GetTeam(c *gin.Context) {
 	teamIDStr := c.Param("id")
 	_, err := strconv.ParseUint(teamIDStr, 10, 32)
 	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid team ID"})
 		return
 	}
@@ -659,6 +720,10 @@ func (h *RBACHandler) UpdateTeam(c *gin.Context) {
 
 	teamIDStr := c.Param("id")
 	_, err := strconv.ParseUint(teamIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid team ID"})
 		return
@@ -679,6 +744,10 @@ func (h *RBACHandler) DeleteTeam(c *gin.Context) {
 	teamIDStr := c.Param("id")
 	_, err := strconv.ParseUint(teamIDStr, 10, 32)
 	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid team ID"})
 		return
 	}
@@ -698,12 +767,20 @@ func (h *RBACHandler) RemoveUserFromTeam(c *gin.Context) {
 	teamIDStr := c.Param("team_id")
 	_, err := strconv.ParseUint(teamIDStr, 10, 32)
 	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid team ID"})
 		return
 	}
 
 	userIDStr := c.Param("user_id")
 	_, err = strconv.ParseUint(userIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
@@ -754,8 +831,8 @@ func (h *RBACHandler) GetActiveSessions(c *gin.Context) {
 
 // CreateSessionRequest represents the request payload for creating a session
 type CreateSessionRequest struct {
-	UserID   uint   `json:"user_id" binding:"required"`
-	TenantID string `json:"tenant_id" binding:"required"` // Changed to string to support UUID
+	UserID   uuid.UUID `json:"user_id" binding:"required"`
+	TenantID uuid.UUID `json:"tenant_id" binding:"required"`
 }
 
 // CreateSession handles creating a new session
@@ -768,6 +845,10 @@ func (h *RBACHandler) CreateSession(c *gin.Context) {
 
 	// Create session through RBAC service
 	session, err := h.rbacService.CreateSimpleSession(c.Request.Context(), req.UserID, req.TenantID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
 	if err != nil {
 		h.logger.Error("Failed to create session", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
@@ -793,6 +874,10 @@ func (h *RBACHandler) ValidateSession(c *gin.Context) {
 	// Validate session through RBAC service
 	session, err := h.rbacService.ValidateSession(c.Request.Context(), sessionID)
 	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
+	if err != nil {
 		h.logger.Warn("Session validation failed", zap.String("session_id", sessionID), zap.Error(err))
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired session"})
 		return
@@ -817,6 +902,10 @@ func (h *RBACHandler) DeleteSession(c *gin.Context) {
 
 	// Delete session through RBAC service
 	err := h.rbacService.DeleteSession(c.Request.Context(), sessionID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
 	if err != nil {
 		h.logger.Error("Failed to delete session", zap.String("session_id", sessionID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete session"})

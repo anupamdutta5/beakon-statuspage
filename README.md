@@ -1,33 +1,48 @@
 # Beakon Status Page Platform
 
-**Version**: 1.0.0 | **Status**: ✅ Production Ready | **Last Updated**: October 14, 2025
+**Version**: 1.0.0 | **Status**: ✅ Production Ready | **Last Updated**: October 21, 2025
 
 A comprehensive, enterprise-grade, multi-tenant status page platform built with microservices architecture in Go.
 
-## 📚 **Living Documentation System** ⭐
+---
 
-**Start here for complete system understanding:**
-- **[AI_CONTEXT.md](AI_CONTEXT.md)** - 🚀 **Quick start for AI/new devs** (read this first!) ⭐
-- **[SERVICE_CATALOG.md](SERVICE_CATALOG.md)** - Complete reference for all 20 microservices
-- **[DATABASE_ARCHITECTURE.md](DATABASE_ARCHITECTURE.md)** - Database schemas and architecture
-- **[microservices/DATABASE_SETUP.md](microservices/DATABASE_SETUP.md)** - 🆕 **Database initialization & migrations** (production-ready!)
-- **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Production deployment procedures
-- **[OPERATIONAL_RUNBOOK.md](OPERATIONAL_RUNBOOK.md)** - Incident response guide
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - High-level system architecture
-- **[DOCUMENTATION_STRUCTURE.md](DOCUMENTATION_STRUCTURE.md)** - Documentation maintenance guide
+## 📚 Documentation Quick Start
+
+**New to the project? Start here (in order):**
+
+1. **[AI_CONTEXT.md](AI_CONTEXT.md)** - 🚀 Quick reference (5 min read)
+2. **[CLAUDE.md](CLAUDE.md)** - Complete developer guide (15 min read)
+3. **[microservices/QUICK_START.md](microservices/QUICK_START.md)** - 15-minute setup guide
+4. **[docs/INDEX.md](docs/INDEX.md)** - Complete documentation map
+
+**Core Documentation:**
+- **[SERVICE_CATALOG.md](SERVICE_CATALOG.md)** - All 21 services reference
+- **[DATABASE_ARCHITECTURE.md](DATABASE_ARCHITECTURE.md)** - Database schemas (14 databases)
+- **[AUTHENTICATION_GUIDE.md](AUTHENTICATION_GUIDE.md)** - Auth & session management
+- **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Production deployment
+- **[OPERATIONAL_RUNBOOK.md](OPERATIONAL_RUNBOOK.md)** - Operations & troubleshooting
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture
+
+**Development Guides:**
+- **[microservices/FRONTEND_GUIDE.md](microservices/FRONTEND_GUIDE.md)** - Frontend development
+- **[microservices/docs/testing/TESTING_GUIDE.md](microservices/docs/testing/TESTING_GUIDE.md)** - Testing guide
+- **[microservices/docs/testing/SECURITY_ROADMAP.md](microservices/docs/testing/SECURITY_ROADMAP.md)** - Security hardening
+
+---
 
 ## 📊 System Overview
 
 | Metric | Value | Status |
 |--------|-------|--------|
-| **Active Services** | 19 HTTP + 4 Consumers | ✅ Production Ready |
-| **Databases** | 14 PostgreSQL | ✅ Optimized |
+| **Total Services** | 21 active (19 backend + 2 frontend) | ✅ Production Ready |
+| **Backend Services** | 15 HTTP + 4 Consumers | ✅ Go microservices |
+| **Frontend Services** | 2 Next.js 14 applications | ✅ SSR with TypeScript |
+| **Databases** | 14 PostgreSQL | ✅ Database-per-service |
 | **System Reliability** | 99.9% | ✅ Enterprise Grade |
 | **Shared Resilience** | 100% adoption | ✅ All services |
-| **Max Connections** | 200 per service | ✅ 8x capacity |
-| **Documentation** | Grade A+ | ✅ Complete |
+| **Documentation** | 25 files (50+ archived) | ✅ Consolidated Oct 2025 |
 
-A comprehensive microservices-based status page application with 20 services.
+A comprehensive microservices-based status page application with separated frontend and backend services.
 
 ## 🚀 Quick Start
 

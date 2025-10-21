@@ -2,6 +2,8 @@
 package middleware
 
 import (
+	"github.com/google/uuid"
+
 	"net/http"
 	"strings"
 
@@ -41,7 +43,7 @@ func (m *RBACMiddleware) RequirePermission(permission string) gin.HandlerFunc {
 			return
 		}
 
-		hasPermission, err := m.rbacService.CheckPermission(c.Request.Context(), userID.(uint), tenantID.(uint), permission)
+		hasPermission, err := m.rbacService.CheckPermission(c.Request.Context(), userID.(uuid.UUID), tenantID.(uuid.UUID), permission)
 		if err != nil {
 			m.logger.Error("Failed to check permission", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check permissions"})
@@ -51,12 +53,12 @@ func (m *RBACMiddleware) RequirePermission(permission string) gin.HandlerFunc {
 
 		if !hasPermission {
 			m.logger.Warn("Permission denied",
-				zap.Uint("user_id", userID.(uint)),
+				zap.String("user_id", userID.(uuid.UUID).String()),
 				zap.String("permission", permission),
 				zap.String("path", c.Request.URL.Path))
 
 			// Log audit event for denied access
-			m.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uint), userID.(uint),
+			m.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uuid.UUID), userID.(uuid.UUID),
 				"access_denied", "permission", nil, "Permission denied: "+permission,
 				c.ClientIP(), c.GetHeader("User-Agent"), false, "Insufficient permissions")
 
@@ -67,7 +69,7 @@ func (m *RBACMiddleware) RequirePermission(permission string) gin.HandlerFunc {
 
 		// Log successful access for sensitive operations
 		if m.isSensitiveOperation(permission) {
-			m.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uint), userID.(uint),
+			m.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uuid.UUID), userID.(uuid.UUID),
 				"access_granted", "permission", nil, "Permission granted: "+permission,
 				c.ClientIP(), c.GetHeader("User-Agent"), true, "")
 		}
@@ -94,7 +96,7 @@ func (m *RBACMiddleware) RequireAnyPermission(permissions ...string) gin.Handler
 		}
 
 		for _, permission := range permissions {
-			hasPermission, err := m.rbacService.CheckPermission(c.Request.Context(), userID.(uint), tenantID.(uint), permission)
+			hasPermission, err := m.rbacService.CheckPermission(c.Request.Context(), userID.(uuid.UUID), tenantID.(uuid.UUID), permission)
 			if err != nil {
 				m.logger.Error("Failed to check permission", zap.Error(err))
 				continue
@@ -107,12 +109,12 @@ func (m *RBACMiddleware) RequireAnyPermission(permissions ...string) gin.Handler
 		}
 
 		m.logger.Warn("Permission denied - no matching permissions",
-			zap.Uint("user_id", userID.(uint)),
+			zap.String("user_id", userID.(uuid.UUID).String()),
 			zap.Strings("permissions", permissions),
 			zap.String("path", c.Request.URL.Path))
 
 		// Log audit event for denied access
-		m.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uint), userID.(uint),
+		m.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uuid.UUID), userID.(uuid.UUID),
 			"access_denied", "permission", nil, "Permission denied - required one of: "+strings.Join(permissions, ", "),
 			c.ClientIP(), c.GetHeader("User-Agent"), false, "Insufficient permissions")
 
@@ -139,7 +141,7 @@ func (m *RBACMiddleware) RequireAllPermissions(permissions ...string) gin.Handle
 		}
 
 		for _, permission := range permissions {
-			hasPermission, err := m.rbacService.CheckPermission(c.Request.Context(), userID.(uint), tenantID.(uint), permission)
+			hasPermission, err := m.rbacService.CheckPermission(c.Request.Context(), userID.(uuid.UUID), tenantID.(uuid.UUID), permission)
 			if err != nil {
 				m.logger.Error("Failed to check permission", zap.Error(err))
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check permissions"})
@@ -149,12 +151,12 @@ func (m *RBACMiddleware) RequireAllPermissions(permissions ...string) gin.Handle
 
 			if !hasPermission {
 				m.logger.Warn("Permission denied - missing required permission",
-					zap.Uint("user_id", userID.(uint)),
+					zap.String("user_id", userID.(uuid.UUID).String()),
 					zap.String("missing_permission", permission),
 					zap.String("path", c.Request.URL.Path))
 
 				// Log audit event for denied access
-				m.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uint), userID.(uint),
+				m.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uuid.UUID), userID.(uuid.UUID),
 					"access_denied", "permission", nil, "Permission denied - missing: "+permission,
 					c.ClientIP(), c.GetHeader("User-Agent"), false, "Insufficient permissions")
 
@@ -185,7 +187,7 @@ func (m *RBACMiddleware) RequireRole(roleName string) gin.HandlerFunc {
 			return
 		}
 
-		userRoles, err := m.rbacService.GetUserRoles(c.Request.Context(), userID.(uint), tenantID.(uint))
+		userRoles, err := m.rbacService.GetUserRoles(c.Request.Context(), userID.(uuid.UUID), tenantID.(uuid.UUID))
 		if err != nil {
 			m.logger.Error("Failed to get user roles", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check user roles"})
@@ -203,12 +205,12 @@ func (m *RBACMiddleware) RequireRole(roleName string) gin.HandlerFunc {
 
 		if !hasRole {
 			m.logger.Warn("Role required",
-				zap.Uint("user_id", userID.(uint)),
+				zap.String("user_id", userID.(uuid.UUID).String()),
 				zap.String("required_role", roleName),
 				zap.String("path", c.Request.URL.Path))
 
 			// Log audit event for denied access
-			m.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uint), userID.(uint),
+			m.rbacService.LogAuditEvent(c.Request.Context(), tenantID.(uuid.UUID), userID.(uuid.UUID),
 				"access_denied", "role", nil, "Role required: "+roleName,
 				c.ClientIP(), c.GetHeader("User-Agent"), false, "Insufficient role")
 
@@ -297,7 +299,7 @@ func (m *RBACMiddleware) RateLimitByUser(requestsPerMinute int) gin.HandlerFunc 
 		// TODO: Implement actual rate limiting logic based on user ID
 		// For now, just log the rate limit check
 		m.logger.Debug("Rate limit check",
-			zap.Uint("user_id", userID.(uint)),
+			zap.String("user_id", userID.(uuid.UUID).String()),
 			zap.Int("limit", requestsPerMinute))
 
 		c.Next()

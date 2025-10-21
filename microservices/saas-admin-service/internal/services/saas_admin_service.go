@@ -2,11 +2,14 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
+
 	"github.com/google/uuid"
-	// "io" // Unused after removing tenant-admin-service API call
 	"net/http"
 	"strings"
 	"time"
@@ -1396,10 +1399,113 @@ func (s *SaaSAdminService) CreateTenant(ctx context.Context, tenant *models.SaaS
 		s.logger.Warn("Failed to invalidate cache after tenant creation (non-critical)", zap.Error(err))
 	}
 
-	s.logger.Info("Tenant created successfully",
+	s.logger.Info("Tenant created successfully in saas_admin",
 		zap.String("tenant_id", tenant.ID.String()),
 		zap.String("name", tenant.Name))
+
+	// NOTE: Tenant sync to tenant-admin is now handled via RabbitMQ events in the handler layer
+	// Removed: go s.syncTenantToTenantAdmin(ctx, tenant)
+	// Event-based sync provides better resilience and decoupling
+
 	return nil
+}
+
+// syncTenantToTenantAdmin synchronizes tenant data to tenant-admin-service
+// This is called asynchronously with retry logic for eventual consistency
+func (s *SaaSAdminService) syncTenantToTenantAdmin(ctx context.Context, tenant *models.SaaSTenant) {
+	tenantAdminURL := os.Getenv("TENANT_ADMIN_SERVICE_URL")
+	if tenantAdminURL == "" {
+		tenantAdminURL = "http://localhost:8099"
+	}
+
+	syncURL := tenantAdminURL + "/api/v1/public/tenants/sync"
+
+	// Build sync request payload
+	var maxUsers *int64
+	if tenant.MaxUsers != nil {
+		val := *tenant.MaxUsers
+		maxUsers = &val
+	}
+
+	payload := map[string]interface{}{
+		"id":            tenant.ID.String(),
+		"name":          tenant.Name,
+		"slug":          tenant.Slug,
+		"contact_email": tenant.ContactEmail,
+		"domain":        tenant.Domain,
+		"subdomain":     tenant.Subdomain,
+		"plan_id":       tenant.PlanID.String(),
+		"max_users":     maxUsers,
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		s.logger.Error("Failed to marshal tenant sync payload",
+			zap.Error(err),
+			zap.String("tenant_id", tenant.ID.String()))
+		return
+	}
+
+	// Retry logic with exponential backoff: 3 attempts (0s, 2s, 4s)
+	maxRetries := 3
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			// Exponential backoff: 2^attempt seconds
+			backoff := time.Duration(1<<uint(attempt)) * time.Second
+			s.logger.Info("Retrying tenant sync",
+				zap.Int("attempt", attempt+1),
+				zap.Duration("backoff", backoff),
+				zap.String("tenant_id", tenant.ID.String()))
+			time.Sleep(backoff)
+		}
+
+		// Create HTTP request
+		req, err := http.NewRequestWithContext(ctx, "POST", syncURL, bytes.NewBuffer(payloadBytes))
+		if err != nil {
+			s.logger.Error("Failed to create tenant sync request",
+				zap.Error(err),
+				zap.String("tenant_id", tenant.ID.String()))
+			continue
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+
+		// Execute request
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			s.logger.Warn("Tenant sync request failed (will retry)",
+				zap.Error(err),
+				zap.Int("attempt", attempt+1),
+				zap.String("tenant_id", tenant.ID.String()))
+			continue
+		}
+
+		// Check response
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			s.logger.Info("Tenant synced successfully to tenant-admin",
+				zap.String("tenant_id", tenant.ID.String()),
+				zap.String("slug", tenant.Slug),
+				zap.Int("status_code", resp.StatusCode),
+				zap.Int("attempt", attempt+1))
+			return // Success!
+		}
+
+		s.logger.Warn("Tenant sync returned non-2xx status (will retry)",
+			zap.Int("status_code", resp.StatusCode),
+			zap.String("response", string(bodyBytes)),
+			zap.Int("attempt", attempt+1),
+			zap.String("tenant_id", tenant.ID.String()))
+	}
+
+	// All retries failed - log error but don't fail the tenant creation
+	s.logger.Error("Failed to sync tenant to tenant-admin after all retries",
+		zap.String("tenant_id", tenant.ID.String()),
+		zap.Int("max_retries", maxRetries),
+		zap.String("note", "Tenant exists in saas_admin but not in tenant_admin_db - manual sync needed"))
 }
 
 // UpdateTenant updates an existing tenant.
@@ -1494,5 +1600,55 @@ func (s *SaaSAdminService) DeleteTenant(ctx context.Context, tenantID uuid.UUID)
 	}
 
 	s.logger.Info("Tenant deleted successfully", zap.String("tenant_id", tenantID.String()))
+	return nil
+}
+
+// ListArchivedTenants retrieves all soft-deleted tenants (deleted_at IS NOT NULL)
+func (s *SaaSAdminService) ListArchivedTenants(ctx context.Context) ([]*models.SaaSTenant, error) {
+	s.logger.Info("Fetching archived tenants from database")
+
+	var tenants []*models.SaaSTenant
+	// Use Unscoped() to include soft-deleted records, then filter for only deleted ones
+	if err := s.db.Unscoped().Where("deleted_at IS NOT NULL").Preload("Plan").Find(&tenants).Error; err != nil {
+		s.logger.Error("Failed to fetch archived tenants from database", zap.Error(err))
+		return nil, fmt.Errorf("failed to fetch archived tenants: %w", err)
+	}
+
+	s.logger.Info("Archived tenants fetched from database",
+		zap.Int("count", len(tenants)))
+
+	return tenants, nil
+}
+
+// RestoreTenant restores a soft-deleted tenant (sets deleted_at to NULL)
+func (s *SaaSAdminService) RestoreTenant(ctx context.Context, tenantID uuid.UUID) error {
+	s.logger.Info("Restoring tenant", zap.String("tenant_id", tenantID.String()))
+
+	// First check if tenant exists and is soft-deleted
+	var tenant models.SaaSTenant
+	if err := s.db.Unscoped().First(&tenant, tenantID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("tenant not found")
+		}
+		s.logger.Error("Failed to find tenant for restore", zap.Error(err))
+		return fmt.Errorf("failed to find tenant: %w", err)
+	}
+
+	if !tenant.DeletedAt.Valid {
+		return fmt.Errorf("tenant is not deleted")
+	}
+
+	// Restore the tenant by setting deleted_at to NULL
+	if err := s.db.Unscoped().Model(&tenant).Update("deleted_at", nil).Error; err != nil {
+		s.logger.Error("Failed to restore tenant", zap.Error(err))
+		return fmt.Errorf("failed to restore tenant: %w", err)
+	}
+
+	// Invalidate tenant cache after successful restore
+	if err := s.InvalidateTenantMetricsCache(ctx); err != nil {
+		s.logger.Warn("Failed to invalidate cache after tenant restore (non-critical)", zap.Error(err))
+	}
+
+	s.logger.Info("Tenant restored successfully", zap.String("tenant_id", tenantID.String()))
 	return nil
 }

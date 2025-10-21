@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/anupamdutta5/tenant-admin-service/internal/models"
 	"go.uber.org/zap"
 )
@@ -15,8 +17,8 @@ type SessionStore interface {
 	Get(ctx context.Context, sessionID string) (*models.Session, error)
 	Update(ctx context.Context, sessionID string) error
 	Delete(ctx context.Context, sessionID string) error
-	GetUserSessions(ctx context.Context, userID uint) ([]*models.Session, error)
-	DeleteUserSessions(ctx context.Context, userID uint) error
+	GetUserSessions(ctx context.Context, userID uuid.UUID) ([]*models.Session, error)
+	DeleteUserSessions(ctx context.Context, userID uuid.UUID) error
 	CleanupExpiredSessions(ctx context.Context) error
 	HealthCheck(ctx context.Context) error
 }
@@ -154,7 +156,7 @@ func (m *SessionManager) Delete(ctx context.Context, sessionID string) error {
 }
 
 // GetUserSessions gets all sessions for a user
-func (m *SessionManager) GetUserSessions(ctx context.Context, userID uint) ([]*models.Session, error) {
+func (m *SessionManager) GetUserSessions(ctx context.Context, userID uuid.UUID) ([]*models.Session, error) {
 	store := m.getActiveStore()
 
 	sessions, err := store.GetUserSessions(ctx, userID)
@@ -173,7 +175,7 @@ func (m *SessionManager) GetUserSessions(ctx context.Context, userID uint) ([]*m
 }
 
 // DeleteUserSessions deletes all sessions for a user
-func (m *SessionManager) DeleteUserSessions(ctx context.Context, userID uint) error {
+func (m *SessionManager) DeleteUserSessions(ctx context.Context, userID uuid.UUID) error {
 	// Delete from both stores to ensure consistency
 	var primaryErr, fallbackErr error
 
@@ -181,7 +183,7 @@ func (m *SessionManager) DeleteUserSessions(ctx context.Context, userID uint) er
 		primaryErr = m.primaryStore.DeleteUserSessions(ctx, userID)
 		if primaryErr != nil {
 			m.logger.Warn("Failed to delete user sessions from primary store",
-				zap.Uint("user_id", userID),
+				zap.String("user_id", userID.String()),
 				zap.Error(primaryErr))
 		}
 	}
@@ -190,7 +192,7 @@ func (m *SessionManager) DeleteUserSessions(ctx context.Context, userID uint) er
 		fallbackErr = m.fallbackStore.DeleteUserSessions(ctx, userID)
 		if fallbackErr != nil {
 			m.logger.Warn("Failed to delete user sessions from fallback store",
-				zap.Uint("user_id", userID),
+				zap.String("user_id", userID.String()),
 				zap.Error(fallbackErr))
 		}
 	}
