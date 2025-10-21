@@ -1,8 +1,8 @@
 # Beakon Microservices - Service Catalog
 
-**Last Updated**: 2025-10-14
-**Total Services**: 19 active (+ 1 deprecated)
-**Architecture**: Microservices with API Gateway
+**Last Updated**: 2025-10-21
+**Total Services**: 21 active (+ 1 deprecated)
+**Architecture**: Microservices with API Gateway + Separated Frontend Services
 **Shared Library**: shared-resilience (100% adoption)
 
 ---
@@ -11,6 +11,10 @@
 
 | Service | Port | Database | Status | Resilience | Primary Function |
 |---------|------|----------|--------|------------|------------------|
+| **Frontend Services** |
+| saas-admin-frontend | 3001 | None | ✅ Active | N/A | SaaS admin UI (Next.js) |
+| tenant-admin-frontend | 3002 | None | ✅ Active | N/A | Tenant admin UI (Next.js) |
+| **Backend Services** |
 | api-gateway | 8080 | None | ✅ Active | ✅ Full | Request routing & auth |
 | user-service | 8081 | statuspage_user | ✅ Active | ✅ Full | User auth & management |
 | component-service | 8084 | statuspage_component | ✅ Active | ✅ Full | Component monitoring |
@@ -23,18 +27,138 @@
 | database-service | 8095 | statuspage_database | ⚠️ DEPRECATED | ✅ Full | Database utils (unused) |
 | event-store-service | 8096 | statuspage_event_store | ✅ Active | ✅ Full | Event sourcing |
 | branding-service | 8097 | statuspage_branding | ✅ Active | ✅ Full | Theming & branding |
-| saas-admin-service | 8098 | saas_admin | ✅ Active | ✅ Full | Platform admin |
-| tenant-admin-service | 8099 | tenant_admin_db | ✅ Active | ✅ Full | Multi-tenant mgmt |
+| saas-admin-service | 8098 | saas_admin | ✅ Active | ✅ Full | Platform admin API |
+| tenant-admin-service | 8099 | tenant_admin_db | ✅ Active | ✅ Full | Multi-tenant mgmt API |
 | landing-page-service | 8100 | statuspage_landing | ✅ Active | ✅ Full | Marketing website |
+| **Consumer Services** |
 | analytics-consumer | N/A | statuspage_analytics_consumer | ✅ Active | ✅ Full | Analytics processing |
 | notification-consumer | N/A | N/A | ✅ Active | ✅ Full | Notification delivery |
 | audit-consumer | N/A | statuspage_audit_consumer | ✅ Active | ✅ Full | Audit log processing |
 | billing-consumer | N/A | statuspage_billing_consumer | ✅ Active | ✅ Full | Billing calculations |
+| **Shared Libraries** |
 | shared-resilience | N/A | N/A | ✅ Active | N/A | Common patterns lib |
 
 ---
 
 ## Service Details
+
+## Frontend Services
+
+### F1. SaaS Admin Frontend
+**Port**: 3001
+**Database**: None
+**Type**: Next.js SSR Application
+**Language**: TypeScript (React)
+**Repository**: https://github.com/anupamdutta5/saas-admin-frontend
+
+**Purpose**: User interface for platform administration and SaaS management
+
+**Features**:
+- Platform configuration management
+- Tenant creation and management
+- Subscription plan administration
+- Pricing and feature management
+- Analytics dashboard
+- Real-time monitoring
+- Billing and invoicing
+- Admin user management
+- React Query for data fetching
+- Zustand for state management
+
+**Technology Stack**:
+- Next.js 14.2+ (App Router)
+- TypeScript 5.6+
+- Tailwind CSS 3.4+
+- shadcn/ui components
+- React Query 5.55+
+- Recharts for analytics
+
+**API Communication**:
+- Backend: saas-admin-service (Port 8098)
+- Method: HTTP with CORS
+- Authentication: JWT tokens in localStorage
+
+**Development**:
+```bash
+cd microservices/saas-admin-frontend
+./start-dev.sh
+# Or manually: npm run dev
+```
+
+**Production Build**:
+```bash
+npm run build
+npm run start
+# Or use Docker: docker build -t saas-admin-frontend .
+```
+
+**Access**:
+- Development: http://localhost:3001
+- Production: Configure via NEXT_PUBLIC_API_URL env var
+
+---
+
+### F2. Tenant Admin Frontend
+**Port**: 3002
+**Database**: None
+**Type**: Next.js SSR Application
+**Language**: TypeScript (React)
+**Repository**: https://github.com/anupamdutta5/tenant-admin-frontend
+
+**Purpose**: Multi-tenant admin interface for individual tenant management
+
+**Features**:
+- Component status management
+- Incident creation and tracking
+- Subscriber management
+- Team and user management
+- Role-based access control (RBAC)
+- Settings and branding configuration
+- Subdomain-based multi-tenancy
+- React Query for data fetching
+- Tenant-scoped operations
+
+**Technology Stack**:
+- Next.js 14.2+ (App Router)
+- TypeScript 5.6+
+- Tailwind CSS 3.4+
+- shadcn/ui components
+- React Query 5.55+
+- date-fns for date handling
+
+**API Communication**:
+- Backend: tenant-admin-service (Port 8099)
+- Method: Same-origin (subdomain routing)
+- Authentication: JWT tokens + session cookies
+
+**Development**:
+```bash
+cd microservices/tenant-admin-frontend
+./start-dev.sh
+# Or manually: npm run dev
+```
+
+**Production Build**:
+```bash
+npm run build
+npm run start
+# Or use Docker: docker build -t tenant-admin-frontend .
+```
+
+**Access**:
+- Development: http://{tenant-slug}.localhost:3002
+- Example: http://anupam.localhost:3002
+- Production: Subdomain wildcard DNS required
+
+**Note**: Requires DNS configuration for subdomain routing:
+```bash
+# Add to /etc/hosts for local testing
+echo "127.0.0.1 anupam.localhost monday.localhost" | sudo tee -a /etc/hosts
+```
+
+---
+
+## Backend Services
 
 ### 1. API Gateway
 **Port**: 8080
@@ -470,36 +594,33 @@
 
 ---
 
-### 13. SaaS Admin Service
+### 13. SaaS Admin Service (Backend API)
 **Port**: 8098
 **Database**: saas_admin
-**Type**: HTTP Service + Web UI
+**Type**: HTTP API Service (Backend only - UI separated to saas-admin-frontend)
 **Language**: Go
 
-**Purpose**: Platform-wide administration and SaaS operations
+**Purpose**: Platform-wide administration API and SaaS operations backend
+
+**Important**: As of 2025-10-21, this service is **API-only**. The web UI has been separated into **saas-admin-frontend** (port 3001). This service now focuses solely on backend API operations.
 
 **Features**:
-- Platform administration dashboard (web UI)
-- Subscription plan management
-- Feature management and feature flags
-- Pricing structure configuration
-- Platform-level statistics and analytics
-- Tenant provisioning and management
-- Admin user management
-- Billing integration oversight
-- System-wide settings
-- Backup and restore management
-- Notification template management
+- Subscription plan management API
+- Feature management and feature flags API
+- Pricing structure configuration API
+- Platform-level statistics and analytics API
+- Tenant provisioning and management API
+- Admin user management API
+- Billing integration oversight API
+- System-wide settings API
+- Backup and restore management API
+- Notification template management API
+- RabbitMQ event publishing (tenant sync)
+- CORS middleware for frontend (port 3001)
 
 **Web Routes**:
-- `GET /` - Admin login page
-- `GET /dashboard` - Main admin dashboard
-- `GET /tenants` - Tenant management
-- `GET /plans` - Subscription plans
-- `GET /features` - Feature management
-- `GET /pricing` - Pricing configuration
-- `GET /users` - Platform users
-- `GET /settings` - System settings
+- ❌ All static frontend routes removed
+- ✅ Frontend now served by saas-admin-frontend (port 3001)
 
 **API Endpoints**:
 - `POST /api/v1/auth/login` - Admin login
@@ -526,35 +647,46 @@
 **Service Communication**:
 - Calls tenant-admin-service API for tenant CRUD operations
 - Communicates via HTTP (pure microservices pattern)
+- Frontend (saas-admin-frontend) calls this API with CORS
+- Publishes tenant events to RabbitMQ for sync
+
+**CORS Configuration**:
+- Allowed origins: `http://localhost:3001` (development), `https://admin.yourdomain.com` (production)
+- Credentials: Enabled for cookies/sessions
+- Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH
 
 ---
 
-### 14. Tenant Admin Service
+### 14. Tenant Admin Service (Backend API)
 **Port**: 8099
 **Database**: tenant_admin_db
-**Type**: HTTP Service + Web UI
+**Type**: HTTP API Service (Backend only - UI separated to tenant-admin-frontend)
 **Language**: Go
 
-**Purpose**: Multi-tenant management and RBAC
+**Purpose**: Multi-tenant management API and RBAC backend
+
+**Important**: As of 2025-10-21, this service is **API-only**. The web UI has been separated into **tenant-admin-frontend** (port 3002). This service now focuses solely on backend API operations with subdomain-based tenant detection.
 
 **Features**:
-- Tenant CRUD operations
-- Role-Based Access Control (RBAC) system
-- User management with max users enforcement
-- Team management
+- Tenant CRUD operations API
+- Role-Based Access Control (RBAC) API system
+- User management API with max users enforcement
+- Team management API
+- Component management API
+- Incident management API
+- Subscriber management API
 - Session management (Redis + DB + in-memory fallback)
-- Status page configuration
-- Domain management and verification
+- Status page configuration API
+- Domain management and verification API
 - Audit logging
 - Feature flag management per tenant
 - Usage tracking and statistics
-- Backup management
-- Notification settings
+- Subdomain-based tenant isolation middleware
+- RabbitMQ event consumer (tenant sync from saas-admin)
 
 **Web Routes**:
-- `GET /` - Tenant admin login
-- `GET /login` - Login page
-- `GET /admin` - Admin dashboard
+- ❌ All static frontend routes removed
+- ✅ Frontend now served by tenant-admin-frontend (port 3002)
 
 **API Endpoints**:
 - `POST /api/v1/auth/login` - Tenant admin login

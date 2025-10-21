@@ -6,7 +6,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"html/template"
 	"log"
 	"net/http"
 	"os"
@@ -15,11 +14,11 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"path/filepath"
 
 	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/anupamdutta5/saas-admin-service/internal/cache"
 	"github.com/anupamdutta5/saas-admin-service/internal/config"
+	"github.com/anupamdutta5/saas-admin-service/internal/events"
 	"github.com/anupamdutta5/saas-admin-service/internal/handlers"
 	// "github.com/anupamdutta5/saas-admin-service/internal/models" // Unused after disabling AutoMigrate
 	"github.com/anupamdutta5/saas-admin-service/internal/services"
@@ -28,66 +27,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// loadTemplates loads all HTML templates from both root and subdirectories
-func loadTemplates() *template.Template {
-	// Find all .html files in root templates directory
-	rootFiles, err := filepath.Glob("web/templates/*.html")
-	if err != nil {
-		log.Printf("Error loading root template files: %v", err)
-		rootFiles = []string{}
-	}
-
-	// Find all .html files in partials subdirectory specifically
-	partialFiles, err := filepath.Glob("web/templates/partials/*.html")
-	if err != nil {
-		log.Printf("Error loading partial template files: %v", err)
-		partialFiles = []string{}
-	}
-
-	// Combine all template files
-	allFiles := append(rootFiles, partialFiles...)
-
-	if len(allFiles) == 0 {
-		log.Printf("Warning: No template files found")
-		return template.New("")
-	}
-
-	log.Printf("Loading templates: %v", allFiles)
-
-	// Parse all template files at once to properly handle dependencies
-	tmpl, err := template.ParseFiles(allFiles...)
-	if err != nil {
-		log.Printf("Error parsing template files: %v", err)
-		return template.New("")
-	}
-
-	return tmpl
-}
-
 // setupRoutes configures all the routes for the server
 func setupRoutes(router *gin.Engine, adminHandler *handlers.SaaSAdminHandler) {
-	// Load HTML templates including partials
-	router.SetHTMLTemplate(loadTemplates())
-
-	// Serve static files
-	router.Static("/static", "../web/static")
-
-	// Favicon route
-	router.GET("/favicon.ico", func(c *gin.Context) {
-		c.File("../web/static/favicon.ico")
-	})
-
-	// Root route redirects to admin dashboard
-	router.GET("/", func(c *gin.Context) {
-		c.Redirect(301, "/api/v1/health")
-	})
-
-	// Admin dashboard
-	router.GET("/admin", func(c *gin.Context) {
-		c.HTML(200, "admin.html", gin.H{
-			"title": "SaaS Admin Dashboard",
-		})
-	})
+	// Frontend now served independently on port 3001 (saas-admin-frontend service)
+	// All static file routes removed - backend is API-only
 
 	// API v1 group
 	v1 := router.Group("/api/v1")
@@ -224,6 +167,8 @@ func setupRoutes(router *gin.Engine, adminHandler *handlers.SaaSAdminHandler) {
 		{
 			tenants.GET("", adminHandler.GetTenants)
 			tenants.POST("", adminHandler.CreateTenant)
+			tenants.GET("/archived", adminHandler.GetArchivedTenants)           // List archived tenants
+			tenants.POST("/:id/restore", adminHandler.RestoreTenant)            // Restore archived tenant
 			tenants.GET("/:id", adminHandler.GetTenant)
 			tenants.PUT("/:id", adminHandler.UpdateTenant)
 			tenants.DELETE("/:id", adminHandler.DeleteTenant)
@@ -344,17 +289,38 @@ func main() {
 		zap.Int("port", resilienceConfig.Server.Port),
 	)
 
-	// Ensure database exists before connecting
-	if err := ensureDatabaseExists(resilienceConfig.Database, logger); err != nil {
-		logger.Fatal("Failed to ensure database exists", zap.Error(err))
+	// Ensure primary database (saas_admin) exists before connecting
+	primaryDBConfig := resilienceConfig.Database
+	primaryDBConfig.Name = "saas_admin" // Force correct database name
+	if err := ensureDatabaseExists(primaryDBConfig, logger); err != nil {
+		logger.Fatal("Failed to ensure saas_admin database exists", zap.Error(err))
 	}
 
-	// Initialize database manager with connection pooling and health checks
-	dbManager, err := resilience.NewDatabaseManager(resilienceConfig.Database, logger)
+	// Initialize PRIMARY database manager for saas_admin
+	dbManager, err := resilience.NewDatabaseManager(primaryDBConfig, logger)
 	if err != nil {
-		logger.Fatal("Failed to initialize database manager", zap.Error(err))
+		logger.Fatal("Failed to initialize saas_admin database manager", zap.Error(err))
 	}
 	defer dbManager.Close()
+
+	logger.Info("Primary database connection established", zap.String("database", "saas_admin"))
+
+	// Initialize SECONDARY database connection for tenant_admin_db (credential sync)
+	tenantAdminDBConfig := resilienceConfig.Database
+	tenantAdminDBConfig.Name = "tenant_admin_db"
+	if err := ensureDatabaseExists(tenantAdminDBConfig, logger); err != nil {
+		logger.Fatal("Failed to ensure tenant_admin_db exists", zap.Error(err))
+	}
+
+	tenantAdminDBManager, err := resilience.NewDatabaseManager(tenantAdminDBConfig, logger)
+	if err != nil {
+		logger.Fatal("Failed to initialize tenant_admin_db database manager", zap.Error(err))
+	}
+	defer tenantAdminDBManager.Close()
+
+	logger.Info("Secondary database connection established",
+		zap.String("database", "tenant_admin_db"),
+		zap.String("purpose", "credential sync for tenant owners"))
 
 	// Auto-migrate SaaS Admin Service models
 	// db := dbManager.GetDB() // Unused after disabling AutoMigrate
@@ -395,6 +361,36 @@ func main() {
 	// Create Gin router
 	router := gin.New()
 
+	// CORS middleware for saas-admin-frontend (port 3001)
+	router.Use(func(c *gin.Context) {
+		origin := c.Request.Header.Get("Origin")
+
+		// Allow requests from saas-admin-frontend
+		allowedOrigins := []string{
+			"http://localhost:3001",              // Development
+			"https://admin.yourdomain.com",       // Production (update when deployed)
+		}
+
+		for _, allowedOrigin := range allowedOrigins {
+			if origin == allowedOrigin {
+				c.Header("Access-Control-Allow-Origin", origin)
+				c.Header("Access-Control-Allow-Credentials", "true")
+				c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
+				c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, X-Requested-With")
+				c.Header("Access-Control-Max-Age", "86400") // 24 hours
+				break
+			}
+		}
+
+		// Handle preflight requests
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Next()
+	})
+
 	// Add comprehensive middleware stack with custom CSP for admin dashboard
 	middleware := resilience.DefaultMiddlewareStack(resilienceConfig, logger)
 
@@ -415,14 +411,7 @@ func main() {
 		}
 	}
 
-	// Override CSP header for admin dashboard routes to allow CDN resources
-	router.Use(func(c *gin.Context) {
-		// Allow CDN resources for admin dashboard
-		if c.Request.URL.Path == "/" || c.Request.URL.Path == "/admin" {
-			c.Header("Content-Security-Policy", "default-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com data:; img-src 'self' data: https:; connect-src 'self' https:")
-		}
-		c.Next()
-	})
+	// CSP header no longer needed - frontend is separate service
 
 	// Initialize service URLs from environment variables
 	serviceURLs := config.GetServiceURLsFromEnv()
@@ -455,13 +444,33 @@ func main() {
 		zap.String("host", redisHost),
 		zap.Int("port", redisPort))
 
+	// Initialize RabbitMQ event publisher
+	rabbitmqURL := os.Getenv("RABBITMQ_URL")
+	if rabbitmqURL == "" {
+		rabbitmqURL = "amqp://admin:SecureP@ssw0rd2024!@localhost:5672/"
+	}
+
+	eventPublisher, err := events.NewPublisher(events.PublisherConfig{
+		URL:    rabbitmqURL,
+		Logger: logger,
+	})
+	if err != nil {
+		logger.Warn("Failed to initialize RabbitMQ publisher, event publishing will be disabled",
+			zap.Error(err),
+			zap.String("url", rabbitmqURL))
+		eventPublisher = nil // Will fallback to HTTP sync
+	} else {
+		logger.Info("RabbitMQ event publisher initialized successfully",
+			zap.String("url", rabbitmqURL))
+	}
+
 	// Initialize saas admin service and handlers
 	saasAdminService, err := services.NewSaaSAdminService(nil, logger, dbManager.GetDB(), redisCache)
 	if err != nil {
 		logger.Fatal("Failed to create SaaS admin service", zap.Error(err))
 	}
 
-	saasAdminHandler := handlers.NewSaaSAdminHandler(saasAdminService, serviceURLs, logger)
+	saasAdminHandler := handlers.NewSaaSAdminHandler(saasAdminService, tenantAdminDBManager.GetDB(), eventPublisher, serviceURLs, logger)
 
 	// Setup all enterprise routes
 	setupRoutes(router, saasAdminHandler)

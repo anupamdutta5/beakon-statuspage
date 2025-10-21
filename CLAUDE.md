@@ -277,7 +277,11 @@ DB_SSLMODE=disable  # Use 'require' in production
 
 ## Port Allocation
 
-**HTTP Services:**
+**Frontend Services (Next.js SSR):**
+- 3001: SaaS Admin Frontend ⭐ (platform admin UI)
+- 3002: Tenant Admin Frontend ⭐ (multi-tenant admin UI)
+
+**Backend HTTP Services:**
 - 8080: API Gateway ⭐ (entry point)
 - 8081: User Service
 - 8084: Component Service
@@ -290,8 +294,8 @@ DB_SSLMODE=disable  # Use 'require' in production
 - 8095: Database Service ⚠️ DEPRECATED
 - 8096: Event Store Service
 - 8097: Branding Service
-- 8098: SaaS Admin Service
-- 8099: Tenant Admin Service
+- 8098: SaaS Admin Service (API only - UI separated to port 3001)
+- 8099: Tenant Admin Service (API only - UI separated to port 3002)
 - 8100: Landing Page Service
 
 **Consumer Services (no HTTP port):**
@@ -300,7 +304,7 @@ DB_SSLMODE=disable  # Use 'require' in production
 - Audit Consumer
 - Billing Consumer
 
-**Prometheus Metrics:** Service port + 1010 (e.g., 8080 → 9090)
+**Prometheus Metrics:** Backend service port + 1010 (e.g., 8080 → 9090)
 
 ## Development Workflow
 
@@ -309,11 +313,13 @@ DB_SSLMODE=disable  # Use 'require' in production
 1. **Install prerequisites:**
    ```bash
    # macOS
-   brew install postgresql@16 go redis
+   brew install postgresql@16 go redis nodejs
    brew services start postgresql@16
 
-   # Verify Go version
-   go version  # Should be 1.21+
+   # Verify versions
+   go version       # Should be 1.21+
+   node -v          # Should be 18.0+
+   npm -v           # Should be 8.0+
    ```
 
 2. **Initialize databases:**
@@ -322,15 +328,43 @@ DB_SSLMODE=disable  # Use 'require' in production
    ./init-all-databases.sh
    ```
 
-3. **Start services:**
+3. **Start ALL services (backends + frontends):**
    ```bash
-   ./start-dev.sh
+   cd microservices
+   ./start-all-services.sh
+   ```
+   This starts:
+   - Backend services (saas-admin-service on 8098, tenant-admin-service on 8099)
+   - Frontend services (saas-admin-frontend on 3001, tenant-admin-frontend on 3002)
+
+   **OR start individually:**
+   ```bash
+   # Start only backend services
+   ./start-all-backends.sh
+
+   # Start only frontend services
+   ./start-all-frontends.sh
    ```
 
 4. **Verify health:**
    ```bash
-   curl http://localhost:8080/health
+   # Backend health
+   curl http://localhost:8098/api/v1/health
    curl http://localhost:8099/health
+
+   # Frontend access
+   open http://localhost:3001                 # SaaS Admin UI
+   open http://anupam.localhost:3002          # Tenant Admin UI (subdomain required)
+   ```
+
+5. **Stop all services:**
+   ```bash
+   cd microservices
+   ./stop-all-services.sh
+
+   # Or stop individually:
+   ./stop-all-backends.sh
+   ./stop-all-frontends.sh
    ```
 
 ### Working on a Single Service
@@ -544,19 +578,52 @@ curl http://localhost:8099/api/v1/tenants \
 
 ### Service Separation
 
+**Important**: As of 2025-10-21, SaaS Admin and Tenant Admin services have been split into separate frontend and backend microservices.
+
+**Frontend Services (Next.js SSR):**
+
+**saas-admin-frontend** (port 3001):
+- User interface for platform administration
+- React-based UI with TypeScript
+- Communicates with saas-admin-service (port 8098) via CORS
+- Authentication: JWT tokens in localStorage
+- Deployment: Docker-ready with Next.js standalone mode
+- Repository: https://github.com/anupamdutta5/saas-admin-frontend
+
+**tenant-admin-frontend** (port 3002):
+- Multi-tenant admin interface
+- React-based UI with TypeScript
+- Communicates with tenant-admin-service (port 8099) via same-origin (subdomain routing)
+- Authentication: JWT tokens + session cookies
+- Deployment: Docker-ready with Next.js standalone mode
+- Repository: https://github.com/anupamdutta5/tenant-admin-frontend
+- **Requires subdomain DNS** for multi-tenant routing (e.g., `anupam.localhost:3002`)
+
+**Backend Services (Go APIs):**
+
 **SaaS Admin Service** (port 8098) uses `saas_admin` database:
-- Platform administration and configuration
-- Subscription plans, features, pricing management
-- SaaS admin user accounts
+- **API-only** (frontend separated to port 3001)
+- Platform administration API
+- Subscription plans, features, pricing API
+- SaaS admin user management API
 - Creates tenants by calling Tenant Admin Service API
+- RabbitMQ event publishing for tenant sync
+- CORS enabled for frontend (port 3001)
 
 **Tenant Admin Service** (port 8099) uses `tenant_admin_db` database:
-- Multi-tenant management
-- Tenant users, roles, permissions, teams
+- **API-only** (frontend separated to port 3002)
+- Multi-tenant management API
+- Tenant users, roles, permissions, teams API
+- Component, incident, subscriber management API
 - Session management and RBAC
-- Tenant-level configuration
+- Subdomain-based tenant isolation middleware
+- RabbitMQ event consumer for tenant sync
+- Same-origin requests (no CORS needed due to subdomain routing)
 
-**Communication**: Services communicate via HTTP APIs, following pure microservices pattern with database-per-service.
+**Communication**:
+- Frontend ↔ Backend: HTTP/HTTPS with CORS (SaaS Admin) or same-origin (Tenant Admin)
+- Backend ↔ Backend: HTTP APIs (pure microservices, database-per-service)
+- Event-driven: RabbitMQ for tenant synchronization between saas-admin and tenant-admin services
 
 ### Deprecated Services
 
