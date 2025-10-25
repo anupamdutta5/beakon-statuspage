@@ -26,6 +26,8 @@ type Incident struct {
 	ResolvedAt  *time.Time     `json:"resolved_at,omitempty"`
 	CreatedBy   *uuid.UUID     `gorm:"type:uuid" json:"created_by,omitempty"`  // User ID who created incident
 	UpdatedBy   *uuid.UUID     `gorm:"type:uuid" json:"updated_by,omitempty"`  // User ID who last updated
+	OwnerID     *uuid.UUID     `gorm:"type:uuid;index" json:"owner_id,omitempty"` // P1: Incident Owner Assignment
+	AssignedAt  *time.Time     `json:"assigned_at,omitempty"` // When incident was assigned
 	Metadata    string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
 }
 

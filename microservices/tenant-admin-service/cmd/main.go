@@ -113,6 +113,7 @@ func main() {
 		&models.Session{},
 		&models.AuditLog{},
 		&models.User{},
+		&models.DependencyEdge{},
 	); err != nil {
 		logger.Warn("Auto-migrate models had issues (continuing anyway)", zap.Error(err))
 	} else {
@@ -285,6 +286,7 @@ func main() {
 	componentService := services.NewComponentService(db, redisClient, logger)
 	incidentService := services.NewIncidentService(db, redisClient, logger)
 	subscriberService := services.NewSubscriberService(db, redisClient, logger)
+	dependencyService := services.NewDependencyService(db)
 
 	// Initialize modernized handlers with shared error handling
 	tenantAdminHandler := handlers.NewTenantAdminHandler(tenantAdminService, statusPageService, rbacService, logger)
@@ -294,6 +296,7 @@ func main() {
 	componentHandler := handlers.NewComponentHandler(componentService, logger)
 	incidentHandler := handlers.NewIncidentHandler(incidentService, logger)
 	subscriberHandler := handlers.NewSubscriberHandler(subscriberService, logger)
+	dependencyHandler := handlers.NewDependencyHandler(dependencyService)
 
 	// Initialize RabbitMQ event consumer for tenant sync
 	rabbitmqURL := os.Getenv("RABBITMQ_URL")
@@ -329,7 +332,7 @@ func main() {
 	}
 
 	// Setup routes with improved structure
-	setupModernizedRoutes(router, tenantAdminHandler, domainHandler, rbacHandler, userHandler, componentHandler, incidentHandler, subscriberHandler, rbacService, logger, resilienceConfig)
+	setupModernizedRoutes(router, tenantAdminHandler, domainHandler, rbacHandler, userHandler, componentHandler, incidentHandler, subscriberHandler, dependencyHandler, rbacService, logger, resilienceConfig)
 
 	// Create HTTP server with proper timeouts and configuration
 	server := &http.Server{
@@ -472,7 +475,7 @@ func ensureDatabaseExists(config resilience.DatabaseConfig, logger *zap.Logger) 
 }
 
 // setupModernizedRoutes configures all the routes with improved structure and security
-func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdminHandler, domainHandler *handlers.DomainHandler, rbacHandler *handlers.RBACHandler, userHandler *handlers.UserHandler, componentHandler *handlers.ComponentHandler, incidentHandler *handlers.IncidentHandler, subscriberHandler *handlers.SubscriberHandler, rbacService *services.RBACService, logger *zap.Logger, config *resilience.Config) {
+func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdminHandler, domainHandler *handlers.DomainHandler, rbacHandler *handlers.RBACHandler, userHandler *handlers.UserHandler, componentHandler *handlers.ComponentHandler, incidentHandler *handlers.IncidentHandler, subscriberHandler *handlers.SubscriberHandler, dependencyHandler *handlers.DependencyHandler, rbacService *services.RBACService, logger *zap.Logger, config *resilience.Config) {
 	// Health check endpoints (excluded from auth and rate limiting)
 	router.GET("/health", tenantHandler.HealthCheck)
 	router.GET("/health/ready", tenantHandler.HealthCheck)
@@ -629,6 +632,17 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 				subscribers.PUT("/:id", subscriberHandler.UpdateSubscriber)
 				subscribers.POST("/:id/verify", subscriberHandler.VerifySubscriber)
 				subscribers.DELETE("/:id", subscriberHandler.DeleteSubscriber)
+			}
+
+			// Dependency mapping routes (tenant context from middleware)
+			dependencies := protected.Group("/dependencies")
+			{
+				dependencies.GET("/graph", dependencyHandler.GetDependencyGraph)
+				dependencies.POST("", dependencyHandler.AddDependency)
+				dependencies.DELETE("/:from_id/:to_id", dependencyHandler.RemoveDependency)
+				dependencies.GET("/impact/:component_id", dependencyHandler.AnalyzeImpact)
+				dependencies.GET("/health/:component_id", dependencyHandler.GetDependencyHealth)
+				dependencies.POST("/validate", dependencyHandler.ValidateDependency)
 			}
 
 			// Status page management routes

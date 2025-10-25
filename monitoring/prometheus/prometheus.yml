@@ -1,0 +1,226 @@
+# Prometheus Configuration for Beakon Status Page Platform
+# Complete configuration for monitoring all 19 microservices
+
+global:
+  scrape_interval: 15s       # How often to scrape targets
+  evaluation_interval: 15s   # How often to evaluate rules
+  external_labels:
+    monitor: 'beakon-platform'
+    environment: 'development'
+    cluster: 'main'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - localhost:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - "alerts/*.yml"
+  - "recording_rules/*.yml"
+
+# Scrape configurations for all services
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # API Gateway (Port 8080)
+  - job_name: 'api-gateway'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['localhost:8080']
+    metrics_path: '/metrics'
+    params:
+      format: ['prometheus']
+
+  # User Service (Port 8081)
+  - job_name: 'user-service'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:8081']
+    metrics_path: '/metrics'
+
+  # Component Service (Port 8084)
+  - job_name: 'component-service'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:8084']
+    metrics_path: '/metrics'
+
+  # Notification Service (Port 8085)
+  - job_name: 'notification-service'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:8085']
+    metrics_path: '/metrics'
+
+  # Incident Service (Port 8086)
+  - job_name: 'incident-service'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:8086']
+    metrics_path: '/metrics'
+
+  # Payment Service (Port 8088)
+  - job_name: 'payment-service'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:8088']
+    metrics_path: '/metrics'
+
+  # Analytics Service (Port 8090)
+  - job_name: 'analytics-service'
+    scrape_interval: 20s  # Less frequent for analytics
+    static_configs:
+      - targets: ['localhost:8090']
+    metrics_path: '/metrics'
+
+  # Monitoring Service (Port 8092)
+  - job_name: 'monitoring-service'
+    scrape_interval: 10s  # More frequent for monitoring service
+    static_configs:
+      - targets: ['localhost:8092']
+    metrics_path: '/metrics'
+
+  # Status UI Service (Port 8093)
+  - job_name: 'status-ui-service'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:8093']
+    metrics_path: '/metrics'
+
+  # Event Store Service (Port 8096)
+  - job_name: 'event-store-service'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:8096']
+    metrics_path: '/metrics'
+
+  # Branding Service (Port 8097)
+  - job_name: 'branding-service'
+    scrape_interval: 20s
+    static_configs:
+      - targets: ['localhost:8097']
+    metrics_path: '/metrics'
+
+  # SaaS Admin Service (Port 8098)
+  - job_name: 'saas-admin-service'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:8098']
+    metrics_path: '/metrics'
+
+  # Tenant Admin Service (Port 8099)
+  - job_name: 'tenant-admin-service'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:8099']
+    metrics_path: '/metrics'
+
+  # Landing Page Service (Port 8100)
+  - job_name: 'landing-page-service'
+    scrape_interval: 30s  # Less critical
+    static_configs:
+      - targets: ['localhost:8100']
+    metrics_path: '/metrics'
+
+  # Frontend Services (Next.js)
+  # SaaS Admin Frontend (Port 3001)
+  - job_name: 'saas-admin-frontend'
+    scrape_interval: 20s
+    static_configs:
+      - targets: ['localhost:3001']
+    metrics_path: '/api/metrics'  # Next.js custom metrics endpoint
+
+  # Tenant Admin Frontend (Port 3002)
+  - job_name: 'tenant-admin-frontend'
+    scrape_interval: 20s
+    static_configs:
+      - targets: ['localhost:3002']
+    metrics_path: '/api/metrics'
+
+  # Consumer Services (no HTTP port, use internal metrics if available)
+  # Analytics Consumer
+  - job_name: 'analytics-consumer'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['localhost:9101']  # Custom metrics port
+    metrics_path: '/metrics'
+
+  # Notification Consumer
+  - job_name: 'notification-consumer'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['localhost:9102']
+    metrics_path: '/metrics'
+
+  # Audit Consumer
+  - job_name: 'audit-consumer'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['localhost:9103']
+    metrics_path: '/metrics'
+
+  # Billing Consumer
+  - job_name: 'billing-consumer'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['localhost:9104']
+    metrics_path: '/metrics'
+
+  # Infrastructure Services
+  # PostgreSQL Exporter (if installed)
+  - job_name: 'postgres-exporter'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['localhost:9187']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'beakon-postgres'
+
+  # Redis Exporter (if installed)
+  - job_name: 'redis-exporter'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['localhost:9121']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'beakon-redis'
+
+  # RabbitMQ (already configured separately)
+  - job_name: 'rabbitmq'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:15692']
+    metrics_path: '/metrics'
+
+  # Node Exporter (System Metrics)
+  - job_name: 'node-exporter'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['localhost:9100']
+
+# Service Discovery (for production Kubernetes deployment)
+# Uncomment and configure for Kubernetes
+# - job_name: 'kubernetes-pods'
+#   kubernetes_sd_configs:
+#     - role: pod
+#   relabel_configs:
+#     - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+#       action: keep
+#       regex: true
+#     - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+#       action: replace
+#       target_label: __metrics_path__
+#       regex: (.+)
+#     - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+#       action: replace
+#       regex: ([^:]+)(?::\d+)?;(\d+)
+#       replacement: $1:$2
+#       target_label: __address__

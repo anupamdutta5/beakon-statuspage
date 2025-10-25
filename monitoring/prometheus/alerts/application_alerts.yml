@@ -1,0 +1,199 @@
+# Beakon Application Alert Rules
+groups:
+  - name: application_health
+    interval: 15s
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been down for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: rate(beakon_http_requests_total{status_code=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          category: errors
+        annotations:
+          summary: "High 5xx error rate on {{ $labels.job }}"
+          description: "{{ $labels.job }} is experiencing a 5xx error rate of {{ $value | humanizePercentage }} over the last 5 minutes."
+
+      - alert: CriticalErrorRate
+        expr: rate(beakon_http_requests_total{status_code=~"5.."}[5m]) > 0.15
+        for: 2m
+        labels:
+          severity: critical
+          category: errors
+        annotations:
+          summary: "Critical error rate on {{ $labels.job }}"
+          description: "{{ $labels.job }} has an error rate above 15% for 2 minutes."
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(beakon_http_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High latency on {{ $labels.job }}"
+          description: "{{ $labels.job }} p95 latency is {{ $value }}s, above 1s threshold."
+
+      - alert: CriticalLatency
+        expr: histogram_quantile(0.95, rate(beakon_http_request_duration_seconds_bucket[5m])) > 5
+        for: 2m
+        labels:
+          severity: critical
+          category: performance
+        annotations:
+          summary: "Critical latency on {{ $labels.job }}"
+          description: "{{ $labels.job }} p95 latency is {{ $value }}s, service degraded."
+
+      - alert: HighMemoryUsage
+        expr: (go_memstats_alloc_bytes / go_memstats_sys_bytes) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          category: resources
+        annotations:
+          summary: "High memory usage on {{ $labels.job }}"
+          description: "{{ $labels.job }} is using {{ $value | humanizePercentage }} of allocated memory."
+
+      - alert: TooManyGoroutines
+        expr: go_goroutines > 1000
+        for: 5m
+        labels:
+          severity: warning
+          category: resources
+        annotations:
+          summary: "Too many goroutines on {{ $labels.job }}"
+          description: "{{ $labels.job }} has {{ $value }} goroutines, possible goroutine leak."
+
+  - name: circuit_breaker_alerts
+    interval: 15s
+    rules:
+      - alert: CircuitBreakerOpen
+        expr: beakon_circuit_breaker_state == 2
+        for: 2m
+        labels:
+          severity: warning
+          category: reliability
+        annotations:
+          summary: "Circuit breaker open on {{ $labels.job }}"
+          description: "Circuit breaker {{ $labels.name }} on {{ $labels.job }} has been open for 2 minutes."
+
+      - alert: HighCircuitBreakerFailures
+        expr: rate(beakon_circuit_breaker_failures_total[5m]) > 10
+        for: 3m
+        labels:
+          severity: warning
+          category: reliability
+        annotations:
+          summary: "High circuit breaker failure rate on {{ $labels.job }}"
+          description: "{{ $labels.job }} circuit breaker {{ $labels.name }} failing at {{ $value }} req/s."
+
+  - name: database_alerts
+    interval: 15s
+    rules:
+      - alert: HighDatabaseErrorRate
+        expr: rate(beakon_db_errors_total[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "High database error rate on {{ $labels.job }}"
+          description: "{{ $labels.job }} experiencing {{ $value }} database errors/second."
+
+      - alert: SlowDatabaseQueries
+        expr: histogram_quantile(0.95, rate(beakon_db_query_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "Slow database queries on {{ $labels.job }}"
+          description: "{{ $labels.job }} p95 query latency is {{ $value }}s."
+
+      - alert: DatabaseConnectionPoolExhaustion
+        expr: (beakon_db_connections{state="in_use"} / (beakon_db_connections{state="in_use"} + beakon_db_connections{state="idle"})) > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          category: database
+        annotations:
+          summary: "Database connection pool near exhaustion on {{ $labels.job }}"
+          description: "{{ $labels.job }} using {{ $value | humanizePercentage }} of connection pool."
+
+  - name: cache_alerts
+    interval: 15s
+    rules:
+      - alert: LowCacheHitRate
+        expr: rate(beakon_cache_hits_total[5m]) / (rate(beakon_cache_hits_total[5m]) + rate(beakon_cache_misses_total[5m])) < 0.5
+        for: 10m
+        labels:
+          severity: info
+          category: cache
+        annotations:
+          summary: "Low cache hit rate on {{ $labels.job }}"
+          description: "{{ $labels.job }} cache hit rate is {{ $value | humanizePercentage }}."
+
+      - alert: HighCacheErrorRate
+        expr: rate(beakon_cache_errors_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          category: cache
+        annotations:
+          summary: "High cache error rate on {{ $labels.job }}"
+          description: "{{ $labels.job }} experiencing {{ $value }} cache errors/second."
+
+  - name: rate_limiter_alerts
+    interval: 15s
+    rules:
+      - alert: HighRateLimitRejectionRate
+        expr: rate(beakon_rate_limiter_blocked_total[5m]) > 50
+        for: 5m
+        labels:
+          severity: info
+          category: rate_limiting
+        annotations:
+          summary: "High rate limit rejection rate on {{ $labels.job }}"
+          description: "{{ $labels.job }} rejecting {{ $value }} requests/second due to rate limiting."
+
+      - alert: CriticalRateLimitRejectionRate
+        expr: rate(beakon_rate_limiter_blocked_total[5m]) > 200
+        for: 2m
+        labels:
+          severity: warning
+          category: rate_limiting
+        annotations:
+          summary: "Critical rate limit rejection rate on {{ $labels.job }}"
+          description: "{{ $labels.job }} rejecting {{ $value }} requests/second, possible attack or misconfiguration."
+
+  - name: business_metrics_alerts
+    interval: 30s
+    rules:
+      - alert: NoRecentRequests
+        expr: rate(beakon_http_requests_total[5m]) == 0
+        for: 10m
+        labels:
+          severity: warning
+          category: traffic
+        annotations:
+          summary: "No recent requests to {{ $labels.job }}"
+          description: "{{ $labels.job }} has received no requests in the last 10 minutes."
+
+      - alert: UnusuallyHighTraffic
+        expr: rate(beakon_http_requests_total[5m]) > 1000
+        for: 5m
+        labels:
+          severity: info
+          category: traffic
+        annotations:
+          summary: "Unusually high traffic on {{ $labels.job }}"
+          description: "{{ $labels.job }} receiving {{ $value }} requests/second."
