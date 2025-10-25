@@ -15,25 +15,45 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Essential Reading
 
 Start with these documents in order:
-1. **[AI_CONTEXT.md](AI_CONTEXT.md)** - Quick start for new developers/AI
-2. **[SERVICE_CATALOG.md](SERVICE_CATALOG.md)** - Complete service reference
-3. **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture and service interactions
-4. **[DATABASE_ARCHITECTURE.md](DATABASE_ARCHITECTURE.md)** - Database schemas and management
+1. **[README.md](README.md)** - Platform overview and quick start (START HERE)
+2. **[FEATURES.md](FEATURES.md)** - ⭐ Complete feature documentation (ALL features explained)
+3. **[AI_CONTEXT.md](AI_CONTEXT.md)** - Quick reference for new developers/AI
+4. **[SERVICE_CATALOG.md](SERVICE_CATALOG.md)** - Complete service reference
+5. **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture and service interactions
+6. **[DATABASE_ARCHITECTURE.md](DATABASE_ARCHITECTURE.md)** - Database schemas and management
 
 ## Repository Structure
 
 ```
 Beakon/
-├── microservices/              # 20 independent services (some are git submodules)
-│   ├── api-gateway/           # Port 8080 - Request routing & auth
-│   ├── user-service/          # Port 8081 - User auth & management
-│   ├── tenant-admin-service/  # Port 8099 - Multi-tenant mgmt & RBAC
-│   ├── saas-admin-service/    # Port 8098 - Platform admin
-│   ├── landing-page-service/  # Port 8100 - Marketing website
-│   ├── shared-resilience/     # Shared library (circuit breakers, DB, middleware)
-│   └── ...                    # 15 other services (see SERVICE_CATALOG.md)
-├── scripts/                   # Utility scripts
-└── docs/                      # Additional documentation
+├── README.md                     ⭐ Platform overview (START HERE)
+├── FEATURES.md                   ⭐ Complete feature documentation (NEW)
+├── CLAUDE.md                     Developer guide (this file)
+├── AI_CONTEXT.md                 Quick reference
+├── SERVICE_CATALOG.md            Service reference
+├── DATABASE_ARCHITECTURE.md      Database schemas
+├── ARCHITECTURE.md               System architecture
+├── AUTHENTICATION_GUIDE.md       Auth & sessions
+├── DEPLOYMENT_GUIDE.md           Deployment
+├── OPERATIONAL_RUNBOOK.md        Operations
+│
+├── microservices/                # 21 independent services (some are git submodules)
+│   ├── api-gateway/             # Port 8080 - Request routing & auth
+│   ├── user-service/            # Port 8081 - User auth & management
+│   ├── component-service/       # Port 8084 - Component management
+│   ├── notification-service/    # Port 8085 - Multi-channel notifications
+│   ├── incident-service/        # Port 8086 - Incident management
+│   ├── monitoring-service/      # Port 8092 - Health monitoring
+│   ├── saas-admin-service/      # Port 8098 - Platform admin API
+│   ├── tenant-admin-service/    # Port 8099 - Tenant mgmt & RBAC
+│   ├── saas-admin-frontend/     # Port 3001 - Platform admin UI
+│   ├── tenant-admin-frontend/   # Port 3002 - Tenant admin UI
+│   ├── shared-resilience/       # Shared Go library
+│   └── ...                      # 10 more services (see SERVICE_CATALOG.md)
+│
+└── docs/
+    └── archived/
+        └── session-summaries/    # Historical session summaries (82 files)
 ```
 
 **Important**: Each service in `microservices/` may be its own Git repository (submodule). Navigate to specific services to work on them independently.
@@ -748,7 +768,95 @@ For issues or questions:
 5. Test individual service health: `curl http://localhost:<port>/health`
 
 
-Read all the .md files in the root /Bekon directory and all microservice specififc documents and .md files inside all the directories under /microservices directory. Ensure to have a proper understanding of the project before making cnages and taking up tasks as services are interdependant and careless changes can break the other parts
+## Documentation Structure (Updated October 2025)
 
-Never run any git restore, reset, delete commands without permission
-Please never use any reference of claude code in the git commits. use name anupam@beaconstatus.com
+### Active Documentation (10 Essential Files)
+The root directory contains **10 essential, actively-maintained documents**:
+
+1. **[README.md](README.md)** - Platform overview, quick start, architecture summary
+2. **[FEATURES.md](FEATURES.md)** - ⭐ **NEW** - Comprehensive feature documentation
+   - All 10 major feature areas fully documented
+   - Implementation details with code examples
+   - Database schemas, API endpoints
+   - Service dependencies and interactions
+3. **[CLAUDE.md](CLAUDE.md)** - This file - Developer workflow guide
+4. **[AI_CONTEXT.md](AI_CONTEXT.md)** - Quick reference for AI/developers
+5. **[SERVICE_CATALOG.md](SERVICE_CATALOG.md)** - Complete service reference
+6. **[DATABASE_ARCHITECTURE.md](DATABASE_ARCHITECTURE.md)** - All 14 database schemas
+7. **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture & patterns
+8. **[AUTHENTICATION_GUIDE.md](AUTHENTICATION_GUIDE.md)** - Auth & session management
+9. **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Production deployment
+10. **[OPERATIONAL_RUNBOOK.md](OPERATIONAL_RUNBOOK.md)** - Operations & troubleshooting
+
+### Archived Documentation
+**Location**: `docs/archived/session-summaries/` (82 files)
+
+Historical session summaries, phase completion docs, and refactoring trackers have been moved to the archive. These files provide historical context but are not actively maintained.
+
+**For current information, always refer to the 10 essential docs in the root directory.**
+
+### How to Understand the Project
+
+**For New Developers/AI:**
+1. Read **[README.md](README.md)** (10 min) - Get overall picture
+2. Read **[FEATURES.md](FEATURES.md)** (30 min) - Understand all features in detail
+3. Read **[AI_CONTEXT.md](AI_CONTEXT.md)** (5 min) - Quick reference & gotchas
+4. Read **[SERVICE_CATALOG.md](SERVICE_CATALOG.md)** (15 min) - Service details
+5. Skim **[ARCHITECTURE.md](ARCHITECTURE.md)** - Understand service interactions
+6. Reference **[DATABASE_ARCHITECTURE.md](DATABASE_ARCHITECTURE.md)** as needed
+
+**For Specific Tasks:**
+- Adding features → **[FEATURES.md](FEATURES.md)** to understand existing implementations
+- Database changes → **[DATABASE_ARCHITECTURE.md](DATABASE_ARCHITECTURE.md)**
+- Deployment → **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)**
+- Troubleshooting → **[OPERATIONAL_RUNBOOK.md](OPERATIONAL_RUNBOOK.md)**
+- Auth/sessions → **[AUTHENTICATION_GUIDE.md](AUTHENTICATION_GUIDE.md)**
+
+### Service-Specific Documentation
+Each service has its own README with:
+- Service purpose and features
+- API endpoints
+- Database schema
+- Dependencies
+- Configuration
+- Development guide
+
+Example: `microservices/monitoring-service/README.md`
+
+---
+
+## Important Rules
+
+⚠️ **Critical Guidelines:**
+
+1. **Read Before Coding**: Ensure proper understanding of the project before making changes. Services are interdependent and careless changes can break other parts.
+
+2. **Documentation First**:
+   - Start with [README.md](README.md) and [FEATURES.md](FEATURES.md)
+   - Read service-specific READMEs
+   - Understand dependencies before modifying code
+
+3. **Git Operations**:
+   - **NEVER** run `git restore`, `git reset`, or `git delete` commands without permission
+   - Always commit with proper messages
+   - **NEVER** use "Claude Code" references in commits
+   - Use `anupam@beaconstatus.com` as co-author
+
+4. **Service Dependencies**:
+   - Check [SERVICE_CATALOG.md](SERVICE_CATALOG.md) for service interactions
+   - Test dependent services after changes
+   - Update documentation when modifying APIs
+
+5. **Database Changes**:
+   - Always use migrations (never direct schema changes)
+   - Update [DATABASE_ARCHITECTURE.md](DATABASE_ARCHITECTURE.md)
+   - Maintain backward compatibility
+
+6. **Shared Resilience**:
+   - Always use `shared-resilience` for DB, auth, middleware
+   - Never duplicate functionality that exists in shared lib
+   - Update all services when updating shared-resilience
+
+---
+
+**For Help**: Check service logs, verify environment variables, test health endpoints, review [OPERATIONAL_RUNBOOK.md](OPERATIONAL_RUNBOOK.md)
