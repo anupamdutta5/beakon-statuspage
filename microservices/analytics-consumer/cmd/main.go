@@ -5,16 +5,14 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/anupamdutta5/shared-resilience"
-	"github.com/anupamdutta5/statuspage-analytics-consumer/internal/config"
-	"github.com/anupamdutta5/statuspage-analytics-consumer/internal/consumer"
-	"github.com/anupamdutta5/statuspage-analytics-consumer/pkg/logger"
+	"github.com/anupamdutta5/analytics-consumer/internal/config"
+	"github.com/anupamdutta5/analytics-consumer/internal/consumer"
 	"go.uber.org/zap"
 )
 

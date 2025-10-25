@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,7 +13,6 @@ import (
 	"github.com/anupamdutta5/shared-resilience"
 	"github.com/anupamdutta5/database-service/internal/config"
 	"github.com/anupamdutta5/database-service/internal/server"
-	"github.com/anupamdutta5/database-service/pkg/logger"
 	"go.uber.org/zap"
 )
 

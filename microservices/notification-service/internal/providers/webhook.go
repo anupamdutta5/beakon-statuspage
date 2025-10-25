@@ -117,7 +117,7 @@ func (p *WebhookProvider) Send(ctx context.Context, request *NotificationRequest
 	// Generate secure notification ID
 	secureID, err := resilience.GenerateSecureToken(16)
 	if err != nil {
-		return fmt.Errorf("failed to generate secure notification ID: %w", err)
+		return nil, fmt.Errorf("failed to generate secure notification ID: %w", err)
 	}
 
 	payload := &WebhookPayload{

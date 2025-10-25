@@ -2,8 +2,10 @@
 package handlers
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
-	"strconv"
+	"time"
 
 	"github.com/anupamdutta5/notification-service/internal/models"
 	"github.com/anupamdutta5/notification-service/internal/services"
@@ -160,21 +162,56 @@ func (h *ValidatedNotificationHandler) SendNotification(c *gin.Context) {
 		return
 	}
 
+	// Convert recipients array to JSON string
+	recipientsJSON, err := json.Marshal(req.Recipients)
+	if err != nil {
+		h.logger.Error("Failed to marshal recipients", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process recipients"})
+		return
+	}
+
+	// Convert metadata map to JSON string
+	metadataJSON, err := json.Marshal(req.Metadata)
+	if err != nil {
+		h.logger.Error("Failed to marshal metadata", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process metadata"})
+		return
+	}
+
+	// Parse scheduled time if provided
+	var scheduledAt *time.Time
+	if req.ScheduledAt != "" {
+		parsedTime, err := time.Parse(time.RFC3339, req.ScheduledAt)
+		if err != nil {
+			h.logger.Error("Failed to parse scheduled_at", zap.Error(err))
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scheduled_at format, use RFC3339"})
+			return
+		}
+		scheduledAt = &parsedTime
+	}
+
 	// Create notification object
 	notification := &models.Notification{
 		TenantID:    validatedTenantID,
 		Type:        req.Type,
-		Recipients:  req.Recipients,
+		Recipients:  string(recipientsJSON),
 		Subject:     req.Subject,
-		Message:     req.Message,
+		Content:     req.Message,
 		Priority:    req.Priority,
-		Metadata:    req.Metadata,
-		ScheduledAt: req.ScheduledAt,
+		Metadata:    string(metadataJSON),
+		ScheduledAt: scheduledAt,
 		Status:      "pending",
 	}
 
+	// First save the notification
+	if err := h.notificationService.CreateNotification(notification); err != nil {
+		h.logger.Error("Failed to create notification", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create notification"})
+		return
+	}
+
 	// Send notification through service
-	result, err := h.notificationService.SendNotification(notification)
+	err = h.notificationService.SendNotification(notification.ID)
 	if err != nil {
 		h.logger.Error("Failed to send notification",
 			zap.Error(err),
@@ -186,7 +223,7 @@ func (h *ValidatedNotificationHandler) SendNotification(c *gin.Context) {
 	}
 
 	h.logger.Info("Notification sent successfully",
-		zap.String("notification_id", result.ID),
+		zap.Uint("notification_id", notification.ID),
 		zap.String("type", req.Type),
 		zap.Int("recipient_count", len(req.Recipients)),
 		zap.Uint("tenant_id", validatedTenantID),
@@ -194,8 +231,8 @@ func (h *ValidatedNotificationHandler) SendNotification(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "Notification sent successfully",
-		"notification_id": result.ID,
-		"status": result.Status,
+		"notification_id": notification.ID,
+		"status": notification.Status,
 	})
 }
 
@@ -231,7 +268,7 @@ func (h *ValidatedNotificationHandler) GetNotificationStatus(c *gin.Context) {
 		return
 	}
 
-	status, err := h.notificationService.GetNotificationStatus(sanitizedID, validatedTenantID)
+	status, err := h.notificationService.GetNotificationStatus(validatedTenantID)
 	if err != nil {
 		h.logger.Error("Failed to get notification status",
 			zap.Error(err),

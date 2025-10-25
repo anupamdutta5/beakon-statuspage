@@ -261,37 +261,37 @@ func setupModernizedRoutes(router *gin.Engine, handler *handlers.IncidentHandler
 				incidents.PUT("/:id/updates/:update_id", handler.UpdateIncidentUpdate)
 				incidents.DELETE("/:id/updates/:update_id", handler.DeleteIncidentUpdate)
 			}
-
-			// Incident templates management
-			templates := protected.Group("/templates")
-			{
-				templates.GET("", templateHandler.GetTemplates)
-				templates.POST("", templateHandler.CreateTemplate)
-				templates.GET("/:id", templateHandler.GetTemplate)
-				templates.PUT("/:id", templateHandler.UpdateTemplate)
-				templates.DELETE("/:id", templateHandler.DeleteTemplate)
-				templates.POST("/:id/clone", templateHandler.CloneTemplate)
-				templates.POST("/:id/create-incident", templateHandler.CreateIncidentFromTemplate)
-
-				// Workflow step management
-				templates.POST("/:template_id/steps", templateHandler.CreateWorkflowStep)
-				templates.PUT("/steps/:step_id", templateHandler.UpdateWorkflowStep)
-				templates.DELETE("/steps/:step_id", templateHandler.DeleteWorkflowStep)
-				templates.PUT("/:template_id/steps/reorder", templateHandler.ReorderWorkflowSteps)
-			}
-
-			// Workflow execution management
-			workflows := protected.Group("/workflows")
-			{
-				workflows.GET("/incidents/:incident_id/executions", templateHandler.GetStepExecutions)
-				workflows.POST("/executions/:execution_id/execute", templateHandler.ExecuteManualStep)
-			}
-
-			// Administrative template functions
-			admin := protected.Group("/admin")
-			{
-				admin.POST("/initialize-templates", templateHandler.InitializeDefaultTemplates)
-			}
+// 
+// 			// Incident templates management
+// 			templates := protected.Group("/templates")
+// 			{
+// 				templates.GET("", templateHandler.GetTemplates)
+// 				templates.POST("", templateHandler.CreateTemplate)
+// 				templates.GET("/:id", templateHandler.GetTemplate)
+// 				templates.PUT("/:id", templateHandler.UpdateTemplate)
+// 				templates.DELETE("/:id", templateHandler.DeleteTemplate)
+// 				templates.POST("/:id/clone", templateHandler.CloneTemplate)
+// 				templates.POST("/:id/create-incident", templateHandler.CreateIncidentFromTemplate)
+// 
+// 				// Workflow step management
+// 				templates.POST("/:template_id/steps", templateHandler.CreateWorkflowStep)
+// 				templates.PUT("/steps/:step_id", templateHandler.UpdateWorkflowStep)
+// 				templates.DELETE("/steps/:step_id", templateHandler.DeleteWorkflowStep)
+// 				templates.PUT("/:template_id/steps/reorder", templateHandler.ReorderWorkflowSteps)
+// 			}
+// 
+// 			// Workflow execution management
+// 			workflows := protected.Group("/workflows")
+// 			{
+// 				workflows.GET("/incidents/:incident_id/executions", templateHandler.GetStepExecutions)
+// 				workflows.POST("/executions/:execution_id/execute", templateHandler.ExecuteManualStep)
+// 			}
+// 
+// 			// Administrative template functions
+// 			admin := protected.Group("/admin")
+// 			{
+// 				admin.POST("/initialize-templates", templateHandler.InitializeDefaultTemplates)
+// 			}
 		}
 	}
 

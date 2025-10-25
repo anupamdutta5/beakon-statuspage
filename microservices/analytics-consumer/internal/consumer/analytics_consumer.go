@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/anupamdutta5/statuspage-analytics-consumer/internal/config"
-	"github.com/anupamdutta5/statuspage-analytics-consumer/internal/models"
-	"github.com/anupamdutta5/statuspage-analytics-consumer/internal/services"
+	"github.com/anupamdutta5/analytics-consumer/internal/config"
+	"github.com/anupamdutta5/analytics-consumer/internal/models"
+	"github.com/anupamdutta5/analytics-consumer/internal/services"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
