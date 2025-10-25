@@ -751,3 +751,4 @@ For issues or questions:
 Read all the .md files in the root /Bekon directory and all microservice specififc documents and .md files inside all the directories under /microservices directory. Ensure to have a proper understanding of the project before making cnages and taking up tasks as services are interdependant and careless changes can break the other parts
 
 Never run any git restore, reset, delete commands without permission
+Please never use any reference of claude code in the git commits. use name anupam@beaconstatus.com
