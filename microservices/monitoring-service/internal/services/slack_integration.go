@@ -16,20 +16,25 @@ import (
 
 // SlackIntegration represents a Slack workspace integration configuration
 type SlackIntegration struct {
-	ID                uint      `gorm:"primaryKey" json:"id"`
-	TenantID          uuid.UUID `gorm:"type:uuid;not null;index" json:"tenant_id"`
-	WorkspaceName     string    `gorm:"size:255;not null" json:"workspace_name"`
-	WebhookURL        string    `gorm:"type:text;not null" json:"webhook_url"` // Incoming webhook URL
-	DefaultChannel    string    `gorm:"size:255" json:"default_channel"`
-	IsActive          bool      `gorm:"default:true" json:"is_active"`
-	NotifyOnDown      bool      `gorm:"default:true" json:"notify_on_down"`
-	NotifyOnUp        bool      `gorm:"default:true" json:"notify_on_up"`
-	NotifyOnDegraded  bool      `gorm:"default:true" json:"notify_on_degraded"`
-	NotifyOnMaintenance bool    `gorm:"default:false" json:"notify_on_maintenance"`
-	MentionUsers      string    `gorm:"type:text" json:"mention_users"` // Comma-separated user IDs
-	MentionChannel    bool      `gorm:"default:false" json:"mention_channel"` // @channel mention
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
+	ID                  uint      `gorm:"primaryKey" json:"id"`
+	TenantID            uuid.UUID `gorm:"type:uuid;not null;index" json:"tenant_id"`
+	WorkspaceName       string    `gorm:"size:255;not null" json:"workspace_name"`
+	WebhookURL          string    `gorm:"type:text;not null" json:"webhook_url"` // Incoming webhook URL
+	DefaultChannel      string    `gorm:"size:255" json:"default_channel"`
+	IsActive            bool      `gorm:"default:true" json:"is_active"`
+	NotifyOnDown        bool      `gorm:"default:true" json:"notify_on_down"`
+	NotifyOnUp          bool      `gorm:"default:true" json:"notify_on_up"`
+	NotifyOnDegraded    bool      `gorm:"default:true" json:"notify_on_degraded"`
+	NotifyOnMaintenance bool      `gorm:"default:false" json:"notify_on_maintenance"`
+	MentionUsers        string    `gorm:"type:text" json:"mention_users"` // Comma-separated user IDs
+	MentionChannel      bool      `gorm:"default:false" json:"mention_channel"` // @channel mention
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
+}
+
+// TableName specifies the table name for SlackIntegration
+func (SlackIntegration) TableName() string {
+	return "slack_integrations"
 }
 
 // SlackChannelSubscription represents a channel-specific subscription
@@ -42,6 +47,11 @@ type SlackChannelSubscription struct {
 	IsActive       bool      `gorm:"default:true" json:"is_active"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+// TableName specifies the table name for SlackChannelSubscription
+func (SlackChannelSubscription) TableName() string {
+	return "slack_channel_subscriptions"
 }
 
 // SlackNotification represents a sent Slack notification
@@ -57,6 +67,11 @@ type SlackNotification struct {
 	ErrorMessage   string    `gorm:"type:text" json:"error_message"`
 	SentAt         time.Time `json:"sent_at"`
 	CreatedAt      time.Time `json:"created_at"`
+}
+
+// TableName specifies the table name for SlackNotification
+func (SlackNotification) TableName() string {
+	return "slack_notifications"
 }
 
 // SlackMessage represents a Slack message payload

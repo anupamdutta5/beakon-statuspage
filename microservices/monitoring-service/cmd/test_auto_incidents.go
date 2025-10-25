@@ -11,7 +11,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	"github.com/anupamdutta5/monitoring-service/internal/events"
+	"github.com/anupamdutta5/monitoring-service/internal/core/events"
 	"github.com/anupamdutta5/monitoring-service/internal/models"
 	"github.com/anupamdutta5/monitoring-service/internal/services"
 )

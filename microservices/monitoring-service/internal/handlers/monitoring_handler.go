@@ -2,6 +2,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -917,13 +918,10 @@ func (h *MonitoringHandler) CreateMaintenanceWindow(c *gin.Context) {
 	}
 
 	var req struct {
-		Title       string    `json:"title" binding:"required"`
+		Name        string    `json:"name" binding:"required"`
 		Description string    `json:"description"`
-		Type        string    `json:"type" binding:"required"`
-		Impact      string    `json:"impact" binding:"required"`
-		StartTime   time.Time `json:"start_time" binding:"required"`
-		EndTime     time.Time `json:"end_time" binding:"required"`
-		Metadata    string    `json:"metadata"`
+		StartsAt    time.Time `json:"starts_at" binding:"required"`
+		EndsAt      time.Time `json:"ends_at" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -932,16 +930,19 @@ func (h *MonitoringHandler) CreateMaintenanceWindow(c *gin.Context) {
 		return
 	}
 
+	// Convert tenant_id and user_id to string (UUID format)
+	tenantIDStr := fmt.Sprintf("%v", tenantID)
+	userIDStr := fmt.Sprintf("%v", userID)
+
 	maintenance := &models.MaintenanceWindow{
-		TenantID:    tenantID.(uint),
-		Title:       req.Title,
+		TenantID:    tenantIDStr,
+		Name:        req.Name,
 		Description: req.Description,
-		Type:        req.Type,
-		Impact:      req.Impact,
-		StartTime:   req.StartTime,
-		EndTime:     req.EndTime,
-		CreatedBy:   userID.(uint),
-		Metadata:    req.Metadata,
+		StartsAt:    req.StartsAt,
+		EndsAt:      req.EndsAt,
+		CreatedBy:   userIDStr,
+		Status:      "scheduled",
+		IsActive:    true,
 	}
 
 	if err := h.maintenanceManagementService.CreateMaintenanceWindow(maintenance); err != nil {
@@ -971,14 +972,11 @@ func (h *MonitoringHandler) UpdateMaintenanceWindow(c *gin.Context) {
 	}
 
 	var req struct {
-		Title       string     `json:"title"`
+		Name        string     `json:"name"`
 		Description string     `json:"description"`
-		Type        string     `json:"type"`
-		Impact      string     `json:"impact"`
 		Status      string     `json:"status"`
-		StartTime   *time.Time `json:"start_time"`
-		EndTime     *time.Time `json:"end_time"`
-		Metadata    string     `json:"metadata"`
+		StartsAt    *time.Time `json:"starts_at"`
+		EndsAt      *time.Time `json:"ends_at"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -988,29 +986,20 @@ func (h *MonitoringHandler) UpdateMaintenanceWindow(c *gin.Context) {
 	}
 
 	// Update fields
-	if req.Title != "" {
-		maintenance.Title = req.Title
+	if req.Name != "" {
+		maintenance.Name = req.Name
 	}
 	if req.Description != "" {
 		maintenance.Description = req.Description
 	}
-	if req.Type != "" {
-		maintenance.Type = req.Type
-	}
-	if req.Impact != "" {
-		maintenance.Impact = req.Impact
-	}
 	if req.Status != "" {
 		maintenance.Status = req.Status
 	}
-	if req.StartTime != nil {
-		maintenance.StartTime = *req.StartTime
+	if req.StartsAt != nil {
+		maintenance.StartsAt = *req.StartsAt
 	}
-	if req.EndTime != nil {
-		maintenance.EndTime = *req.EndTime
-	}
-	if req.Metadata != "" {
-		maintenance.Metadata = req.Metadata
+	if req.EndsAt != nil {
+		maintenance.EndsAt = *req.EndsAt
 	}
 
 	if err := h.maintenanceManagementService.UpdateMaintenanceWindow(maintenance); err != nil {
@@ -1217,6 +1206,8 @@ func (h *MonitoringHandler) GetMaintenanceUpdates(c *gin.Context) {
 }
 
 // GetMaintenanceTemplates handles getting maintenance templates.
+// DISABLED: Template functionality not implemented yet
+/*
 func (h *MonitoringHandler) GetMaintenanceTemplates(c *gin.Context) {
 	// Get tenant ID from context
 	tenantID, exists := c.Get("tenant_id")
@@ -1234,8 +1225,11 @@ func (h *MonitoringHandler) GetMaintenanceTemplates(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"maintenance_templates": templates})
 }
+*/
 
 // CreateMaintenanceTemplate handles creating a maintenance template.
+// DISABLED: Template functionality not implemented yet
+/*
 func (h *MonitoringHandler) CreateMaintenanceTemplate(c *gin.Context) {
 	// Get tenant ID from context
 	tenantID, exists := c.Get("tenant_id")
@@ -1284,8 +1278,11 @@ func (h *MonitoringHandler) CreateMaintenanceTemplate(c *gin.Context) {
 		"maintenance_template": template,
 	})
 }
+*/
 
 // CreateMaintenanceFromTemplate handles creating a maintenance window from a template.
+// DISABLED: Template functionality not implemented yet
+/*
 func (h *MonitoringHandler) CreateMaintenanceFromTemplate(c *gin.Context) {
 	templateID, err := strconv.ParseUint(c.Param("template_id"), 10, 32)
 	if err != nil {
@@ -1328,6 +1325,7 @@ func (h *MonitoringHandler) CreateMaintenanceFromTemplate(c *gin.Context) {
 		"maintenance_window": maintenance,
 	})
 }
+*/
 
 // GetMaintenanceStatistics handles getting maintenance statistics.
 func (h *MonitoringHandler) GetMaintenanceStatistics(c *gin.Context) {

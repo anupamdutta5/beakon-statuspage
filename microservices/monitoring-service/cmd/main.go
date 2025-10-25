@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/anupamdutta5/shared-resilience"
-	"github.com/anupamdutta5/monitoring-service/internal/events"
+	"github.com/anupamdutta5/monitoring-service/internal/core/events"
 	"github.com/anupamdutta5/monitoring-service/internal/handlers"
 	"github.com/anupamdutta5/monitoring-service/internal/jobs"
 	"github.com/anupamdutta5/monitoring-service/internal/services"
@@ -74,6 +74,10 @@ func main() {
 	webhookService := services.NewWebhookService(dbManager.GetDB(), logger)
 	integrationService := services.NewIntegrationService(dbManager.GetDB(), logger)
 
+	// Initialize anomaly detection services (Week 13)
+	baselineCalculator := services.NewBaselineCalculator(dbManager.GetDB())
+	anomalyDetectionService := services.NewAnomalyDetectionService(dbManager.GetDB(), baselineCalculator)
+
 	// Initialize Week 3 & Week 4 services (will be used later in background jobs)
 	twilioSID := getEnv("TWILIO_ACCOUNT_SID", "")
 	twilioToken := getEnv("TWILIO_AUTH_TOKEN", "")
@@ -82,6 +86,12 @@ func main() {
 	onCallService := services.NewOnCallService(dbManager.GetDB(), logger)
 	escalationService := services.NewEscalationService(dbManager.GetDB(), logger, smsService, onCallService)
 
+	// Initialize integration services (Slack, PagerDuty, Discord, Telegram)
+	slackService := services.NewSlackIntegrationService(dbManager.GetDB(), logger)
+	pagerdutyService := services.NewPagerDutyIntegrationService(dbManager.GetDB(), logger)
+	discordService := services.NewDiscordIntegrationService(dbManager.GetDB(), logger)
+	telegramService := services.NewTelegramIntegrationService(dbManager.GetDB(), logger)
+
 	// Initialize handlers
 	monitoringHandler := handlers.NewMonitoringHandler(monitoringService, maintenanceManagementService, logger)
 	webhookHandler := handlers.NewWebhookHandler(webhookService, logger)
@@ -89,6 +99,11 @@ func main() {
 	onCallHandler := handlers.NewOnCallHandler(onCallService, logger)
 	escalationHandler := handlers.NewEscalationHandler(escalationService, logger)
 	sslHandler := handlers.NewSSLHandler(dbManager.GetDB())
+	slackHandler := handlers.NewSlackHandler(dbManager.GetDB(), logger, slackService)
+	pagerdutyHandler := handlers.NewPagerDutyHandler(dbManager.GetDB(), logger, pagerdutyService)
+	discordHandler := handlers.NewDiscordHandler(dbManager.GetDB(), logger, discordService)
+	telegramHandler := handlers.NewTelegramHandler(dbManager.GetDB(), logger, telegramService)
+	anomalyHandler := handlers.NewAnomalyHandler(anomalyDetectionService)
 
 	// Setup basic routes
 	router.GET("/health", monitoringHandler.Health)
@@ -165,10 +180,10 @@ func main() {
 			maintenance.GET("/active", monitoringHandler.GetActiveMaintenance)
 			maintenance.GET("/statistics", monitoringHandler.GetMaintenanceStatistics)
 
-			// Maintenance templates
-			maintenance.GET("/templates", monitoringHandler.GetMaintenanceTemplates)
-			maintenance.POST("/templates", monitoringHandler.CreateMaintenanceTemplate)
-			maintenance.POST("/templates/:template_id/create-maintenance", monitoringHandler.CreateMaintenanceFromTemplate)
+			// Maintenance templates - DISABLED until template tables are implemented
+			// maintenance.GET("/templates", monitoringHandler.GetMaintenanceTemplates)
+			// maintenance.POST("/templates", monitoringHandler.CreateMaintenanceTemplate)
+			// maintenance.POST("/templates/:template_id/create-maintenance", monitoringHandler.CreateMaintenanceFromTemplate)
 		}
 
 		// SSL Certificate Monitoring
@@ -256,6 +271,63 @@ func main() {
 
 			// Supported integrations
 			integrations.GET("/supported", integrationHandler.GetSupportedIntegrations)
+
+			// Slack Integration
+			slack := integrations.Group("/slack")
+			{
+				slack.GET("/install", slackHandler.InstallSlack)           // OAuth install redirect
+				slack.GET("/callback", slackHandler.OAuthCallback)         // OAuth callback
+				slack.GET("", slackHandler.GetIntegrations)                // Get all Slack integrations
+				slack.DELETE("/:id", slackHandler.DeleteIntegration)       // Delete integration
+				slack.POST("/:id/test", slackHandler.TestIntegration)      // Send test notification
+			}
+
+			// PagerDuty Integration
+			pagerduty := integrations.Group("/pagerduty")
+			{
+				pagerduty.POST("", pagerdutyHandler.CreateIntegration)         // Create integration
+				pagerduty.GET("", pagerdutyHandler.GetIntegrations)            // Get all integrations
+				pagerduty.GET("/:id", pagerdutyHandler.GetIntegration)         // Get specific integration
+				pagerduty.PUT("/:id", pagerdutyHandler.UpdateIntegration)      // Update integration
+				pagerduty.DELETE("/:id", pagerdutyHandler.DeleteIntegration)   // Delete integration
+				pagerduty.POST("/:id/test", pagerdutyHandler.TestIntegration)  // Send test event
+				pagerduty.POST("/:id/monitors", pagerdutyHandler.MapMonitor)   // Map monitor to integration
+				pagerduty.DELETE("/:id/monitors/:mapping_id", pagerdutyHandler.UnmapMonitor) // Unmap monitor
+				pagerduty.GET("/incidents", pagerdutyHandler.GetIncidentHistory) // Get incident history
+				pagerduty.POST("/webhook", pagerdutyHandler.WebhookReceiver)   // Webhook receiver
+			}
+
+			// Discord Integration
+			discord := integrations.Group("/discord")
+			{
+				discord.POST("", discordHandler.CreateIntegration)                  // Create integration
+				discord.GET("", discordHandler.GetIntegrations)                     // Get all integrations
+				discord.GET("/:id", discordHandler.GetIntegration)                  // Get specific integration
+				discord.PUT("/:id", discordHandler.UpdateIntegration)               // Update integration
+				discord.DELETE("/:id", discordHandler.DeleteIntegration)            // Delete integration
+				discord.POST("/:id/test", discordHandler.TestIntegration)           // Send test notification
+				discord.POST("/:id/subscribe", discordHandler.SubscribeChannel)     // Subscribe channel to monitor
+				discord.GET("/:id/subscriptions", discordHandler.GetChannelSubscriptions) // Get subscriptions
+				discord.DELETE("/subscriptions/:id", discordHandler.UnsubscribeChannel)   // Unsubscribe channel
+				discord.GET("/:id/notifications", discordHandler.GetNotificationHistory)  // Get notification history
+				discord.GET("/:id/stats", discordHandler.GetNotificationStats)      // Get statistics
+			}
+
+			// Telegram Integration
+			telegram := integrations.Group("/telegram")
+			{
+				telegram.POST("", telegramHandler.CreateIntegration)                  // Create integration
+				telegram.GET("", telegramHandler.GetIntegrations)                     // Get all integrations
+				telegram.GET("/:id", telegramHandler.GetIntegration)                  // Get specific integration
+				telegram.PUT("/:id", telegramHandler.UpdateIntegration)               // Update integration
+				telegram.DELETE("/:id", telegramHandler.DeleteIntegration)            // Delete integration
+				telegram.POST("/:id/test", telegramHandler.TestIntegration)           // Send test message
+				telegram.POST("/:id/subscribe", telegramHandler.SubscribeChat)        // Subscribe chat to monitor
+				telegram.GET("/:id/subscriptions", telegramHandler.GetChatSubscriptions) // Get subscriptions
+				telegram.DELETE("/subscriptions/:id", telegramHandler.UnsubscribeChat)   // Unsubscribe chat
+				telegram.GET("/:id/notifications", telegramHandler.GetNotificationHistory)  // Get notification history
+				telegram.GET("/:id/stats", telegramHandler.GetNotificationStats)      // Get statistics
+			}
 		}
 
 		// On-call schedules (Week 4)
@@ -293,6 +365,26 @@ func main() {
 			// Escalation tracking
 			escalations.GET("/active", escalationHandler.GetActiveEscalations)
 		}
+
+		// Anomaly detection (Week 13)
+		anomalies := api.Group("/anomalies")
+		{
+			// Anomaly management
+			anomalies.GET("", anomalyHandler.GetAnomalies)
+			anomalies.GET("/:id", anomalyHandler.GetAnomalyByID)
+			anomalies.POST("/:id/acknowledge", anomalyHandler.AcknowledgeAnomaly)
+			anomalies.POST("/:id/resolve", anomalyHandler.ResolveAnomaly)
+
+			// Statistics and insights
+			anomalies.GET("/statistics", anomalyHandler.GetStatistics)
+
+			// Baseline management
+			anomalies.GET("/baselines", anomalyHandler.GetBaselines)
+
+			// Configuration
+			anomalies.GET("/config", anomalyHandler.GetConfig)
+			anomalies.PUT("/config", anomalyHandler.UpdateConfig)
+		}
 	}
 
 	// Initialize RabbitMQ event publisher for Week 1 features
@@ -327,9 +419,10 @@ func main() {
 	defer heartbeatJob.Stop()
 	logger.Info("Heartbeat Checker job started (interval: 5 minutes)")
 
-	maintenanceJob := jobs.NewMaintenanceWindowJob(dbManager.GetDB(), logger, 1*time.Minute)
-	go maintenanceJob.Start()
-	defer maintenanceJob.Stop()
+	// P1 Feature: Maintenance Automation (auto-reminder, auto-start, auto-complete)
+	maintenanceWindowJob := jobs.NewMaintenanceWindowJob(dbManager.GetDB(), logger, 1*time.Minute)
+	go maintenanceWindowJob.Start()
+	defer maintenanceWindowJob.Stop()
 	logger.Info("Maintenance Window job started (interval: 1 minute)")
 
 	// Week 4: Escalation and Webhook Jobs
@@ -342,6 +435,19 @@ func main() {
 	go webhookRetryJob.Start()
 	defer webhookRetryJob.Stop()
 	logger.Info("Webhook Retry job started (interval: 5 minutes)")
+
+	// Week 13: Anomaly Detection Jobs
+	metricCollectionJob := jobs.NewMetricCollectionJob(dbManager.GetDB(), anomalyDetectionService, 1*time.Minute)
+	go metricCollectionJob.Start()
+	logger.Info("Metric Collection job started (interval: 1 minute)")
+
+	baselineUpdateJob := jobs.NewBaselineUpdateJob(dbManager.GetDB(), baselineCalculator, 6*time.Hour)
+	go baselineUpdateJob.Start()
+	logger.Info("Baseline Update job started (interval: 6 hours)")
+
+	cleanupJob := jobs.NewCleanupJob(dbManager.GetDB(), baselineCalculator, 24*time.Hour, 90, 30)
+	go cleanupJob.Start()
+	logger.Info("Cleanup job started (interval: 24 hours, metric retention: 90 days, anomaly retention: 30 days)")
 
 	logger.Info("All background jobs started successfully")
 

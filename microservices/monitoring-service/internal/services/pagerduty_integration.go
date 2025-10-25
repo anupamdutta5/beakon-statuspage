@@ -33,6 +33,11 @@ type PagerDutyIntegration struct {
 	UpdatedAt           time.Time `json:"updated_at"`
 }
 
+// TableName specifies the table name for PagerDutyIntegration
+func (PagerDutyIntegration) TableName() string {
+	return "pagerduty_integrations"
+}
+
 // PagerDutyMonitorMapping maps monitors to PagerDuty services
 type PagerDutyMonitorMapping struct {
 	ID            uint      `gorm:"primaryKey" json:"id"`
@@ -44,27 +49,37 @@ type PagerDutyMonitorMapping struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
+// TableName specifies the table name for PagerDutyMonitorMapping
+func (PagerDutyMonitorMapping) TableName() string {
+	return "pagerduty_monitor_mappings"
+}
+
 // PagerDutyIncident represents a PagerDuty incident
 type PagerDutyIncident struct {
-	ID             uint      `gorm:"primaryKey" json:"id"`
-	IntegrationID  uint      `gorm:"not null;index" json:"integration_id"`
-	MonitorID      uint      `gorm:"not null;index" json:"monitor_id"`
-	IncidentKey    string    `gorm:"size:255;not null;uniqueIndex" json:"incident_key"` // Unique deduplication key
-	PDIncidentID   string    `gorm:"size:255" json:"pd_incident_id"` // PagerDuty's incident ID
-	EventType      string    `gorm:"size:50;not null" json:"event_type"` // trigger, acknowledge, resolve
-	Status         string    `gorm:"size:50;not null" json:"status"` // triggered, acknowledged, resolved
-	Severity       string    `gorm:"size:50" json:"severity"`
-	Summary        string    `gorm:"type:text" json:"summary"`
-	Source         string    `gorm:"size:255" json:"source"`
-	Component      string    `gorm:"size:255" json:"component"`
-	Details        string    `gorm:"type:jsonb" json:"details"`
-	TriggeredAt    time.Time `json:"triggered_at"`
+	ID             uint       `gorm:"primaryKey" json:"id"`
+	IntegrationID  uint       `gorm:"not null;index" json:"integration_id"`
+	MonitorID      uint       `gorm:"not null;index" json:"monitor_id"`
+	IncidentKey    string     `gorm:"size:255;not null;uniqueIndex" json:"incident_key"` // Unique deduplication key
+	PDIncidentID   string     `gorm:"size:255" json:"pd_incident_id"` // PagerDuty's incident ID
+	EventType      string     `gorm:"size:50;not null" json:"event_type"` // trigger, acknowledge, resolve
+	Status         string     `gorm:"size:50;not null" json:"status"` // triggered, acknowledged, resolved
+	Severity       string     `gorm:"size:50" json:"severity"`
+	Summary        string     `gorm:"type:text" json:"summary"`
+	Source         string     `gorm:"size:255" json:"source"`
+	Component      string     `gorm:"size:255" json:"component"`
+	Details        string     `gorm:"type:jsonb" json:"details"`
+	TriggeredAt    time.Time  `json:"triggered_at"`
 	AcknowledgedAt *time.Time `json:"acknowledged_at"`
 	ResolvedAt     *time.Time `json:"resolved_at"`
-	ResponseCode   int       `json:"response_code"`
-	ErrorMessage   string    `gorm:"type:text" json:"error_message"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ResponseCode   int        `json:"response_code"`
+	ErrorMessage   string     `gorm:"type:text" json:"error_message"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+}
+
+// TableName specifies the table name for PagerDutyIncident
+func (PagerDutyIncident) TableName() string {
+	return "pagerduty_incidents"
 }
 
 // PagerDutyEvent represents a PagerDuty Events API v2 payload

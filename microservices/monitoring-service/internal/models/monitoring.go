@@ -97,9 +97,13 @@ type Alert struct {
 	TriggeredAt    time.Time         `gorm:"not null" json:"triggered_at"`
 	AcknowledgedAt *time.Time        `json:"acknowledged_at"`
 	AcknowledgedBy *uint             `json:"acknowledged_by"`
-	ResolvedAt     *time.Time        `json:"resolved_at"`
-	ResolvedBy     *uint             `json:"resolved_by"`
-	Metadata       string            `gorm:"type:text" json:"metadata"` // JSON string for additional data
+	ResolvedAt      *time.Time        `json:"resolved_at"`
+	ResolvedBy      *uint             `json:"resolved_by"`
+	ResolutionType  *string           `json:"resolution_type"`  // auto, manual
+	ResolutionNote  *string           `gorm:"type:text" json:"resolution_note"`
+	DedupKey        *string           `json:"dedup_key"`         // Deduplication key
+	ErrorType       *string           `json:"error_type"`        // Type of error (timeout, 5xx, etc)
+	Metadata        string            `gorm:"type:text" json:"metadata"` // JSON string for additional data
 }
 
 // UptimeCheck represents an uptime check for a service.

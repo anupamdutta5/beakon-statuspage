@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/anupamdutta5/monitoring-service/internal/events"
+	"github.com/anupamdutta5/monitoring-service/internal/core/events"
 	"github.com/anupamdutta5/monitoring-service/internal/models"
 )
 
@@ -356,7 +356,7 @@ func (s *MonitorService) StartMaintenanceWindow(windowID uint) error {
 		Where("tenant_id = ? AND deleted_at IS NULL", window.TenantID).
 		Updates(map[string]interface{}{
 			"in_maintenance":    true,
-			"maintenance_until": window.EndTime,
+			"maintenance_until": window.EndsAt,
 		}).Error
 }
 

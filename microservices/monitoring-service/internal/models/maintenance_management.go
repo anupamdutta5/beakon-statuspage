@@ -5,27 +5,31 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/anupamdutta5/monitoring-service/internal/utils"
+	"github.com/anupamdutta5/monitoring-service/internal/core/validation"
 	"gorm.io/gorm"
 )
 
 // MaintenanceWindow represents a scheduled maintenance window.
 type MaintenanceWindow struct {
-	ID          uint           `gorm:"primarykey" json:"id"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
-	DeletedAt   gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
-	TenantID    uint           `gorm:"not null;index" json:"tenant_id"`
-	Title       string         `gorm:"not null;size:255" json:"title"`
-	Description string         `gorm:"type:text" json:"description"`
-	Status      string         `gorm:"default:scheduled;size:50" json:"status"` // scheduled, in_progress, completed, cancelled
-	Type        string         `gorm:"not null;size:50" json:"type"`            // planned, emergency, routine
-	Impact      string         `gorm:"not null;size:50" json:"impact"`          // none, minor, major, critical
-	StartTime   time.Time      `gorm:"not null" json:"start_time"`
-	EndTime     time.Time      `gorm:"not null" json:"end_time"`
-	IsActive    bool           `gorm:"default:true" json:"is_active"`
-	CreatedBy   uint           `gorm:"not null" json:"created_by"`
-	Metadata    string         `gorm:"type:text" json:"metadata"` // JSON string for additional data
+	ID        uint      `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	// Note: No DeletedAt field - table doesn't support soft deletes
+	TenantID    string    `gorm:"type:uuid;not null;index;column:tenant_id" json:"tenant_id"`
+	Name        string    `gorm:"not null;size:255;column:name" json:"name"`
+	Description string    `gorm:"type:text;column:description" json:"description"`
+	StartsAt    time.Time `gorm:"not null;column:starts_at" json:"starts_at"`
+	EndsAt      time.Time `gorm:"not null;column:ends_at" json:"ends_at"`
+	Status      string    `gorm:"default:scheduled;size:50;column:status" json:"status"` // scheduled, in_progress, completed, cancelled
+	IsActive    bool      `gorm:"default:true;column:is_active" json:"is_active"`
+	CreatedBy   string    `gorm:"type:uuid;column:created_by" json:"created_by"`
+
+	// Automation fields
+	ReminderSent     bool       `gorm:"default:false;column:reminder_sent" json:"reminder_sent"`
+	AutoStarted      bool       `gorm:"default:false;column:auto_started" json:"auto_started"`
+	AutoCompleted    bool       `gorm:"default:false;column:auto_completed" json:"auto_completed"`
+	ActualStartTime  *time.Time `gorm:"column:actual_start_time" json:"actual_start_time,omitempty"`
+	ActualEndTime    *time.Time `gorm:"column:actual_end_time" json:"actual_end_time,omitempty"`
 
 	// Related entities
 	Components []MaintenanceComponent `gorm:"foreignKey:MaintenanceID;constraint:OnDelete:CASCADE" json:"components,omitempty"`
@@ -101,41 +105,26 @@ func (MaintenanceTemplate) TableName() string {
 
 // Validate performs validation on MaintenanceWindow.
 func (m *MaintenanceWindow) Validate() error {
-	if m.Title == "" {
-		return fmt.Errorf("maintenance title is required")
+	if m.Name == "" {
+		return fmt.Errorf("maintenance name is required")
 	}
-	if m.TenantID == 0 {
+	if m.TenantID == "" {
 		return fmt.Errorf("tenant ID is required")
 	}
-	if m.CreatedBy == 0 {
-		return fmt.Errorf("created by user ID is required")
-	}
-	if m.StartTime.IsZero() {
+	if m.StartsAt.IsZero() {
 		return fmt.Errorf("start time is required")
 	}
-	if m.EndTime.IsZero() {
+	if m.EndsAt.IsZero() {
 		return fmt.Errorf("end time is required")
 	}
-	if m.EndTime.Before(m.StartTime) {
+	if m.EndsAt.Before(m.StartsAt) {
 		return fmt.Errorf("end time must be after start time")
 	}
 
 	// Validate status
 	validStatuses := []string{"scheduled", "in_progress", "completed", "cancelled"}
-	if !utils.ContainsString(validStatuses, m.Status) {
+	if m.Status != "" && !utils.ContainsString(validStatuses, m.Status) {
 		return fmt.Errorf("invalid maintenance status: %s", m.Status)
-	}
-
-	// Validate type
-	validTypes := []string{"planned", "emergency", "routine"}
-	if !utils.ContainsString(validTypes, m.Type) {
-		return fmt.Errorf("invalid maintenance type: %s", m.Type)
-	}
-
-	// Validate impact
-	validImpacts := []string{"none", "minor", "major", "critical"}
-	if !utils.ContainsString(validImpacts, m.Impact) {
-		return fmt.Errorf("invalid maintenance impact: %s", m.Impact)
 	}
 
 	return nil

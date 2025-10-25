@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/anupamdutta5/monitoring-service/internal/utils"
+	"github.com/anupamdutta5/monitoring-service/internal/core/validation"
 	"gorm.io/gorm"
 )
 

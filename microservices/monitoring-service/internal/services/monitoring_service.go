@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/anupamdutta5/monitoring-service/internal/config"
+	"github.com/anupamdutta5/monitoring-service/internal/core/config"
 	"github.com/anupamdutta5/monitoring-service/internal/models"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
@@ -74,6 +74,11 @@ func NewMonitoringService(db *gorm.DB, logger *zap.Logger) *MonitoringService {
 		&models.WebhookEndpoint{},
 		&models.WebhookDelivery{},
 		&models.WebhookEvent{},
+		// Anomaly detection models (Week 13)
+		&models.MetricSnapshot{},
+		&models.AnomalyBaseline{},
+		&models.DetectedAnomaly{},
+		&models.AnomalyDetectionConfig{},
 	); err != nil {
 		logger.Error("Failed to migrate monitoring service database", zap.Error(err))
 	} else {

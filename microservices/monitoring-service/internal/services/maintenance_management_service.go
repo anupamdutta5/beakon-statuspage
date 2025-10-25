@@ -76,7 +76,7 @@ func (s *MaintenanceManagementService) GetMaintenanceWindows(tenantID uint, limi
 		Preload("Updates").
 		Limit(limit).
 		Offset(offset).
-		Order("start_time DESC").
+		Order("starts_at DESC").
 		Find(&maintenanceWindows).Error; err != nil {
 		s.logger.Error("Failed to get maintenance windows", zap.Error(err))
 		return nil, 0, fmt.Errorf("failed to get maintenance windows: %w", err)
@@ -90,13 +90,13 @@ func (s *MaintenanceManagementService) GetUpcomingMaintenance(tenantID uint, lim
 	var maintenanceWindows []*models.MaintenanceWindow
 
 	now := time.Now()
-	if err := s.db.Where("tenant_id = ? AND start_time > ? AND status = ?", tenantID, now, "scheduled").
+	if err := s.db.Where("tenant_id = ? AND starts_at > ? AND status = ?", tenantID, now, "scheduled").
 		Preload("Components").
 		Preload("Components.Component").
 		Preload("Updates").
-		Order("start_time ASC").
+		Order("starts_at ASC").
 		Limit(limit).
-		Find(&maintenanceWindows).Error; err != nil {
+		Find(&maintenanceWindows).Error; err != nil{
 		s.logger.Error("Failed to get upcoming maintenance", zap.Error(err))
 		return nil, fmt.Errorf("failed to get upcoming maintenance: %w", err)
 	}
@@ -109,12 +109,12 @@ func (s *MaintenanceManagementService) GetActiveMaintenance(tenantID uint) ([]*m
 	var maintenanceWindows []*models.MaintenanceWindow
 
 	now := time.Now()
-	if err := s.db.Where("tenant_id = ? AND start_time <= ? AND end_time >= ? AND status = ?",
+	if err := s.db.Where("tenant_id = ? AND starts_at <= ? AND ends_at >= ? AND status = ?",
 		tenantID, now, now, "in_progress").
 		Preload("Components").
 		Preload("Components.Component").
 		Preload("Updates").
-		Order("start_time ASC").
+		Order("starts_at ASC").
 		Find(&maintenanceWindows).Error; err != nil {
 		s.logger.Error("Failed to get active maintenance", zap.Error(err))
 		return nil, fmt.Errorf("failed to get active maintenance: %w", err)
@@ -272,6 +272,8 @@ func (s *MaintenanceManagementService) RemoveMaintenanceComponent(maintenanceID,
 }
 
 // CreateMaintenanceTemplate creates a new maintenance template.
+// DISABLED: Template tables don't exist in database yet
+/*
 func (s *MaintenanceManagementService) CreateMaintenanceTemplate(template *models.MaintenanceTemplate) error {
 	if err := template.Validate(); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
@@ -285,8 +287,11 @@ func (s *MaintenanceManagementService) CreateMaintenanceTemplate(template *model
 	s.logger.Info("Maintenance template created successfully", zap.Uint("template_id", template.ID))
 	return nil
 }
+*/
 
 // GetMaintenanceTemplates retrieves maintenance templates for a tenant.
+// DISABLED: Template tables don't exist in database yet
+/*
 func (s *MaintenanceManagementService) GetMaintenanceTemplates(tenantID uint) ([]*models.MaintenanceTemplate, error) {
 	var templates []*models.MaintenanceTemplate
 
@@ -299,8 +304,11 @@ func (s *MaintenanceManagementService) GetMaintenanceTemplates(tenantID uint) ([
 
 	return templates, nil
 }
+*/
 
 // CreateMaintenanceFromTemplate creates a maintenance window from a template.
+// DISABLED: Template tables don't exist in database yet
+/*
 func (s *MaintenanceManagementService) CreateMaintenanceFromTemplate(templateID uint, createdBy uint, startTime time.Time, customizations map[string]interface{}) (*models.MaintenanceWindow, error) {
 	var template models.MaintenanceTemplate
 	if err := s.db.First(&template, templateID).Error; err != nil {
@@ -360,6 +368,7 @@ func (s *MaintenanceManagementService) CreateMaintenanceFromTemplate(templateID 
 
 	return maintenance, nil
 }
+*/
 
 // GetMaintenanceStatistics returns statistics for maintenance windows.
 func (s *MaintenanceManagementService) GetMaintenanceStatistics(tenantID uint, startDate, endDate time.Time) (map[string]interface{}, error) {
@@ -368,10 +377,10 @@ func (s *MaintenanceManagementService) GetMaintenanceStatistics(tenantID uint, s
 	// Build query
 	query := s.db.Model(&models.MaintenanceWindow{}).Where("tenant_id = ?", tenantID)
 	if !startDate.IsZero() {
-		query = query.Where("start_time >= ?", startDate)
+		query = query.Where("starts_at >= ?", startDate)
 	}
 	if !endDate.IsZero() {
-		query = query.Where("start_time <= ?", endDate)
+		query = query.Where("starts_at <= ?", endDate)
 	}
 
 	// Get total maintenance windows
@@ -404,7 +413,7 @@ func (s *MaintenanceManagementService) GetMaintenanceStatistics(tenantID uint, s
 	// Get average duration
 	var avgDuration float64
 	if err := query.Where("status = ?", "completed").
-		Select("AVG(EXTRACT(EPOCH FROM (end_time - start_time))/60) as avg_duration_minutes").
+		Select("AVG(EXTRACT(EPOCH FROM (ends_at - starts_at))/60) as avg_duration_minutes").
 		Row().Scan(&avgDuration); err != nil {
 		s.logger.Warn("Failed to calculate average duration", zap.Error(err))
 		avgDuration = 0
@@ -428,7 +437,7 @@ func (s *MaintenanceManagementService) AutoStartMaintenanceWindows() error {
 	now := time.Now()
 
 	var windows []models.MaintenanceWindow
-	err := s.db.Where("status = ? AND start_time <= ? AND start_time > ?",
+	err := s.db.Where("status = ? AND starts_at <= ? AND starts_at > ?",
 		"scheduled", now, now.Add(-5*time.Minute)).Find(&windows).Error
 
 	if err != nil {
@@ -448,7 +457,7 @@ func (s *MaintenanceManagementService) AutoStartMaintenanceWindows() error {
 
 		s.logger.Info("Auto-started maintenance window",
 			zap.Uint("window_id", window.ID),
-			zap.String("title", window.Title),
+			zap.String("title", window.Name),
 		)
 	}
 
@@ -460,7 +469,7 @@ func (s *MaintenanceManagementService) AutoCompleteMaintenanceWindows() error {
 	now := time.Now()
 
 	var windows []models.MaintenanceWindow
-	err := s.db.Where("status = ? AND end_time <= ?",
+	err := s.db.Where("status = ? AND ends_at <= ?",
 		"in_progress", now).Find(&windows).Error
 
 	if err != nil {
@@ -480,7 +489,48 @@ func (s *MaintenanceManagementService) AutoCompleteMaintenanceWindows() error {
 
 		s.logger.Info("Auto-completed maintenance window",
 			zap.Uint("window_id", window.ID),
-			zap.String("title", window.Title),
+			zap.String("title", window.Name),
+		)
+	}
+
+	return nil
+}
+
+// SendMaintenanceReminders sends 60-minute warnings for upcoming maintenance windows.
+func (s *MaintenanceManagementService) SendMaintenanceReminders() error {
+	now := time.Now()
+	reminderWindow := now.Add(60 * time.Minute)
+
+	// Find maintenance windows starting within 60 minutes that haven't had reminders sent
+	var windows []models.MaintenanceWindow
+	err := s.db.Where("status = ? AND reminder_sent = ? AND starts_at > ? AND starts_at <= ?",
+		"scheduled", false, now, reminderWindow).Find(&windows).Error
+
+	if err != nil {
+		return fmt.Errorf("failed to fetch maintenance windows needing reminders: %w", err)
+	}
+
+	if len(windows) == 0 {
+		s.logger.Debug("No maintenance windows need reminders at this time")
+		return nil
+	}
+
+	for _, window := range windows {
+		// TODO: Send notification via notification service
+		// For now, just mark reminder as sent
+
+		if err := s.db.Model(&window).Update("reminder_sent", true).Error; err != nil {
+			s.logger.Error("Failed to mark reminder as sent",
+				zap.Error(err),
+				zap.Uint("window_id", window.ID),
+			)
+			continue
+		}
+
+		s.logger.Info("Sent maintenance reminder",
+			zap.Uint("window_id", window.ID),
+			zap.String("title", window.Name),
+			zap.Time("starts_at", window.StartsAt),
 		)
 	}
 

@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/google/uuid"
-	"github.com/anupamdutta5/monitoring-service/internal/events"
+	"github.com/anupamdutta5/monitoring-service/internal/core/events"
 )
 
 func main() {
