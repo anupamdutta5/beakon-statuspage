@@ -15,39 +15,39 @@ Beakon is a comprehensive, enterprise-grade status page platform built using mic
 - **Runtime**: Go 1.21+ for all microservices
 - **Database**: PostgreSQL for data persistence
 - **Caching**: Redis for caching and session management (optional)
-- **Messaging**: HTTP/REST for synchronous communication
+- **Messaging**: HTTP/REST for direct service-to-service communication
 - **Monitoring**: Prometheus for metrics collection
 - **Authentication**: JWT-based authentication and authorization
 - **Resilience**: Circuit breakers, rate limiting, and retry mechanisms
+
+### Communication Pattern (Post-October 2025)
+⚠️ **API Gateway Deprecated**: As of October 26, 2025, the API Gateway is no longer used. All services communicate directly with each other using HTTP/REST with built-in circuit breakers and service discovery.
 
 ## Service Interaction Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              External Clients                                │
-│                    (Web Browsers, Mobile Apps, APIs)                         │
+│                           Frontend Applications                              │
+│         saas-admin-frontend (3001) + tenant-admin-frontend (3002)           │
 └────────────────────────────┬────────────────────────────────────────────────┘
                              │
                              ▼
-              ┌──────────────────────────────┐
-              │      API Gateway (8080)       │
-              │  - JWT Auth                   │
-              │  - Rate Limiting              │
-              │  - Request Routing            │
-              └──────────┬───────────────────┘
-                         │
-      ┌──────────────────┼──────────────────┬──────────────────┬──────────────┐
-      │                  │                   │                  │              │
-      ▼                  ▼                   ▼                  ▼              ▼
-┌───────────┐      ┌───────────┐      ┌───────────┐     ┌──────────┐   ┌──────────┐
-│   User    │      │  Tenant   │      │   SaaS    │     │Component │   │Incident  │
-│  Service  │      │   Admin   │      │  Admin    │     │ Service  │   │ Service  │
-│  (8081)   │      │  (8099)   │      │  (8098)   │     │  (8084)  │   │  (8086)  │
-│           │      │           │      │           │     │          │   │          │
-│ Auth &    │      │ Tenant    │      │ Platform  │     │ Status   │   │ Incident │
-│ Users     │      │ Mgmt RBAC │      │ Admin     │     │ Tracking │   │ Mgmt     │
-└─────┬─────┘      └─────┬─────┘      └─────┬─────┘     └────┬─────┘   └────┬─────┘
-      │                  │                  │                  │              │
+      ┌──────────────────────────────────────────────────────────┐
+      │         Direct HTTP Calls (with Circuit Breakers)         │
+      └──────────────────────────────────────────────────────────┘
+                             │
+      ┌──────────────────────┼──────────────────┬──────────────────┬──────────────┐
+      │                      │                   │                  │              │
+      ▼                      ▼                   ▼                  ▼              ▼
+┌───────────┐          ┌───────────┐      ┌───────────┐     ┌──────────┐   ┌──────────┐
+│   User    │          │  Tenant   │      │   SaaS    │     │Component │   │Incident  │
+│  Service  │          │   Admin   │      │  Admin    │     │ Service  │   │ Service  │
+│  (8081)   │          │  (8099)   │      │  (8098)   │     │  (8084)  │   │  (8086)  │
+│           │◄────────►│           │◄────►│           │◄───►│          │◄─►│          │
+│ Auth &    │          │ Tenant    │      │ Platform  │     │ Status   │   │ Incident │
+│ Users     │          │ Mgmt RBAC │      │ Admin     │     │ Tracking │   │ Mgmt     │
+└─────┬─────┘          └─────┬─────┘      └─────┬─────┘     └────┬─────┘   └────┬─────┘
+      │                      │                  │                  │              │
       │                  └──────────────────┴──────────────────┘              │
       │                           │                                           │
       │                           ▼                                           │

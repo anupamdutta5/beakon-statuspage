@@ -1,8 +1,8 @@
 # Beakon Microservices - Service Catalog
 
-**Last Updated**: 2025-10-21
-**Total Services**: 21 active (+ 1 deprecated)
-**Architecture**: Microservices with API Gateway + Separated Frontend Services
+**Last Updated**: 2025-10-26
+**Total Services**: 19 active (+ 2 deprecated)
+**Architecture**: Microservices with Direct Service Communication + Separated Frontend Services
 **Shared Library**: shared-resilience (100% adoption)
 
 ---
@@ -15,7 +15,7 @@
 | saas-admin-frontend | 3001 | None | ✅ Active | N/A | SaaS admin UI (Next.js) |
 | tenant-admin-frontend | 3002 | None | ✅ Active | N/A | Tenant admin UI (Next.js) |
 | **Backend Services** |
-| api-gateway | 8080 | None | ✅ Active | ✅ Full | Request routing & auth |
+| api-gateway | 8080 | None | ⚠️ DEPRECATED | ✅ Full | Request routing (unused) |
 | user-service | 8081 | statuspage_user | ✅ Active | ✅ Full | User auth & management |
 | component-service | 8084 | statuspage_component | ✅ Active | ✅ Full | Component monitoring |
 | notification-service | 8085 | statuspage_notification | ✅ Active | ✅ Full | Multi-channel alerts |
