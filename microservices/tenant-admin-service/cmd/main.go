@@ -299,7 +299,7 @@ func main() {
 
 	// Initialize RabbitMQ event consumer for tenant sync
 	// Use GetRabbitMQURL() from config instead of hardcoded credentials
-	rabbitmqURL := cfg.GetRabbitMQURL()
+	rabbitmqURL := localConfig.GetRabbitMQURL()
 
 	// Create event handler
 	eventHandler := events.NewRabbitMQTenantEventHandler(dbManager.GetDB(), logger)
