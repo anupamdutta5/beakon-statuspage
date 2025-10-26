@@ -7,10 +7,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Quick Reference
 
 **Project**: Beakon Status Page Platform
-**Architecture**: 20 Go microservices (19 active + 1 deprecated)
+**Architecture**: 19 Go microservices (19 active + 2 deprecated)
 **Language**: Go 1.21+
 **Database**: PostgreSQL (14 databases, database-per-service pattern)
 **Shared Library**: `shared-resilience` (100% adoption across all services)
+**Configuration**: YAML-first with .env secrets (October 2025 standardization)
 
 ## Essential Reading
 
@@ -57,6 +58,75 @@ Beakon/
 ```
 
 **Important**: Each service in `microservices/` may be its own Git repository (submodule). Navigate to specific services to work on them independently.
+
+## Configuration Management (October 2025 Standardization)
+
+### YAML-First Configuration Pattern
+
+**As of October 26, 2025**, all 19 active services use a standardized YAML-first configuration approach:
+
+**Directory Structure**:
+```
+service-name/
+├── configs/
+│   ├── config.yml               # Base configuration (all non-secrets)
+│   ├── config.production.yml    # Production overrides
+│   ├── service-endpoints.yml    # Downstream service URLs (if applicable)
+│   ├── .env                     # Local secrets (gitignored)
+│   └── .env.example             # Template for developers
+```
+
+**config.yml Example**:
+```yaml
+service:
+  name: service-name
+  version: 1.0.0
+  environment: ${ENVIRONMENT:-development}
+
+server:
+  port: 8099
+  host: 0.0.0.0
+
+database:
+  host: ${DB_HOST:-localhost}
+  port: 5432
+  user: postgres
+  password: ${DB_PASSWORD}  # SECRET - from .env
+  name: database_name
+
+jwt:
+  secret: ${JWT_SECRET}  # SECRET - from .env (min 32 characters)
+  expiration: 24h
+```
+
+**.env Example**:
+```bash
+ENVIRONMENT=development
+JWT_SECRET=dev-secret-key-min-32-chars-long-change-in-production
+DB_PASSWORD=postgres
+RABBITMQ_PASSWORD=SecureP@ssw0rd2024!
+LOG_LEVEL=debug
+```
+
+**Loading Configuration in Code**:
+```go
+import resilience "github.com/anupamdutta5/shared-resilience"
+
+// Load configuration from configs/ directory
+loader := resilience.NewConfigLoader("configs")
+var cfg Config
+if err := loader.Load(&cfg); err != nil {
+    log.Fatalf("Failed to load configuration: %v", err)
+}
+```
+
+**Key Principles**:
+- ✅ All non-secret configuration in config.yml
+- ✅ Secrets only in .env files
+- ✅ No environment variables for configuration
+- ✅ Environment-specific overrides via config.production.yml
+- ✅ Automatic validation (JWT secret length, required passwords)
+- ✅ Service discovery via service-endpoints.yml
 
 ## Common Development Commands
 
@@ -195,20 +265,45 @@ atlas migrate apply --env dev
 - **Multi-tenant**: All services support multi-tenancy with tenant isolation
 - **Stateless**: Services designed for horizontal scaling
 
-### Service Communication
+### Service Communication (Post-October 2025)
 
-**Standard Pattern:**
-```
-Client → API Gateway (8080) → Downstream Service
-```
+⚠️ **API Gateway Deprecated**: As of October 26, 2025, the API Gateway is no longer used.
 
-**Inter-service calls should also go through API Gateway:**
+**New Direct Communication Pattern:**
 ```
-Service A → API Gateway (8080) → Service B
+Frontend → Direct HTTP → Backend Service (with circuit breakers)
+Service A → Direct HTTP → Service B (with circuit breakers)
 ```
 
-**Known Exception:**
-- SaaS Admin → Tenant Admin (direct call for session validation)
+**Service Discovery**:
+Services use `service-endpoints.yml` files to configure downstream service URLs:
+```yaml
+endpoints:
+  tenant-admin-service:
+    url: ${TENANT_ADMIN_URL:-http://tenant-admin-service:8099}
+    timeout: 30s
+    retries: 3
+    circuit_breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60s
+```
+
+**Making Service Calls** (using shared-resilience ServiceClient):
+```go
+import resilience "github.com/anupamdutta5/shared-resilience"
+
+// Load service endpoints
+client := resilience.NewServiceClient("configs/service-endpoints.yml", logger)
+
+// Make HTTP call with automatic retries and circuit breaker
+response, err := client.Call(ctx, resilience.ServiceRequest{
+    ServiceName: "tenant-admin-service",
+    Method:      "POST",
+    Path:        "/api/v1/tenants",
+    Body:        requestData,
+})
+```
 
 ### Authentication Flow
 
