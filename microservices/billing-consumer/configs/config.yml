@@ -1,0 +1,24 @@
+service:
+  name: billing-consumer
+  version: 1.0.0
+  environment: ${ENVIRONMENT:-development}
+
+rabbitmq:
+  host: ${RABBITMQ_HOST:-localhost}
+  port: 5672
+  user: ${RABBITMQ_USER:-admin}
+  password: ${RABBITMQ_PASSWORD}
+  vhost: /
+  queue: payments
+  exchange: beakon_events
+  routing_key: billing
+
+monitoring:
+  enabled: true
+  health_path: /health
+  log_level: ${LOG_LEVEL:-info}
+
+security:
+  sanitization_enabled: true
+  max_string_length: 1000
+  strict_mode: false
