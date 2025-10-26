@@ -36,10 +36,11 @@ Beakon is a comprehensive status page platform that enables businesses to commun
 
 | Metric | Value |
 |--------|-------|
-| **Total Services** | 21 microservices (19 backend + 2 frontend) |
+| **Total Services** | 19 active microservices (+ 2 deprecated) |
 | **Backend** | Go 1.21+ with Gin framework |
 | **Frontend** | Next.js 14 with TypeScript |
 | **Databases** | 14 PostgreSQL (database-per-service) |
+| **Configuration** | YAML-first with .env secrets |
 | **Build Status** | ✅ All 19 services building |
 | **Production Status** | ✅ Ready |
 
@@ -67,9 +68,10 @@ cd microservices && ./init-all-databases.sh
 ### Verify
 
 ```bash
-curl http://localhost:8080/health  # API Gateway
-open http://localhost:3001          # SaaS Admin UI
-open http://anupam.localhost:3002   # Tenant Admin UI
+curl http://localhost:8098/api/v1/health  # SaaS Admin Service
+curl http://localhost:8099/health          # Tenant Admin Service
+open http://localhost:3001                 # SaaS Admin UI
+open http://anupam.localhost:3002          # Tenant Admin UI
 ```
 
 See **[CLAUDE.md](CLAUDE.md)** for detailed setup guide.

@@ -9,9 +9,10 @@
 ## 🎯 System Overview (30 seconds)
 
 **Platform**: Multi-tenant SaaS status page (like Statuspage.io)
-**Architecture**: 20 microservices + API Gateway + Shared resilience library
+**Architecture**: 19 microservices + Shared resilience library (Direct service communication, no API Gateway)
+**Configuration**: YAML-first with .env secrets (October 2025 standardization)
 **Language**: Go (Gin framework)
-**Databases**: 14 PostgreSQL databases (separate per service)
+**Databases**: 14 PostgreSQL databases (database-per-service pattern)
 **Multi-tenancy**: Row-level isolation with UUID tenant_ids
 
 ---
@@ -20,7 +21,7 @@
 
 | Service | Port | Database | Status |
 |---------|------|----------|--------|
-| **api-gateway** | 8080 | None | ✅ Gateway |
+| **api-gateway** | 8080 | None | ⚠️ **DEPRECATED** |
 | **user-service** | 8081 | statuspage_user | ✅ Auth |
 | **component-service** | 8084 | statuspage_component | ✅ Active |
 | **notification-service** | 8085 | statuspage_notification | ✅ Active |
