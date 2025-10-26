@@ -1,0 +1,12 @@
+# Service Endpoints Configuration for SaaS Admin Service
+# Defines endpoints for service-to-service communication
+
+endpoints:
+  tenant-admin-service:
+    url: ${TENANT_ADMIN_SERVICE_URL:-http://tenant-admin-service:8099}
+    timeout: 30s
+    retries: 3
+    circuit_breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60s

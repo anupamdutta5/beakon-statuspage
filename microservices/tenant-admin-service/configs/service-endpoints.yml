@@ -1,0 +1,48 @@
+# Service Endpoints Configuration for Tenant Admin Service
+# Defines endpoints for service-to-service communication
+
+endpoints:
+  component-service:
+    url: ${COMPONENT_SERVICE_URL:-http://component-service:8084}
+    timeout: 30s
+    retries: 3
+    circuit_breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60s
+
+  incident-service:
+    url: ${INCIDENT_SERVICE_URL:-http://incident-service:8086}
+    timeout: 30s
+    retries: 3
+    circuit_breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60s
+
+  notification-service:
+    url: ${NOTIFICATION_SERVICE_URL:-http://notification-service:8085}
+    timeout: 30s
+    retries: 3
+    circuit_breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60s
+
+  subscriber-service:
+    url: ${SUBSCRIBER_SERVICE_URL:-http://subscriber-service:8087}
+    timeout: 30s
+    retries: 3
+    circuit_breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60s
+
+  branding-service:
+    url: ${BRANDING_SERVICE_URL:-http://branding-service:8097}
+    timeout: 30s
+    retries: 3
+    circuit_breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60s
