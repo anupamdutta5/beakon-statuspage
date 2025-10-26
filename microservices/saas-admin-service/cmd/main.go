@@ -365,11 +365,13 @@ func main() {
 	router.Use(func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 
-		// Allow requests from saas-admin-frontend
-		allowedOrigins := []string{
-			"http://localhost:3001",              // Development
-			"https://admin.yourdomain.com",       // Production (update when deployed)
+		// Load allowed origins from environment variable
+		allowedOriginsStr := os.Getenv("CORS_ALLOWED_ORIGINS")
+		if allowedOriginsStr == "" {
+			// Default to localhost:3001 for development if not set
+			allowedOriginsStr = "http://localhost:3001"
 		}
+		allowedOrigins := strings.Split(allowedOriginsStr, ",")
 
 		for _, allowedOrigin := range allowedOrigins {
 			if origin == allowedOrigin {
@@ -394,22 +396,11 @@ func main() {
 	// Add comprehensive middleware stack with custom CSP for admin dashboard
 	middleware := resilience.DefaultMiddlewareStack(resilienceConfig, logger)
 
-	// For development, skip authentication middleware to allow admin interface access
-	if resilienceConfig.Environment == "development" {
-		// Apply middleware selectively, skipping auth middleware for admin interface
-		for _, mw := range middleware {
-			// Skip auth middleware by checking if it's the auth middleware function
-			if mwName := fmt.Sprintf("%T", mw); !strings.Contains(mwName, "AuthMiddleware") {
-				router.Use(mw)
-			}
-		}
-		logger.Info("Development mode: Authentication middleware skipped for admin interface")
-	} else {
-		// In production, apply all middleware including authentication
-		for _, mw := range middleware {
-			router.Use(mw)
-		}
+	// Apply all middleware (authentication is now required in ALL environments)
+	for _, mw := range middleware {
+		router.Use(mw)
 	}
+	logger.Info("All middleware applied including authentication")
 
 	// CSP header no longer needed - frontend is separate service
 
@@ -444,11 +435,29 @@ func main() {
 		zap.String("host", redisHost),
 		zap.Int("port", redisPort))
 
-	// Initialize RabbitMQ event publisher
-	rabbitmqURL := os.Getenv("RABBITMQ_URL")
-	if rabbitmqURL == "" {
-		rabbitmqURL = "amqp://admin:SecureP@ssw0rd2024!@localhost:5672/"
+	// Initialize RabbitMQ event publisher from environment
+	rabbitmqHost := os.Getenv("RABBITMQ_HOST")
+	if rabbitmqHost == "" {
+		rabbitmqHost = "localhost"
 	}
+	rabbitmqUser := os.Getenv("RABBITMQ_USER")
+	if rabbitmqUser == "" {
+		rabbitmqUser = "admin"
+	}
+	rabbitmqPassword := os.Getenv("RABBITMQ_PASSWORD")
+	rabbitmqPort := os.Getenv("RABBITMQ_PORT")
+	if rabbitmqPort == "" {
+		rabbitmqPort = "5672"
+	}
+	rabbitmqVHost := os.Getenv("RABBITMQ_VHOST")
+	if rabbitmqVHost == "" || rabbitmqVHost == "/" {
+		rabbitmqVHost = ""
+	} else {
+		rabbitmqVHost = "/" + rabbitmqVHost
+	}
+
+	rabbitmqURL := fmt.Sprintf("amqp://%s:%s@%s:%s%s",
+		rabbitmqUser, rabbitmqPassword, rabbitmqHost, rabbitmqPort, rabbitmqVHost)
 
 	eventPublisher, err := events.NewPublisher(events.PublisherConfig{
 		URL:    rabbitmqURL,
