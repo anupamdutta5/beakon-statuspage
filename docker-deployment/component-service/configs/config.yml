@@ -1,0 +1,71 @@
+# Configuration for component-service
+# Precedence: config.yml < .env < environment variables
+
+environment: development
+
+server:
+  port: 8084
+  read_timeout: 30s
+  write_timeout: 30s
+  shutdown_timeout: 30s
+  host: "0.0.0.0"
+
+database:
+  host: statuspage-postgres
+  port: 5432
+  user: postgres
+  password: postgres
+  name: statuspage_component
+  sslmode: disable
+  max_open_conns: 80
+  max_idle_conns: 32
+  conn_max_lifetime: 1h
+  conn_max_idle_time: 10m
+
+jwt:
+  secret: development-secret-key-min-32-chars-for-testing
+  expiration: 24h
+
+redis:
+  host: redis
+  port: 6379
+  password: ""
+  enabled: false
+  db: 0
+  pool_size: 10
+  min_idle_conns: 5
+
+rabbitmq:
+  host: rabbitmq
+  port: 5672
+  user: guest
+  password: guest
+  vhost: /
+  exchange: beakon_events
+  queue_prefix: component-service
+
+circuit_breaker:
+  database_enabled: true
+  database_failure_ratio: 0.6
+  database_timeout: 5s
+  database_max_requests: 3
+
+rate_limiting:
+  enabled: true
+  requests_per_minute: 100
+  burst: 50
+
+logging:
+  level: info
+  format: json
+  output: stdout
+
+monitoring:
+  enabled: true
+  check_interval: 60
+  timeout: 30
+
+metrics:
+  enabled: true
+  port: 9094
+  path: /metrics

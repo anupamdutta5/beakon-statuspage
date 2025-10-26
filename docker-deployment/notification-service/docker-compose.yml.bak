@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  notification-service:
+    image: beakon-notification-service:latest
+    container_name: beakon-notification-service
+    build:
+      context: ../../microservices
+      dockerfile: Dockerfile
+    ports:
+      - "8085:8085"
+      - "9095:9095"
+    volumes:
+      - ./configs:/app/configs:ro
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SERVER_PORT=8085
+      - DB_HOST=${DB_HOST:-statuspage-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_NAME=statuspage_notification
+      - DB_SSLMODE=${DB_SSLMODE:-disable}
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_ENABLED=${REDIS_ENABLED:-false}
+      - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
+      - RABBITMQ_PORT=${RABBITMQ_PORT:-5672}
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    networks:
+      - beakon-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8085/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  beakon-network:
+    name: beakon-network
+    external: true

@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  billing-consumer:
+    image: beakon-billing-consumer:latest
+    container_name: beakon-billing-consumer
+    build:
+      context: ../../microservices
+      dockerfile: Dockerfile
+    volumes:
+      - ./configs:/app/configs:ro
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DB_HOST=${DB_HOST:-statuspage-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_NAME=statuspage_billing
+      - DB_SSLMODE=${DB_SSLMODE:-disable}
+      - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
+      - RABBITMQ_PORT=${RABBITMQ_PORT:-5672}
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-5}
+    networks:
+      - beakon-network
+    restart: unless-stopped
+
+networks:
+  beakon-network:
+    name: beakon-network
+    external: true

@@ -1,0 +1,74 @@
+# Service endpoint configuration
+# These are static URLs that services use to communicate with each other
+# Override via environment variables if needed (e.g., SERVICE_USER_URL)
+
+services:
+  api_gateway:
+    url: "http://api-gateway:8080"
+    health: "/health"
+
+  user_service:
+    url: "http://user-service:8081"
+    health: "/health"
+
+  tenant_admin_service:
+    url: "http://tenant-admin-service:8099"
+    health: "/health"
+
+  saas_admin_service:
+    url: "http://saas-admin-service:8098"
+    health: "/api/v1/health"
+
+  component_service:
+    url: "http://component-service:8084"
+    health: "/health"
+
+  notification_service:
+    url: "http://notification-service:8085"
+    health: "/health"
+
+  incident_service:
+    url: "http://incident-service:8086"
+    health: "/health"
+
+  payment_service:
+    url: "http://payment-service:8088"
+    health: "/health"
+
+  analytics_service:
+    url: "http://analytics-service:8090"
+    health: "/health"
+
+  monitoring_service:
+    url: "http://monitoring-service:8092"
+    health: "/health"
+
+  status_ui_service:
+    url: "http://status-ui-service:8093"
+    health: "/health"
+
+  event_store_service:
+    url: "http://event-store-service:8096"
+    health: "/health"
+
+  branding_service:
+    url: "http://branding-service:8097"
+    health: "/health"
+
+  landing_page_service:
+    url: "http://landing-page-service:8100"
+    health: "/health"
+
+infrastructure:
+  postgres:
+    host: "statuspage-postgres"
+    port: 5432
+
+  redis:
+    host: "redis"
+    port: 6379
+
+  rabbitmq:
+    host: "rabbitmq"
+    port: 5672
+    management_port: 15672

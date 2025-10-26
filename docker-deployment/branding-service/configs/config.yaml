@@ -1,0 +1,19 @@
+server:
+  port: 8097
+  environment: development
+
+database:
+  host: statuspage-postgres
+  port: 5432
+  user: postgres
+  password: postgres
+  name: statuspage_branding
+  sslmode: disable
+
+redis:
+  host: beakon-redis
+  port: 6379
+  enabled: true
+
+logging:
+  level: info

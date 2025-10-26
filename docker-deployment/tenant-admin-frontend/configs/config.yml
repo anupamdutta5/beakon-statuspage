@@ -1,0 +1,19 @@
+# Configuration for tenant-admin-frontend (Frontend)
+# Precedence: config.yml < .env < environment variables
+
+environment: development
+
+server:
+  port: 3002
+  host: "0.0.0.0"
+
+api:
+  url: http://localhost:8099
+  timeout: 30s
+
+logging:
+  level: info
+
+features:
+  analytics_enabled: true
+  debug_mode: false

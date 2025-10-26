@@ -1,0 +1,49 @@
+# Configuration for notification-consumer (Consumer)
+# Precedence: config.yml < .env < environment variables
+
+environment: development
+
+database:
+  host: statuspage-postgres
+  port: 5432
+  user: postgres
+  password: postgres
+  name: statuspage_notification
+  sslmode: disable
+  max_open_conns: 80
+  max_idle_conns: 32
+  conn_max_lifetime: 1h
+  conn_max_idle_time: 10m
+
+rabbitmq:
+  host: rabbitmq
+  port: 5672
+  user: guest
+  password: guest
+  vhost: /
+  exchange: beakon_events
+  queue: notification-consumer_queue
+  consumer_tag: notification-consumer
+  prefetch_count: 10
+  auto_ack: false
+
+worker:
+  concurrency: 5
+  prefetch_count: 10
+  retry_attempts: 3
+  retry_delay: 5s
+
+circuit_breaker:
+  database_enabled: true
+  database_failure_ratio: 0.6
+  database_timeout: 5s
+
+logging:
+  level: info
+  format: json
+  output: stdout
+
+metrics:
+  enabled: true
+  port: 9100
+  path: /metrics

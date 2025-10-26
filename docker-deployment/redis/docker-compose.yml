@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: beakon-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./configs/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - beakon-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis_data:
+    name: beakon_redis_data
+
+networks:
+  beakon-network:
+    name: beakon-network
+    external: true

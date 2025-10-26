@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  tenant-admin-frontend:
+    image: beakon-tenant-admin-frontend:latest
+    container_name: beakon-tenant-admin-frontend
+    build:
+      context: ../../microservices
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./configs:/app/configs:ro
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8099}
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=3002
+    networks:
+      - beakon-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3002"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  beakon-network:
+    name: beakon-network
+    external: true

@@ -46,6 +46,27 @@ services:
       timeout: 5s
       retries: 5
 
+  postgres:
+    image: postgres:14-alpine
+    container_name: statuspage-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-postgres.sql:/docker-entrypoint-initdb.d/init-postgres.sql
+    networks:
+      - beakon-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ===========================================
   # API GATEWAY
   # ===========================================
@@ -105,6 +126,7 @@ services:
       - "9109:9109"
     environment:
       - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8099
       - DB_HOST=${DB_HOST:-statuspage-postgres}
       - DB_PORT=5432
@@ -114,9 +136,14 @@ services:
       - JWT_SECRET=${JWT_SECRET:-development-secret-key-min-32-chars-for-testing}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=admin
+      - RABBITMQ_PASSWORD=admin123
     networks:
       - beakon-network
     depends_on:
+      - postgres
       - redis
       - rabbitmq
     restart: unless-stopped
@@ -129,6 +156,7 @@ services:
       - "9108:9108"
     environment:
       - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8098
       - DB_HOST=${DB_HOST:-statuspage-postgres}
       - DB_PORT=5432
@@ -136,9 +164,16 @@ services:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - JWT_SECRET=${JWT_SECRET:-development-secret-key-min-32-chars-for-testing}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=admin
+      - RABBITMQ_PASSWORD=admin123
     networks:
       - beakon-network
     depends_on:
+      - postgres
       - redis
       - rabbitmq
     restart: unless-stopped
@@ -157,6 +192,7 @@ services:
       - DB_NAME=statuspage_notification
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - JWT_SECRET=${JWT_SECRET:-development-secret-key-min-32-chars-for-testing}
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
     networks:
@@ -387,3 +423,4 @@ networks:
 volumes:
   redis-data:
   rabbitmq-data:
+  postgres-data:

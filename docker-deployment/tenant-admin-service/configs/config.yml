@@ -1,0 +1,32 @@
+server:
+  port: 8099
+  environment: development
+
+database:
+  host: statuspage-postgres
+  port: 5432
+  user: postgres
+  password: postgres
+  name: tenant_admin_db
+  sslmode: disable
+
+redis:
+  host: beakon-redis
+  port: 6379
+  enabled: true
+
+rabbitmq:
+  host: beakon-rabbitmq
+  port: 5672
+  user: guest
+  password: guest
+
+jwt:
+  secret: dev-secret-for-testing-only-change-in-production-min-32-chars
+
+tenant:
+  default_plan: free
+  max_users: 5
+
+logging:
+  level: info
