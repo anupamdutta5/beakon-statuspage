@@ -1,0 +1,13 @@
+# Production Configuration Overrides for SaaS Admin Service
+# These values override the base config.yml in production environment
+
+database:
+  ssl_mode: require  # SSL required in production
+  max_conns: 200
+  min_conns: 20
+
+monitoring:
+  log_level: info
+
+security:
+  strict_mode: true  # Enable strict validation in production
