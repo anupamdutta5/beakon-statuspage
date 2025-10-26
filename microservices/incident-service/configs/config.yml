@@ -1,3 +1,7 @@
+# incident-service Configuration
+# This file contains all non-secret configuration
+# Secrets (passwords, tokens) are in .env file
+
 service:
   name: incident-service
   version: 1.0.0
@@ -14,16 +18,16 @@ database:
   host: ${DB_HOST:-localhost}
   port: 5432
   user: postgres
-  password: ${DB_PASSWORD}
+  password: ${DB_PASSWORD}  # SECRET - from .env
   name: incidents
   ssl_mode: ${DB_SSL_MODE:-disable}
   max_conns: 100
   min_conns: 10
-  conn_max_lifetime: 3600s
-  conn_max_idle_time: 600s
+  conn_max_lifetime: 3600s  # 1 hour
+  conn_max_idle_time: 600s   # 10 minutes
 
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET}  # SECRET - from .env (min 32 characters)
   expiration: 24h
   issuer: beakon-incident-service
 
