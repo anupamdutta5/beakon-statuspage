@@ -123,7 +123,7 @@ func Load() (*Config, error) {
 			Port:     getEnvInt("DB_PORT", 5432),
 			User:     getEnv("DB_USER", "postgres"),
 			Password: getEnv("DB_PASSWORD", "postgres"),
-			Name:     getEnv("DB_NAME", "statuspage_notifications"),
+			Name:     getEnv("DB_NAME", "notifications"),
 			SSLMode:  getEnv("DB_SSL_MODE", "disable"),
 			MaxConns: getEnvInt("DB_MAX_CONNS", 100),
 			MinConns: getEnvInt("DB_MIN_CONNS", 10),

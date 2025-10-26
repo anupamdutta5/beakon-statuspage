@@ -12,7 +12,7 @@ set -e
 
 # Service-specific configuration
 SERVICE_NAME="landing-page-service"
-DB_NAME="statuspage_landing"
+DB_NAME="${DB_NAME:-landing}"
 MIGRATIONS_DIR="./migrations"
 
 # Database connection (use env vars or defaults)

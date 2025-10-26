@@ -12,7 +12,7 @@ set -e
 
 # Service-specific configuration
 SERVICE_NAME="tenant-admin-service"
-DB_NAME="tenant_admin_db"
+DB_NAME="${DB_NAME:-tenant_admin}"
 MIGRATIONS_DIR="./migrations"
 
 # Database connection (use env vars or defaults)

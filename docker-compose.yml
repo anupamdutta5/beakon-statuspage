@@ -1,0 +1,389 @@
+# Beakon Platform - Docker Compose
+# 15 microservices + infrastructure (Redis, RabbitMQ)
+# PostgreSQL runs externally: statuspage-postgres
+
+version: '3.8'
+
+services:
+  # ===========================================
+  # INFRASTRUCTURE
+  # ===========================================
+
+  redis:
+    image: redis:7-alpine
+    container_name: beakon-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    networks:
+      - beakon-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: beakon-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin123
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - beakon-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================
+  # API GATEWAY
+  # ===========================================
+
+  api-gateway:
+    image: beakon-api-gateway:latest
+    container_name: beakon-api-gateway
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SERVER_PORT=8080
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - JWT_SECRET=${JWT_SECRET:-development-secret-key-min-32-chars-for-testing}
+    networks:
+      - beakon-network
+    depends_on:
+      - redis
+      - rabbitmq
+    restart: unless-stopped
+
+  # ===========================================
+  # CORE SERVICES
+  # ===========================================
+
+  user-service:
+    image: beakon-user-service:latest
+    container_name: beakon-user-service
+    ports:
+      - "8081:8081"
+      - "9091:9091"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SERVER_PORT=8081
+      - DB_HOST=${DB_HOST:-statuspage-postgres}
+      - DB_PORT=5432
+      - DB_NAME=statuspage_user
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - JWT_SECRET=${JWT_SECRET:-development-secret-key-min-32-chars-for-testing}
+    networks:
+      - beakon-network
+    depends_on:
+      - redis
+      - rabbitmq
+    restart: unless-stopped
+
+  tenant-admin-service:
+    image: beakon-tenant-admin-service:latest
+    container_name: beakon-tenant-admin-service
+    ports:
+      - "8099:8099"
+      - "9109:9109"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SERVER_PORT=8099
+      - DB_HOST=${DB_HOST:-statuspage-postgres}
+      - DB_PORT=5432
+      - DB_NAME=tenant_admin_db
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - JWT_SECRET=${JWT_SECRET:-development-secret-key-min-32-chars-for-testing}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    networks:
+      - beakon-network
+    depends_on:
+      - redis
+      - rabbitmq
+    restart: unless-stopped
+
+  saas-admin-service:
+    image: beakon-saas-admin-service:latest
+    container_name: beakon-saas-admin-service
+    ports:
+      - "8098:8098"
+      - "9108:9108"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SERVER_PORT=8098
+      - DB_HOST=${DB_HOST:-statuspage-postgres}
+      - DB_PORT=5432
+      - DB_NAME=saas_admin
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - JWT_SECRET=${JWT_SECRET:-development-secret-key-min-32-chars-for-testing}
+    networks:
+      - beakon-network
+    depends_on:
+      - redis
+      - rabbitmq
+    restart: unless-stopped
+
+  notification-service:
+    image: beakon-notification-service:latest
+    container_name: beakon-notification-service
+    ports:
+      - "8085:8085"
+      - "9095:9095"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SERVER_PORT=8085
+      - DB_HOST=${DB_HOST:-statuspage-postgres}
+      - DB_PORT=5432
+      - DB_NAME=statuspage_notification
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+    networks:
+      - beakon-network
+    depends_on:
+      - redis
+      - rabbitmq
+    restart: unless-stopped
+
+  incident-service:
+    image: beakon-incident-service:latest
+    container_name: beakon-incident-service
+    ports:
+      - "8086:8086"
+      - "9096:9096"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SERVER_PORT=8086
+      - DB_HOST=${DB_HOST:-statuspage-postgres}
+      - DB_PORT=5432
+      - DB_NAME=statuspage_incident
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+    networks:
+      - beakon-network
+    depends_on:
+      - redis
+      - rabbitmq
+    restart: unless-stopped
+
+  payment-service:
+    image: beakon-payment-service:latest
+    container_name: beakon-payment-service
+    ports:
+      - "8088:8088"
+      - "9098:9098"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SERVER_PORT=8088
+      - DB_HOST=${DB_HOST:-statuspage-postgres}
+      - DB_PORT=5432
+      - DB_NAME=statuspage_payment
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+    networks:
+      - beakon-network
+    depends_on:
+      - redis
+      - rabbitmq
+    restart: unless-stopped
+
+  analytics-service:
+    image: beakon-analytics-service:latest
+    container_name: beakon-analytics-service
+    ports:
+      - "8090:8090"
+      - "9100:9100"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SERVER_PORT=8090
+      - DB_HOST=${DB_HOST:-statuspage-postgres}
+      - DB_PORT=5432
+      - DB_NAME=statuspage_analytics
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+    networks:
+      - beakon-network
+    depends_on:
+      - redis
+      - rabbitmq
+    restart: unless-stopped
+
+  monitoring-service:
+    image: beakon-monitoring-service:latest
+    container_name: beakon-monitoring-service
+    ports:
+      - "8092:8092"
+      - "9102:9102"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SERVER_PORT=8092
+      - DB_HOST=${DB_HOST:-statuspage-postgres}
+      - DB_PORT=5432
+      - DB_NAME=statuspage_monitoring
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+    networks:
+      - beakon-network
+    depends_on:
+      - redis
+      - rabbitmq
+    restart: unless-stopped
+
+  status-ui-service:
+    image: beakon-status-ui-service:latest
+    container_name: beakon-status-ui-service
+    ports:
+      - "8093:8093"
+      - "9103:9103"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SERVER_PORT=8093
+      - DB_HOST=${DB_HOST:-statuspage-postgres}
+      - DB_PORT=5432
+      - DB_NAME=statuspage_ui
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+    networks:
+      - beakon-network
+    depends_on:
+      - redis
+      - rabbitmq
+    restart: unless-stopped
+
+  event-store-service:
+    image: beakon-event-store-service:latest
+    container_name: beakon-event-store-service
+    ports:
+      - "8096:8096"
+      - "9106:9106"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SERVER_PORT=8096
+      - DB_HOST=${DB_HOST:-statuspage-postgres}
+      - DB_PORT=5432
+      - DB_NAME=statuspage_event_store
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+    networks:
+      - beakon-network
+    depends_on:
+      - redis
+      - rabbitmq
+    restart: unless-stopped
+
+  branding-service:
+    image: beakon-branding-service:latest
+    container_name: beakon-branding-service
+    ports:
+      - "8097:8097"
+      - "9107:9107"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SERVER_PORT=8097
+      - DB_HOST=${DB_HOST:-statuspage-postgres}
+      - DB_PORT=5432
+      - DB_NAME=statuspage_branding
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+    networks:
+      - beakon-network
+    depends_on:
+      - redis
+      - rabbitmq
+    restart: unless-stopped
+
+  # ===========================================
+  # CONSUMER SERVICES
+  # ===========================================
+
+  analytics-consumer:
+    image: beakon-analytics-consumer:latest
+    container_name: beakon-analytics-consumer
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DB_HOST=${DB_HOST:-statuspage-postgres}
+      - DB_PORT=5432
+      - DB_NAME=statuspage_analytics
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+    networks:
+      - beakon-network
+    depends_on:
+      - redis
+      - rabbitmq
+    restart: unless-stopped
+
+  audit-consumer:
+    image: beakon-audit-consumer:latest
+    container_name: beakon-audit-consumer
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DB_HOST=${DB_HOST:-statuspage-postgres}
+      - DB_PORT=5432
+      - DB_NAME=statuspage_audit
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+    networks:
+      - beakon-network
+    depends_on:
+      - redis
+      - rabbitmq
+    restart: unless-stopped
+
+  # ===========================================
+  # FRONTEND SERVICES
+  # ===========================================
+
+  saas-admin-frontend:
+    image: beakon-saas-admin-frontend:latest
+    container_name: beakon-saas-admin-frontend
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:8098
+      - PORT=3001
+    networks:
+      - beakon-network
+    depends_on:
+      - saas-admin-service
+    restart: unless-stopped
+
+# ===========================================
+# NETWORKS
+# ===========================================
+networks:
+  beakon-network:
+    driver: bridge
+
+# ===========================================
+# VOLUMES
+# ===========================================
+volumes:
+  redis-data:
+  rabbitmq-data:

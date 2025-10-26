@@ -2,7 +2,7 @@
 set -e
 
 SERVICE_NAME="branding-service"
-DB_NAME="statuspage_branding"
+DB_NAME="${DB_NAME:-branding}"
 MIGRATIONS_DIR="./migrations"
 
 DB_HOST="${DB_HOST:-localhost}"

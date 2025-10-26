@@ -2,7 +2,7 @@
 set -e
 
 SERVICE_NAME="billing-consumer"
-DB_NAME="statuspage_billing_consumer"
+DB_NAME="${DB_NAME:-billing}"
 MIGRATIONS_DIR="./migrations"
 
 DB_HOST="${DB_HOST:-localhost}"

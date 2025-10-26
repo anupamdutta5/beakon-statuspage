@@ -2,7 +2,7 @@
 set -e
 
 SERVICE_NAME="event-store-service"
-DB_NAME="statuspage_event_store"
+DB_NAME="${DB_NAME:-event_store}"
 MIGRATIONS_DIR="./migrations"
 
 DB_HOST="${DB_HOST:-localhost}"

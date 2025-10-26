@@ -2,7 +2,7 @@
 set -e
 
 SERVICE_NAME="incident-service"
-DB_NAME="statuspage_incident"
+DB_NAME="${DB_NAME:-incidents}"
 MIGRATIONS_DIR="./migrations"
 
 DB_HOST="${DB_HOST:-localhost}"

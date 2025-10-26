@@ -2,7 +2,7 @@
 set -e
 
 SERVICE_NAME="analytics-consumer"
-DB_NAME="statuspage_analytics_consumer"
+DB_NAME="${DB_NAME:-analytics}"
 MIGRATIONS_DIR="./migrations"
 
 DB_HOST="${DB_HOST:-localhost}"

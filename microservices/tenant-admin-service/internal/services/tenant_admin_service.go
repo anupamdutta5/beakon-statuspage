@@ -401,8 +401,8 @@ func initDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	}
 
 	sqlDB.SetMaxOpenConns(cfg.MaxConns)
-	sqlDB.SetMaxIdleConns(cfg.MaxIdle)
-	sqlDB.SetConnMaxLifetime(time.Duration(cfg.MaxLifetime) * time.Second)
+	sqlDB.SetMaxIdleConns(cfg.MaxIdle())
+	sqlDB.SetConnMaxLifetime(time.Duration(cfg.MaxLifetime()) * time.Second)
 
 	// Note: Database migration is handled in main.go to avoid duplicate migrations
 

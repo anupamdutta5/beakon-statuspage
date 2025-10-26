@@ -2,7 +2,7 @@
 set -e
 
 SERVICE_NAME="audit-consumer"
-DB_NAME="statuspage_audit_consumer"
+DB_NAME="${DB_NAME:-audit}"
 MIGRATIONS_DIR="./migrations"
 
 DB_HOST="${DB_HOST:-localhost}"

@@ -2,7 +2,7 @@
 set -e
 
 SERVICE_NAME="notification-service"
-DB_NAME="statuspage_notification"
+DB_NAME="${DB_NAME:-notifications}"
 MIGRATIONS_DIR="./migrations"
 
 DB_HOST="${DB_HOST:-localhost}"

@@ -2,7 +2,7 @@
 set -e
 
 SERVICE_NAME="payment-service"
-DB_NAME="statuspage_payment"
+DB_NAME="${DB_NAME:-payments}"
 MIGRATIONS_DIR="./migrations"
 
 DB_HOST="${DB_HOST:-localhost}"

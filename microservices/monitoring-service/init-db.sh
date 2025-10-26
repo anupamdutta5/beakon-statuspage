@@ -2,7 +2,7 @@
 set -e
 
 SERVICE_NAME="monitoring-service"
-DB_NAME="${DB_NAME:-monitoring_db}"
+DB_NAME="${DB_NAME:-monitoring}"
 MIGRATIONS_DIR="./migrations"
 
 DB_HOST="${DB_HOST:-localhost}"

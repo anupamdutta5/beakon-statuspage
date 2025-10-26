@@ -2,7 +2,7 @@
 set -e
 
 SERVICE_NAME="component-service"
-DB_NAME="statuspage_component"
+DB_NAME="${DB_NAME:-components}"
 MIGRATIONS_DIR="./migrations"
 
 DB_HOST="${DB_HOST:-localhost}"
