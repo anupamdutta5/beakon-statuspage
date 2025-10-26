@@ -109,7 +109,7 @@ func main() {
 	}
 
 	// Initialize business services with modernized dependencies
-	brandingService, err := services.NewBrandingService(nil, logger)
+	brandingService, err := services.NewBrandingService(config, logger)
 	if err != nil {
 		logger.Fatal("Failed to initialize branding service", zap.Error(err))
 	}
