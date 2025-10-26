@@ -169,9 +169,8 @@ func main() {
 	var fallbackSessionStore sessions.SessionStore
 
 	// Try to initialize Redis session store as primary
-	// Disabled for now - Redis connection issues causing session validation failures
-	// TODO: Re-enable when Redis is properly configured
-	if false && resilienceConfig.Redis.Host != "" {
+	// Re-enabled after configuration standardization
+	if resilienceConfig.Redis.Host != "" {
 		redisStore, err := sessions.NewRedisSessionStore(resilienceConfig.Redis, logger)
 		if err != nil {
 			logger.Warn("Failed to initialize Redis session store, using database only",
@@ -299,10 +298,8 @@ func main() {
 	dependencyHandler := handlers.NewDependencyHandler(dependencyService)
 
 	// Initialize RabbitMQ event consumer for tenant sync
-	rabbitmqURL := os.Getenv("RABBITMQ_URL")
-	if rabbitmqURL == "" {
-		rabbitmqURL = "amqp://admin:SecureP@ssw0rd2024!@localhost:5672/"
-	}
+	// Use GetRabbitMQURL() from config instead of hardcoded credentials
+	rabbitmqURL := cfg.GetRabbitMQURL()
 
 	// Create event handler
 	eventHandler := events.NewRabbitMQTenantEventHandler(dbManager.GetDB(), logger)
