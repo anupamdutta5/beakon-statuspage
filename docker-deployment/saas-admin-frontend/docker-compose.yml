@@ -19,7 +19,7 @@ services:
       - beakon-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "-O", "/dev/null", "http://127.0.0.1:3001"]
       interval: 30s
       timeout: 10s
       retries: 3

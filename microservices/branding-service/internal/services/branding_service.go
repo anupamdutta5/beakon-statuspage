@@ -27,14 +27,20 @@ type BrandingService struct {
 // NewBrandingService creates a new branding service.
 func NewBrandingService(cfg *config.Config, logger *zap.Logger) (*BrandingService, error) {
 	// Initialize database connection
-	db, err := initDatabase(cfg.Database)
-	if err != nil {
-		// For testing, we'll allow the service to be created without a database
-		// The database will be set later via SetDB method
-		if logger != nil {
-			logger.Warn("Failed to initialize database, service will be created without database", zap.Error(err))
+	var db *gorm.DB
+	var err error
+
+	// If config is nil, skip database initialization (will be set later via SetDB)
+	if cfg != nil {
+		db, err = initDatabase(cfg.Database)
+		if err != nil {
+			// For testing, we'll allow the service to be created without a database
+			// The database will be set later via SetDB method
+			if logger != nil {
+				logger.Warn("Failed to initialize database, service will be created without database", zap.Error(err))
+			}
+			db = nil
 		}
-		db = nil
 	}
 
 	return &BrandingService{

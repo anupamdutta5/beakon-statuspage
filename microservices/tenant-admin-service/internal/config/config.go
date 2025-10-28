@@ -178,7 +178,15 @@ func (c *Config) Validate() error {
 	}
 
 	// Validate Redis secret (only if enabled)
-	if err := resilience.ValidateRedisSecret(c.Redis.Password, c.Redis.Enabled); err != nil {
+	// Pass Server.Environment to allow empty passwords in development
+	environment := "development" // default
+	if c.Server.Port > 0 {         // config is loaded, use actual environment
+		// Get environment from service config if available
+		if c.Service.Environment != "" {
+			environment = c.Service.Environment
+		}
+	}
+	if err := resilience.ValidateRedisSecret(c.Redis.Password, c.Redis.Enabled, environment); err != nil {
 		return fmt.Errorf("redis secret validation failed: %w", err)
 	}
 

@@ -109,10 +109,14 @@ func main() {
 	}
 
 	// Initialize business services with modernized dependencies
-	brandingService, err := services.NewBrandingService(config, logger)
+	// Pass nil for config since we're using DatabaseManager from resilience
+	brandingService, err := services.NewBrandingService(nil, logger)
 	if err != nil {
 		logger.Fatal("Failed to initialize branding service", zap.Error(err))
 	}
+
+	// Inject the database connection from DatabaseManager
+	brandingService.SetDB(dbManager.GetDB())
 
 	// Create Gin router
 	router := gin.New()

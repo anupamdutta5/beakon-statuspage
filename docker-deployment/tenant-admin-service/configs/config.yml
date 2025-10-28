@@ -14,7 +14,7 @@ redis:
   host: beakon-redis
   port: 6379
   enabled: true
-  password: ""
+  password: ${REDIS_PASSWORD}
 
 rabbitmq:
   host: beakon-rabbitmq
