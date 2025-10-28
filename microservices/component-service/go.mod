@@ -1,6 +1,6 @@
 module github.com/anupamdutta5/component-service
 
-go 1.25.0
+go 1.21
 
 require (
 	github.com/anupamdutta5/shared-resilience v0.0.0
