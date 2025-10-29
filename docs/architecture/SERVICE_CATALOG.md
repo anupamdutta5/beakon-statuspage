@@ -15,8 +15,8 @@
 | saas-admin-frontend | 3001 | None | ✅ Active | N/A | SaaS admin UI (Next.js) |
 | tenant-admin-frontend | 3002 | None | ✅ Active | N/A | Tenant admin UI (Next.js) |
 | **Backend Services** |
-| api-gateway | 8080 | None | ⚠️ DEPRECATED | ✅ Full | Request routing (unused) |
-| user-service | 8081 | statuspage_user | ✅ Active | ✅ Full | User auth & management |
+| api-gateway | 8080 | None | ⚠️ DEPRECATED | ✅ Full | **DEPRECATED** - Direct HTTP now used |
+| user-service | 8081 | statuspage_user | ⚠️ DEPRECATED | ✅ Full | **DEPRECATED** - Migrated to tenant-admin |
 | component-service | 8084 | statuspage_component | ✅ Active | ✅ Full | Component monitoring |
 | notification-service | 8085 | statuspage_notification | ✅ Active | ✅ Full | Multi-channel alerts |
 | incident-service | 8086 | statuspage_incident | ✅ Active | ✅ Full | Incident management |
@@ -1049,44 +1049,63 @@ Beakon follows the microservices best practice of **database-per-service** (pure
 
 ### Service Communication
 
-Services communicate via HTTP APIs, not database sharing:
-- **SaaS Admin → Tenant Admin**: Creates tenants via `POST /api/v1/tenants` API
-- **All Services → API Gateway**: Standard request routing pattern
-- **Consumer Services**: Event-driven processing via message queues
+Services communicate via HTTP APIs with circuit breakers, not database sharing:
+- **SaaS Admin → Tenant Admin**: Creates tenants via `POST /api/v1/public/tenants` API
+- **All Services**: Direct HTTP with circuit breakers (shared-resilience ServiceClient)
+- **Consumer Services**: Event-driven processing via RabbitMQ message queues
 
 ---
 
 ## Service Communication Patterns
 
-### Primary Pattern: API Gateway
+### Primary Pattern: Direct HTTP with Circuit Breakers
 
-**All client requests** should go through the API Gateway (port 8080):
+**All service-to-service communication** uses direct HTTP calls with circuit breakers via `shared-resilience` library:
 
 ```
-Client → API Gateway (8080) → Downstream Service
-```
-
-### Inter-Service Communication
-
-**Standard Pattern** (recommended):
-```
-Service A → API Gateway (8080) → Service B
+Service A → Circuit Breaker → HTTP → Service B
 ```
 
-**Known Exception**:
+**Key Features**:
+- Automatic retries with exponential backoff
+- Circuit breaker protection against cascade failures
+- Request timeout management
+- Health-based service discovery
+
+**Example** (from saas-admin-service):
+```go
+// Using shared-resilience ServiceClient
+client := resilience.NewServiceClient("configs/service-endpoints.yml", logger)
+response, err := client.Call(ctx, resilience.ServiceRequest{
+    ServiceName: "tenant-admin-service",
+    Method:      "POST",
+    Path:        "/api/v1/public/tenants",
+    Body:        requestData,
+})
 ```
-SaaS Admin Service → Tenant Admin Service (direct call)
+
+### Frontend Communication
+
+**Next.js frontends** communicate directly with backend APIs:
+
 ```
-- Used for: Session validation
-- Reason: Reduced latency for admin operations
-- Status: Documented exception
+Frontend (3001/3002) → HTTP → Backend Service (8098/8099)
+```
+
+- SaaS Admin Frontend (3001) → SaaS Admin Service (8098) [CORS-enabled]
+- Tenant Admin Frontend (3002) → Tenant Admin Service (8099) [Same-origin via subdomain]
 
 ### Event-Driven Communication
 
-Consumer services process events asynchronously:
+Consumer services process events asynchronously via RabbitMQ:
 ```
-Service → Event Queue → Consumer Service → Database
+Service → RabbitMQ Queue → Consumer Service → Database
 ```
+
+**Examples**:
+- Tenant creation: saas-admin-service → RabbitMQ → tenant-admin-service consumer
+- Notifications: notification-service → RabbitMQ → notification-consumer
+- Analytics: services → RabbitMQ → analytics-consumer
 
 ---
 
@@ -1136,9 +1155,9 @@ All services expose Prometheus metrics on port +1010:
 ### Authentication & Authorization
 
 1. **JWT-Based Authentication**
-   - Issued by user-service
-   - Validated by API Gateway
-   - Includes tenant context
+   - Issued by tenant-admin-service (15-minute access tokens)
+   - Validated by each service independently
+   - Includes tenant context and user roles
 
 2. **Role-Based Access Control (RBAC)**
    - Managed by tenant-admin-service
@@ -1166,9 +1185,10 @@ All services expose Prometheus metrics on port +1010:
 
 ### Development Ports Summary
 
+**Active Services:**
 ```
-8080  API Gateway
-8081  User Service
+8098  SaaS Admin Service (Platform admin API)
+8099  Tenant Admin Service (Tenant mgmt + SAML/SSO)
 8084  Component Service
 8085  Notification Service
 8086  Incident Service
@@ -1221,10 +1241,13 @@ All services are containerized with Docker and can be orchestrated with Kubernet
 
 3. **Start Services**:
    ```bash
-   cd microservices/api-gateway && go run cmd/main.go &
-   cd microservices/user-service && go run cmd/main.go &
-   cd microservices/tenant-admin-service && go run cmd/main.go &
+   # Start core admin services
    cd microservices/saas-admin-service && go run cmd/main.go &
+   cd microservices/tenant-admin-service && go run cmd/main.go &
+
+   # Start other backend services
+   cd microservices/component-service && go run cmd/main.go &
+   cd microservices/monitoring-service && go run cmd/main.go &
    # ... continue for other services
    ```
 
