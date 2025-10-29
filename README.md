@@ -150,7 +150,7 @@ Redis ← Optional Caching
 - **Shared library**: `shared-resilience` for common functionality
 - **API Gateway**: Centralized routing & auth
 
-See **[ARCHITECTURE.md](ARCHITECTURE.md)** for detailed architecture.
+See **[docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md)** for detailed architecture.
 
 ---
 
@@ -181,7 +181,7 @@ See **[ARCHITECTURE.md](ARCHITECTURE.md)** for detailed architecture.
 ### Frontend Services (2)
 - saas-admin-frontend (3001), tenant-admin-frontend (3002)
 
-See **[SERVICE_CATALOG.md](SERVICE_CATALOG.md)** for complete service reference.
+See **[docs/architecture/SERVICE_CATALOG.md](docs/architecture/SERVICE_CATALOG.md)** for complete service reference.
 
 ---
 
@@ -192,20 +192,29 @@ See **[SERVICE_CATALOG.md](SERVICE_CATALOG.md)** for complete service reference.
 1. **[AI_CONTEXT.md](AI_CONTEXT.md)** - Quick reference (5 min)
 2. **[CLAUDE.md](CLAUDE.md)** - Developer guide (15 min)
 3. **[FEATURES.md](FEATURES.md)** - ⭐ All features explained
-4. **[SERVICE_CATALOG.md](SERVICE_CATALOG.md)** - Service details
+4. **[docs/architecture/SERVICE_CATALOG.md](docs/architecture/SERVICE_CATALOG.md)** - Service details
 
-### Technical Documentation
+### Configuration Guides
 
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System design
-- **[DATABASE_ARCHITECTURE.md](DATABASE_ARCHITECTURE.md)** - 14 database schemas
-- **[AUTHENTICATION_GUIDE.md](AUTHENTICATION_GUIDE.md)** - Auth & sessions
-- **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Production deployment
-- **[OPERATIONAL_RUNBOOK.md](OPERATIONAL_RUNBOOK.md)** - Troubleshooting
+- **[docs/guides/AUTHENTICATION_GUIDE.md](docs/guides/AUTHENTICATION_GUIDE.md)** - Auth & sessions
+- **[docs/guides/SAML_CONFIGURATION_GUIDE.md](docs/guides/SAML_CONFIGURATION_GUIDE.md)** - Enterprise SSO setup
+- **[docs/guides/DEPLOYMENT_GUIDE.md](docs/guides/DEPLOYMENT_GUIDE.md)** - Production deployment
+- **[docs/guides/OPERATIONAL_RUNBOOK.md](docs/guides/OPERATIONAL_RUNBOOK.md)** - Troubleshooting
+
+### Architecture Documentation
+
+- **[docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md)** - System design
+- **[docs/architecture/DATABASE_ARCHITECTURE.md](docs/architecture/DATABASE_ARCHITECTURE.md)** - 14 database schemas
+- **[docs/architecture/SERVICE_CATALOG.md](docs/architecture/SERVICE_CATALOG.md)** - Complete service reference
 
 ### Development Guides
 
 - **[microservices/FRONTEND_GUIDE.md](microservices/FRONTEND_GUIDE.md)** - Frontend dev
 - **[microservices/docs/testing/TESTING_GUIDE.md](microservices/docs/testing/TESTING_GUIDE.md)** - Testing
+
+### All Documentation
+
+See **[docs/README.md](docs/README.md)** for complete documentation index organized by category.
 
 ---
 
@@ -271,7 +280,7 @@ psql -U postgres -d tenant_admin_db
 ### Getting Help
 
 1. Check **[CLAUDE.md](CLAUDE.md)** for common issues
-2. Review **[OPERATIONAL_RUNBOOK.md](OPERATIONAL_RUNBOOK.md)**
+2. Review **[docs/guides/OPERATIONAL_RUNBOOK.md](docs/guides/OPERATIONAL_RUNBOOK.md)**
 3. Check service README: `microservices/<service>/README.md`
 
 ### Common Issues
@@ -316,6 +325,6 @@ go mod verify
 
 **Built with Go, Next.js, and PostgreSQL**
 
-[Documentation](docs/) • [Features](FEATURES.md) • [Architecture](ARCHITECTURE.md) • [Guide](CLAUDE.md)
+[Documentation](docs/) • [Features](FEATURES.md) • [Architecture](docs/architecture/ARCHITECTURE.md) • [Guide](CLAUDE.md)
 
 </div>
