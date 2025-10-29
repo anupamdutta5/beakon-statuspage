@@ -15,8 +15,9 @@
 | **Authentication & Security** | 3 | 0 | 2 | 1 | 1 | 0 | 2 |
 | **Monitoring & Observability** | 5 | 0 | 3 | 2 | 2 | 0 | 3 |
 | **Database & Consistency** | 3 | 1 | 1 | 1 | 2 | 0 | 1 |
+| **Architecture / Technical Debt** | 3 | 1 | 1 | 1 | 0 | 0 | 3 |
 | **Documentation** | 3 | 0 | 1 | 2 | 0 | 0 | 3 |
-| **TOTAL** | **26** | **6** | **11** | **9** | **8** | **0** | **18** |
+| **TOTAL** | **29** | **7** | **12** | **10** | **8** | **0** | **21** |
 
 ---
 
@@ -368,22 +369,93 @@ h.service.CreateAdminUser(...)  // ❌ Fails
 
 ## GROUP 2: Authentication (user-service)
 
-### Status: 🔍 Not Yet Audited
+### Status: ✅ Audit Complete (2025-10-29)
 
 **Services**:
 - user-service (8081)
 
-**Questions to Answer**:
-1. What is the role of user-service? (appears unused)
-2. Does it duplicate tenant-admin-service authentication?
-3. Should it be deprecated?
+**Audit Results**:
+- ⚠️ **REDUNDANT** - Duplicates tenant-admin-service functionality
+- ❌ **UNUSED** - Only referenced by deprecated api-gateway
+- 💰 **COST** - Wastes ~$100-200/month (database + compute)
+- 📋 **MAINTENANCE** - Doubles auth codebase maintenance burden
 
-**Plan**:
-- [ ] Read user-service README
-- [ ] Audit authentication implementation
-- [ ] Compare with tenant-admin-service
-- [ ] Document findings
-- [ ] Recommend: keep, deprecate, or merge
+**Recommendation**: **DEPRECATE user-service**
+
+**Detailed Report**: See [GROUP2_USER_SERVICE_AUDIT.md](GROUP2_USER_SERVICE_AUDIT.md)
+
+### Issues Identified
+
+#### 9. Duplicate User Authentication Services
+
+**Priority**: 🔴 P0 (Critical)
+**Service**: user-service + tenant-admin-service
+**Status**: ⏳ Pending
+
+**Problem**:
+- user-service and tenant-admin-service implement identical authentication
+- user-service is **NOT USED** by any active service
+- Two databases with overlapping schemas (statuspage_user + tenant_admin_db)
+- Doubles maintenance, backup costs, operational complexity
+
+**Solution**: Deprecate user-service, migrate SAML (if needed) to tenant-admin-service
+
+**Implementation Plan**:
+- [x] Verify no active services use user-service (DONE - only api-gateway references it)
+- [x] Compare feature sets (DONE - tenant-admin wins 17-5)
+- [ ] Determine if SAML/SSO feature is required (DECISION NEEDED)
+- [ ] If SAML needed: Migrate SAML code to tenant-admin-service (8 hours)
+- [ ] Mark user-service as DEPRECATED in docs
+- [ ] Stop user-service in all environments
+- [ ] Archive statuspage_user database
+
+**Files to Change**:
+- README.md - Remove user-service
+- SERVICE_CATALOG.md - Remove user-service
+- DATABASE_ARCHITECTURE.md - Remove statuspage_user
+- docker-compose files - Remove user-service
+- If SAML needed: tenant-admin-service (models, services, handlers)
+
+**Estimated Effort**: 15 hours (with SAML), 5 hours (without SAML)
+**Risk**: Low (service is unused)
+**Cost Savings**: ~$100-200/month
+
+---
+
+#### 10. User Service JWT Tokens Too Long
+
+**Priority**: 🟡 P1 (High)
+**Service**: user-service
+**Status**: ⏳ Pending (⚠️ SKIP IF DEPRECATING)
+
+**Problem**:
+- JWT tokens expire in 24 hours (should be 15 minutes)
+- No refresh token implementation
+- Larger attack window if token compromised
+
+**Solution**: Change to 15-minute JWT + 7-day refresh tokens (like tenant-admin-service)
+
+**Note**: ⚠️ **SKIP THIS IF DEPRECATING SERVICE (Issue #9)**
+
+**Estimated Effort**: 6 hours
+**Risk**: Medium
+
+---
+
+#### 11. No Service-to-Service Circuit Breakers
+
+**Priority**: 🟢 P2 (Medium)
+**Service**: user-service
+**Status**: ⏳ Pending (⚠️ NOT NEEDED)
+
+**Problem**:
+- user-service doesn't call other services currently
+- If it did, no circuit breakers configured
+
+**Note**: ⚠️ **NOT NEEDED IF DEPRECATING SERVICE (Issue #9)**
+
+**Estimated Effort**: 1 hour (documentation only)
+**Risk**: Low
 
 ---
 
