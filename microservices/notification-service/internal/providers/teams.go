@@ -10,15 +10,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anupamdutta5/shared-resilience"
 	"go.uber.org/zap"
 )
 
 // TeamsProvider implements notifications via Microsoft Teams webhooks.
 type TeamsProvider struct {
-	webhookURL string
-	enabled    bool
-	httpClient *http.Client
-	logger     *zap.Logger
+	webhookURL    string
+	enabled       bool
+	serviceClient *resilience.ServiceClient
+	logger        *zap.Logger
 }
 
 // TeamsConfig represents Teams configuration.
@@ -67,7 +68,7 @@ type TeamsTarget struct {
 }
 
 // NewTeamsProvider creates a new Microsoft Teams provider.
-func NewTeamsProvider(config map[string]interface{}, logger *zap.Logger) (*TeamsProvider, error) {
+func NewTeamsProvider(config map[string]interface{}, serviceClient *resilience.ServiceClient, logger *zap.Logger) (*TeamsProvider, error) {
 	var teamsConfig TeamsConfig
 	configBytes, err := json.Marshal(config)
 	if err != nil {
@@ -79,12 +80,10 @@ func NewTeamsProvider(config map[string]interface{}, logger *zap.Logger) (*Teams
 	}
 
 	provider := &TeamsProvider{
-		webhookURL: teamsConfig.WebhookURL,
-		enabled:    teamsConfig.Enabled,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-		logger: logger,
+		webhookURL:    teamsConfig.WebhookURL,
+		enabled:       teamsConfig.Enabled,
+		serviceClient: serviceClient,
+		logger:        logger,
 	}
 
 	if err := provider.ValidateConfig(config); err != nil {
@@ -119,22 +118,17 @@ func (p *TeamsProvider) Send(ctx context.Context, request *NotificationRequest) 
 		}, err
 	}
 
-	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, "POST", p.webhookURL, strings.NewReader(string(payload)))
-	if err != nil {
-		return &NotificationResponse{
-			Success: false,
-			Status:  "failed",
-			Error:   fmt.Sprintf("Failed to create request: %v", err),
-			SentAt:  time.Now(),
-		}, err
-	}
+	// Send via ServiceClient with circuit breaker and retries
+	resp, err := p.serviceClient.Call(ctx, resilience.ServiceRequest{
+		ServiceName: "teams-webhook",
+		Method:      "POST",
+		URL:         p.webhookURL,
+		Body:        payload,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+	})
 
-	// Set headers
-	req.Header.Set("Content-Type", "application/json")
-
-	// Send request
-	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return &NotificationResponse{
 			Success: false,
@@ -143,19 +137,8 @@ func (p *TeamsProvider) Send(ctx context.Context, request *NotificationRequest) 
 			SentAt:  time.Now(),
 		}, err
 	}
-	defer resp.Body.Close()
 
-	// Read response
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return &NotificationResponse{
-			Success:      false,
-			Status:       "failed",
-			ResponseCode: resp.StatusCode,
-			Error:        fmt.Sprintf("Failed to read response: %v", err),
-			SentAt:       time.Now(),
-		}, err
-	}
+	body := resp.Body
 
 	response := &NotificationResponse{
 		Success:      resp.StatusCode >= 200 && resp.StatusCode < 300,
