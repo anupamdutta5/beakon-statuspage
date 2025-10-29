@@ -17,16 +17,18 @@ const (
 
 // Publisher handles publishing events to RabbitMQ
 type Publisher struct {
-	conn     *amqp.Connection
-	channel  *amqp.Channel
-	confirms chan amqp.Confirmation
-	logger   *zap.Logger
+	conn                *amqp.Connection
+	channel             *amqp.Channel
+	confirms            chan amqp.Confirmation
+	confirmationTimeout time.Duration // Timeout for waiting for publish confirmations
+	logger              *zap.Logger
 }
 
 // PublisherConfig contains configuration for the publisher
 type PublisherConfig struct {
-	URL    string
-	Logger *zap.Logger
+	URL                 string
+	ConfirmationTimeout time.Duration // Timeout for publish confirmations (default: 2s)
+	Logger              *zap.Logger
 }
 
 // NewPublisher creates a new event publisher
@@ -52,11 +54,18 @@ func NewPublisher(config PublisherConfig) (*Publisher, error) {
 	// Set up confirmation channel
 	confirms := channel.NotifyPublish(make(chan amqp.Confirmation, 1))
 
+	// Use configured timeout, or default to 2 seconds
+	timeout := config.ConfirmationTimeout
+	if timeout == 0 {
+		timeout = 2 * time.Second
+	}
+
 	publisher := &Publisher{
-		conn:     conn,
-		channel:  channel,
-		confirms: confirms,
-		logger:   config.Logger,
+		conn:                conn,
+		channel:             channel,
+		confirms:            confirms,
+		confirmationTimeout: timeout,
+		logger:              config.Logger,
 	}
 
 	// Ensure exchange exists (should already be declared via definitions.json)
@@ -65,7 +74,8 @@ func NewPublisher(config PublisherConfig) (*Publisher, error) {
 		return nil, fmt.Errorf("failed to declare exchange: %w", err)
 	}
 
-	config.Logger.Info("RabbitMQ publisher initialized successfully")
+	config.Logger.Info("RabbitMQ publisher initialized successfully",
+		zap.Duration("confirmation_timeout", timeout))
 	return publisher, nil
 }
 
@@ -121,14 +131,14 @@ func (p *Publisher) PublishTenantEvent(ctx context.Context, event TenantEvent) e
 		return fmt.Errorf("failed to publish message: %w", err)
 	}
 
-	// Wait for confirmation
+	// Wait for confirmation with configurable timeout
 	select {
 	case confirm := <-p.confirms:
 		if !confirm.Ack {
 			return fmt.Errorf("message not acknowledged by broker")
 		}
-	case <-time.After(5 * time.Second):
-		return fmt.Errorf("timeout waiting for publish confirmation")
+	case <-time.After(p.confirmationTimeout):
+		return fmt.Errorf("timeout waiting for publish confirmation after %v", p.confirmationTimeout)
 	case <-ctx.Done():
 		return ctx.Err()
 	}

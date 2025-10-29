@@ -461,9 +461,24 @@ func main() {
 	rabbitmqURL := fmt.Sprintf("amqp://%s:%s@%s:%s%s",
 		rabbitmqUser, rabbitmqPassword, rabbitmqHost, rabbitmqPort, rabbitmqVHost)
 
+	// Configure RabbitMQ confirmation timeout (default 2s, configurable via env)
+	confirmTimeout := 2 * time.Second
+	if timeoutStr := os.Getenv("RABBITMQ_CONFIRMATION_TIMEOUT"); timeoutStr != "" {
+		if duration, err := time.ParseDuration(timeoutStr); err == nil {
+			confirmTimeout = duration
+			logger.Info("Using custom RabbitMQ confirmation timeout",
+				zap.Duration("timeout", duration))
+		} else {
+			logger.Warn("Invalid RABBITMQ_CONFIRMATION_TIMEOUT, using default 2s",
+				zap.String("invalid_value", timeoutStr),
+				zap.Error(err))
+		}
+	}
+
 	eventPublisher, err := events.NewPublisher(events.PublisherConfig{
-		URL:    rabbitmqURL,
-		Logger: logger,
+		URL:                 rabbitmqURL,
+		ConfirmationTimeout: confirmTimeout,
+		Logger:              logger,
 	})
 	if err != nil {
 		logger.Warn("Failed to initialize RabbitMQ publisher, event publishing will be disabled",

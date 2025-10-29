@@ -15,6 +15,7 @@ import (
 type TenantServiceInterface interface {
 	CreateAdminUser(ctx context.Context, tenantID uuid.UUID, email, password string) error
 	CreateTenant(tenant *models.Tenant) error
+	CreateTenantWithAdmin(ctx context.Context, tenant *models.Tenant, adminEmail, adminPassword string) error
 }
 
 // RabbitMQTenantEventHandler handles tenant lifecycle events
@@ -54,16 +55,7 @@ func (h *RabbitMQTenantEventHandler) HandleTenantCreated(ctx context.Context, ev
 	// Convert event data to tenant model
 	tenant := h.eventDataToTenant(event.Data)
 
-	// Create tenant in database
-	if err := h.db.Create(&tenant).Error; err != nil {
-		return fmt.Errorf("failed to create tenant: %w", err)
-	}
-
-	h.logger.Info("Successfully created tenant from event",
-		zap.String("tenant_id", tenant.ID.String()),
-		zap.String("tenant_name", tenant.Name))
-
-	// Create admin user if credentials are provided in the event
+	// Create tenant with admin user atomically if credentials are provided
 	if event.Data.AdminEmail != nil && *event.Data.AdminEmail != "" {
 		// Use provided password or generate a secure one
 		password := ""
@@ -73,25 +65,35 @@ func (h *RabbitMQTenantEventHandler) HandleTenantCreated(ctx context.Context, ev
 			// Generate a secure random password (UUID-based)
 			password = uuid.New().String()
 			h.logger.Info("No password provided, auto-generating secure password for admin user",
-				zap.String("tenant_id", tenant.ID.String()),
+				zap.String("tenant_name", tenant.Name),
 				zap.String("email", *event.Data.AdminEmail))
 		}
 
-		// Use service layer to create admin user (proper business logic separation)
-		if err := h.tenantService.CreateAdminUser(ctx, tenant.ID, *event.Data.AdminEmail, password); err != nil {
-			h.logger.Error("Failed to create admin user for tenant",
-				zap.String("tenant_id", tenant.ID.String()),
+		// Use atomic transaction to create both tenant and admin user
+		// This ensures both succeed or both fail (no orphaned tenants)
+		if err := h.tenantService.CreateTenantWithAdmin(ctx, &tenant, *event.Data.AdminEmail, password); err != nil {
+			h.logger.Error("Failed to create tenant and admin user (atomic operation)",
+				zap.String("tenant_name", tenant.Name),
 				zap.String("admin_email", *event.Data.AdminEmail),
 				zap.Error(err))
 			// Return error so message gets requeued
-			return fmt.Errorf("failed to create admin user: %w", err)
+			return fmt.Errorf("failed to create tenant with admin: %w", err)
 		}
-		h.logger.Info("Successfully created admin user from event",
+
+		h.logger.Info("Successfully created tenant and admin user (atomic operation)",
 			zap.String("tenant_id", tenant.ID.String()),
+			zap.String("tenant_name", tenant.Name),
 			zap.String("admin_email", *event.Data.AdminEmail))
 	} else {
-		h.logger.Warn("No admin email provided in event, skipping admin user creation",
-			zap.String("tenant_id", tenant.ID.String()))
+		// No admin credentials - create tenant only
+		// This path is used for reconciliation or special cases
+		if err := h.db.Create(&tenant).Error; err != nil {
+			return fmt.Errorf("failed to create tenant: %w", err)
+		}
+
+		h.logger.Info("Successfully created tenant from event (no admin user)",
+			zap.String("tenant_id", tenant.ID.String()),
+			zap.String("tenant_name", tenant.Name))
 	}
 
 	return nil

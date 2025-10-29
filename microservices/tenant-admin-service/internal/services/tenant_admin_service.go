@@ -865,6 +865,178 @@ func (s *TenantAdminService) CreateAdminUser(ctx context.Context, tenantID uuid.
 	return nil
 }
 
+// CreateTenantWithAdmin creates a tenant and admin user in a single atomic transaction
+// This ensures both operations succeed or both fail (no orphaned tenants without admin users)
+func (s *TenantAdminService) CreateTenantWithAdmin(ctx context.Context, tenant *models.Tenant, adminEmail, adminPassword string) error {
+	if s.db == nil {
+		return fmt.Errorf("database not initialized")
+	}
+
+	// Begin database transaction
+	tx := s.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		s.logger.Error("Failed to begin transaction", zap.Error(tx.Error))
+		return fmt.Errorf("failed to begin transaction: %w", tx.Error)
+	}
+
+	// Defer rollback in case of error
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			s.logger.Error("Transaction panic, rolled back", zap.Any("panic", r))
+		}
+	}()
+
+	// Create tenant using transaction
+	// Generate slug if not provided
+	if tenant.Slug == "" {
+		tenant.Slug = s.generateSlug(tenant.Name)
+	}
+
+	// Ensure slug is unique (within transaction)
+	originalSlug := tenant.Slug
+	counter := 1
+	for {
+		var existing models.Tenant
+		if err := tx.Where("slug = ?", tenant.Slug).First(&existing).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				break // Slug is unique
+			}
+			tx.Rollback()
+			s.logger.Error("Failed to check slug uniqueness", zap.Error(err))
+			return fmt.Errorf("failed to check slug uniqueness: %w", err)
+		}
+		tenant.Slug = fmt.Sprintf("%s-%d", originalSlug, counter)
+		counter++
+	}
+
+	// Set default values
+	if tenant.Status == "" {
+		tenant.Status = "active"
+	}
+
+	// Create tenant
+	if err := tx.Create(tenant).Error; err != nil {
+		tx.Rollback()
+		s.logger.Error("Failed to create tenant in transaction", zap.Error(err))
+		return fmt.Errorf("failed to create tenant: %w", err)
+	}
+
+	s.logger.Info("Tenant created in transaction",
+		zap.String("tenant_id", tenant.ID.String()),
+		zap.String("slug", tenant.Slug))
+
+	// Create admin user (within same transaction)
+	// Hash the password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
+	if err != nil {
+		tx.Rollback()
+		s.logger.Error("Failed to hash password", zap.Error(err))
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// Create user record
+	user := &models.User{
+		Email:        adminEmail,
+		PasswordHash: string(hashedPassword),
+		TenantID:     tenant.ID,
+		Role:         "owner",
+		IsActive:     true,
+	}
+
+	if err := tx.Create(user).Error; err != nil {
+		tx.Rollback()
+		s.logger.Error("Failed to create admin user in transaction", zap.Error(err))
+		return fmt.Errorf("failed to create admin user: %w", err)
+	}
+
+	s.logger.Info("Admin user created in transaction",
+		zap.String("user_id", user.ID.String()),
+		zap.String("email", adminEmail))
+
+	// Link user to tenant via tenant_admins table
+	tenantAdmin := &models.TenantAdmin{
+		TenantID: tenant.ID,
+		UserID:   user.ID,
+		Role:     "owner",
+		Status:   "active",
+	}
+
+	if err := tx.Create(tenantAdmin).Error; err != nil {
+		tx.Rollback()
+		s.logger.Error("Failed to create tenant admin relationship in transaction", zap.Error(err))
+		return fmt.Errorf("failed to create tenant admin: %w", err)
+	}
+
+	// Create default settings (within transaction)
+	settings := &models.TenantSettings{
+		TenantID: tenant.ID,
+		Settings: `{
+			"timezone": "UTC",
+			"language": "en",
+			"date_format": "YYYY-MM-DD",
+			"time_format": "24h",
+			"email_notifications": true,
+			"sms_notifications": false,
+			"show_incident_history": true,
+			"show_maintenance_mode": true,
+			"require_auth": false,
+			"allow_public_access": true,
+			"session_timeout": 30,
+			"api_rate_limit": 1000,
+			"api_key_required": false
+		}`,
+		Version: "1.0.0",
+		Status:  "active",
+	}
+
+	if err := tx.Create(settings).Error; err != nil {
+		tx.Rollback()
+		s.logger.Error("Failed to create tenant settings in transaction", zap.Error(err))
+		return fmt.Errorf("failed to create tenant settings: %w", err)
+	}
+
+	// Create default billing (within transaction)
+	now := time.Now()
+	trialEnd := now.AddDate(0, 0, 14) // 14-day trial
+	nextBilling := now.AddDate(0, 1, 0)
+	periodEnd := now.AddDate(0, 1, 0)
+
+	billing := &models.TenantBilling{
+		TenantID:           tenant.ID,
+		PlanName:           "free",
+		BillingCycle:       "monthly",
+		Amount:             0.0,
+		Currency:           "USD",
+		NextBillingDate:    &nextBilling,
+		Status:             "active",
+		IsTrialActive:      true,
+		TrialStart:         &now,
+		TrialEnd:           &trialEnd,
+		CurrentPeriodStart: &now,
+		CurrentPeriodEnd:   &periodEnd,
+	}
+
+	if err := tx.Create(billing).Error; err != nil {
+		tx.Rollback()
+		s.logger.Error("Failed to create tenant billing in transaction", zap.Error(err))
+		return fmt.Errorf("failed to create tenant billing: %w", err)
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		s.logger.Error("Failed to commit transaction", zap.Error(err))
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	s.logger.Info("Tenant and admin user created successfully (atomic operation)",
+		zap.String("tenant_id", tenant.ID.String()),
+		zap.String("admin_email", adminEmail),
+		zap.String("user_id", user.ID.String()))
+
+	return nil
+}
+
 // AuthenticateUser authenticates a user by email and password
 func (s *TenantAdminService) AuthenticateUser(ctx context.Context, email, password string) (*models.User, error) {
 	if s.db == nil {
