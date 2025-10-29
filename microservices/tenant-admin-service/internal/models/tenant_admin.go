@@ -315,6 +315,11 @@ type User struct {
 	Role         string         `gorm:"type:varchar(50);default:admin" json:"role"`
 	IsActive     bool           `gorm:"default:true" json:"is_active"`
 	LastLoginAt  *time.Time     `json:"last_login_at"`
+
+	// SSO/SAML fields (migrated from user-service)
+	AuthMethod    string     `gorm:"default:password" json:"auth_method"` // password, saml, oauth, oidc
+	SSOProviderID *uuid.UUID `gorm:"type:uuid;index" json:"sso_provider_id,omitempty"`
+	IsSSOUser     bool       `gorm:"default:false" json:"is_sso_user"`
 }
 
 // TableName returns the table name for User.
