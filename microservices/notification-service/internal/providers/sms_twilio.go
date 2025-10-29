@@ -11,17 +11,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anupamdutta5/shared-resilience"
 	"go.uber.org/zap"
 )
 
 // TwilioSMSProvider implements SMS notifications using Twilio.
 type TwilioSMSProvider struct {
-	accountSID   string
-	authToken    string
-	fromNumber   string
-	enabled      bool
-	httpClient   *http.Client
-	logger       *zap.Logger
+	accountSID    string
+	authToken     string
+	fromNumber    string
+	enabled       bool
+	serviceClient *resilience.ServiceClient
+	logger        *zap.Logger
 }
 
 // TwilioConfig represents Twilio configuration.
@@ -33,7 +34,7 @@ type TwilioConfig struct {
 }
 
 // NewTwilioSMSProvider creates a new Twilio SMS provider.
-func NewTwilioSMSProvider(config map[string]interface{}, logger *zap.Logger) (*TwilioSMSProvider, error) {
+func NewTwilioSMSProvider(config map[string]interface{}, serviceClient *resilience.ServiceClient, logger *zap.Logger) (*TwilioSMSProvider, error) {
 	var twilioConfig TwilioConfig
 	configBytes, err := json.Marshal(config)
 	if err != nil {
@@ -45,14 +46,12 @@ func NewTwilioSMSProvider(config map[string]interface{}, logger *zap.Logger) (*T
 	}
 
 	provider := &TwilioSMSProvider{
-		accountSID: twilioConfig.AccountSID,
-		authToken:  twilioConfig.AuthToken,
-		fromNumber: twilioConfig.FromNumber,
-		enabled:    twilioConfig.Enabled,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-		logger: logger,
+		accountSID:    twilioConfig.AccountSID,
+		authToken:     twilioConfig.AuthToken,
+		fromNumber:    twilioConfig.FromNumber,
+		enabled:       twilioConfig.Enabled,
+		serviceClient: serviceClient,
+		logger:        logger,
 	}
 
 	if err := provider.ValidateConfig(config); err != nil {
@@ -79,24 +78,24 @@ func (p *TwilioSMSProvider) Send(ctx context.Context, request *NotificationReque
 	data.Set("To", request.Recipient)
 	data.Set("Body", request.Content)
 
-	// Create HTTP request
+	// Build Twilio API URL
 	twilioURL := fmt.Sprintf("https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json", p.accountSID)
-	req, err := http.NewRequestWithContext(ctx, "POST", twilioURL, strings.NewReader(data.Encode()))
-	if err != nil {
-		return &NotificationResponse{
-			Success: false,
-			Status:  "failed",
-			Error:   fmt.Sprintf("Failed to create request: %v", err),
-			SentAt:  time.Now(),
-		}, err
-	}
 
-	// Set headers
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.SetBasicAuth(p.accountSID, p.authToken)
+	// Prepare auth header (Basic Auth)
+	authHeader := "Basic " + resilience.BasicAuth(p.accountSID, p.authToken)
 
-	// Send request
-	resp, err := p.httpClient.Do(req)
+	// Send via ServiceClient with circuit breaker
+	resp, err := p.serviceClient.Call(ctx, resilience.ServiceRequest{
+		ServiceName: "twilio-api",
+		Method:      "POST",
+		URL:         twilioURL,
+		Body:        []byte(data.Encode()),
+		Headers: map[string]string{
+			"Content-Type":  "application/x-www-form-urlencoded",
+			"Authorization": authHeader,
+		},
+	})
+
 	if err != nil {
 		return &NotificationResponse{
 			Success: false,
@@ -105,19 +104,8 @@ func (p *TwilioSMSProvider) Send(ctx context.Context, request *NotificationReque
 			SentAt:  time.Now(),
 		}, err
 	}
-	defer resp.Body.Close()
 
-	// Read response
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return &NotificationResponse{
-			Success:      false,
-			Status:       "failed",
-			ResponseCode: resp.StatusCode,
-			Error:        fmt.Sprintf("Failed to read response: %v", err),
-			SentAt:       time.Now(),
-		}, err
-	}
+	body := resp.Body
 
 	// Parse response
 	var twilioResp map[string]interface{}
