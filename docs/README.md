@@ -27,7 +27,7 @@ docs/
 └── summaries/                   # Session summaries and reports
     ├── SESSION_SUMMARY_2025-10-29_SAML_MIGRATION.md
     └── archived/                # Historical summaries
-        └── (82 historical files)
+        └── (20 historical files)
 ```
 
 ## Quick Links

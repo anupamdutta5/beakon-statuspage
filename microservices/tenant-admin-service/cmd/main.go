@@ -270,6 +270,21 @@ func main() {
 	subscriberHandler := handlers.NewSubscriberHandler(subscriberService, logger)
 	dependencyHandler := handlers.NewDependencyHandler(dependencyService)
 
+	// Initialize SAML/SSO service for enterprise authentication
+	samlBaseURL := os.Getenv("SAML_BASE_URL")
+	if samlBaseURL == "" {
+		samlBaseURL = fmt.Sprintf("http://localhost:%d", resilienceConfig.Server.Port)
+	}
+
+	samlService := services.NewSAMLService(db, tenantAdminService, logger, &services.SAMLConfig{
+		BaseURL: samlBaseURL,
+	})
+
+	samlHandler := handlers.NewSAMLHandler(samlService, tenantAdminService, logger)
+
+	logger.Info("SAML/SSO service initialized",
+		zap.String("base_url", samlBaseURL))
+
 	// Initialize RabbitMQ event consumer for tenant sync
 	// Use GetRabbitMQURL() from config instead of hardcoded credentials
 	rabbitmqURL := localConfig.GetRabbitMQURL()
@@ -302,7 +317,7 @@ func main() {
 	}
 
 	// Setup routes with improved structure
-	setupModernizedRoutes(router, tenantAdminHandler, domainHandler, rbacHandler, userHandler, componentHandler, incidentHandler, subscriberHandler, dependencyHandler, rbacService, logger, resilienceConfig)
+	setupModernizedRoutes(router, tenantAdminHandler, domainHandler, rbacHandler, userHandler, componentHandler, incidentHandler, subscriberHandler, dependencyHandler, samlHandler, rbacService, logger, resilienceConfig)
 
 	// Create HTTP server with proper timeouts and configuration
 	server := &http.Server{
@@ -445,7 +460,7 @@ func ensureDatabaseExists(config resilience.DatabaseConfig, logger *zap.Logger) 
 }
 
 // setupModernizedRoutes configures all the routes with improved structure and security
-func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdminHandler, domainHandler *handlers.DomainHandler, rbacHandler *handlers.RBACHandler, userHandler *handlers.UserHandler, componentHandler *handlers.ComponentHandler, incidentHandler *handlers.IncidentHandler, subscriberHandler *handlers.SubscriberHandler, dependencyHandler *handlers.DependencyHandler, rbacService *services.RBACService, logger *zap.Logger, config *resilience.Config) {
+func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdminHandler, domainHandler *handlers.DomainHandler, rbacHandler *handlers.RBACHandler, userHandler *handlers.UserHandler, componentHandler *handlers.ComponentHandler, incidentHandler *handlers.IncidentHandler, subscriberHandler *handlers.SubscriberHandler, dependencyHandler *handlers.DependencyHandler, samlHandler *handlers.SAMLHandler, rbacService *services.RBACService, logger *zap.Logger, config *resilience.Config) {
 	// Health check endpoints (excluded from auth and rate limiting)
 	router.GET("/health", tenantHandler.HealthCheck)
 	router.GET("/health/ready", tenantHandler.HealthCheck)
@@ -454,6 +469,15 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 	// API routes with versioning
 	api := router.Group("/api/v1")
 	{
+		// SAML/SSO public endpoints (no authentication required)
+		saml := api.Group("/saml")
+		{
+			saml.POST("/login", samlHandler.InitiateLogin)                // Initiate SAML login
+			saml.POST("/acs", samlHandler.AssertionConsumerService)       // Assertion Consumer Service
+			saml.GET("/metadata", samlHandler.GetMetadata)                // SP metadata for IdP configuration
+			saml.POST("/logout", samlHandler.SingleLogout)                // Single Logout
+		}
+
 		// Auth routes (public, no authentication required)
 		auth := api.Group("/auth")
 		{
@@ -674,6 +698,16 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 				notifications.GET("/:id", tenantHandler.GetTenantNotification)
 				notifications.PUT("/:id", tenantHandler.UpdateTenantNotification)
 				notifications.DELETE("/:id", tenantHandler.DeleteTenantNotification)
+			}
+
+			// SSO/SAML admin routes (protected - admin only)
+			sso := protected.Group("/sso")
+			{
+				sso.GET("/providers", samlHandler.ListProviders)          // List SSO providers for tenant
+				sso.GET("/providers/:id", samlHandler.GetProvider)        // Get provider details
+				sso.POST("/providers", samlHandler.CreateProvider)        // Create new SSO provider
+				sso.PUT("/providers/:id", samlHandler.UpdateProvider)     // Update SSO provider
+				sso.DELETE("/providers/:id", samlHandler.DeleteProvider)  // Delete SSO provider
 			}
 
 			// Activity and backup routes
