@@ -66,6 +66,10 @@ func main() {
 		router.Use(mw)
 	}
 
+	// Initialize ServiceClient for external API calls with circuit breakers
+	serviceClient := resilience.NewServiceClient("configs/service-endpoints.yml", logger)
+	logger.Info("ServiceClient initialized with circuit breakers for external integrations")
+
 	// Initialize notification service and handlers
 	notificationService := services.NewNotificationService(dbManager.GetDB(), logger)
 	enhancedNotificationService := services.NewEnhancedNotificationService(dbManager.GetDB(), logger)
