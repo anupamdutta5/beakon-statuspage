@@ -20,19 +20,13 @@ type IncidentService struct {
 
 // NewIncidentService creates a new incident service.
 func NewIncidentService(db *gorm.DB, logger *zap.Logger) *IncidentService {
-	// Auto-migrate models for incident service
-	if err := db.AutoMigrate(
-		&models.Incident{},
-		&models.IncidentComponent{},
-		&models.IncidentUpdate{},
-		&models.IncidentTemplate{},
-		&models.IncidentNotification{},
-		&models.IncidentMetric{},
-	); err != nil {
-		logger.Error("Failed to migrate incident service database", zap.Error(err))
-	} else {
-		logger.Info("Incident service database migration completed successfully")
-	}
+	// NOTE: Database migrations are managed by Atlas (see migrations/ directory and atlas.hcl)
+	// Run migrations before starting the service:
+	//   cd microservices/incident-service
+	//   atlas migrate apply --env dev
+	//
+	// AutoMigrate is NOT used in this project as per best practices documented in CLAUDE.md
+	// All schema changes must be tracked in version-controlled migration files
 
 	return &IncidentService{
 		db:     db,
@@ -417,18 +411,13 @@ func InitDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Auto-migrate models
-	if err := db.AutoMigrate(
-		&models.Incident{},
-		&models.IncidentComponent{},
-		&models.IncidentUpdate{},
-		&models.IncidentTemplate{},
-		&models.IncidentNotification{},
-		&models.IncidentMetric{},
-		// IncidentSubscriber removed - use notification-service Subscription model
-	); err != nil {
-		return nil, fmt.Errorf("failed to migrate database: %w", err)
-	}
+	// NOTE: Database migrations are managed by Atlas (see migrations/ directory and atlas.hcl)
+	// Run migrations before starting the service:
+	//   cd microservices/incident-service
+	//   atlas migrate apply --env dev
+	//
+	// AutoMigrate is NOT used in this project as per best practices documented in CLAUDE.md
+	// All schema changes must be tracked in version-controlled migration files
 
 	return db, nil
 }

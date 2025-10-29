@@ -20,20 +20,13 @@ type ComponentService struct {
 
 // NewComponentService creates a new component service.
 func NewComponentService(db *gorm.DB, logger *zap.Logger) *ComponentService {
-	// Auto-migrate models for component service
-	if err := db.AutoMigrate(
-		&models.Component{},
-		&models.ComponentGroup{},
-		&models.ComponentStatus{},
-		&models.ComponentHistory{},
-		&models.ComponentMetric{},
-		&models.ComponentAlert{},
-		&models.ComponentWebhook{},
-	); err != nil {
-		logger.Error("Failed to migrate component service database", zap.Error(err))
-	} else {
-		logger.Info("Component service database migration completed successfully")
-	}
+	// NOTE: Database migrations are managed by Atlas (see migrations/ directory and atlas.hcl)
+	// Run migrations before starting the service:
+	//   cd microservices/component-service
+	//   atlas migrate apply --env dev
+	//
+	// AutoMigrate is NOT used in this project as per best practices documented in CLAUDE.md
+	// All schema changes must be tracked in version-controlled migration files
 
 	return &ComponentService{
 		db:     db,
@@ -349,18 +342,13 @@ func InitDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Auto-migrate models
-	if err := db.AutoMigrate(
-		&models.Component{},
-		&models.ComponentGroup{},
-		&models.ComponentStatus{},
-		&models.ComponentHistory{},
-		&models.ComponentMetric{},
-		&models.ComponentAlert{},
-		&models.ComponentWebhook{},
-	); err != nil {
-		return nil, fmt.Errorf("failed to migrate database: %w", err)
-	}
+	// NOTE: Database migrations are managed by Atlas (see migrations/ directory and atlas.hcl)
+	// Run migrations before starting the service:
+	//   cd microservices/component-service
+	//   atlas migrate apply --env dev
+	//
+	// AutoMigrate is NOT used in this project as per best practices documented in CLAUDE.md
+	// All schema changes must be tracked in version-controlled migration files
 
 	return db, nil
 }

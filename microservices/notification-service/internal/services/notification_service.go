@@ -20,20 +20,13 @@ type NotificationService struct {
 
 // NewNotificationService creates a new notification service.
 func NewNotificationService(db *gorm.DB, logger *zap.Logger) *NotificationService {
-	// Auto-migrate models for notification service
-	if err := db.AutoMigrate(
-		&models.Notification{},
-		&models.Template{},
-		&models.Channel{},
-		&models.Subscription{},
-		&models.Delivery{},
-		&models.WebhookEvent{},
-		&models.NotificationLog{},
-	); err != nil {
-		logger.Error("Failed to migrate notification service database", zap.Error(err))
-	} else {
-		logger.Info("Notification service database migration completed successfully")
-	}
+	// NOTE: Database migrations are managed by Atlas (see migrations/ directory and atlas.hcl)
+	// Run migrations before starting the service:
+	//   cd microservices/notification-service
+	//   atlas migrate apply --env dev
+	//
+	// AutoMigrate is NOT used in this project as per best practices documented in CLAUDE.md
+	// All schema changes must be tracked in version-controlled migration files
 
 	return &NotificationService{
 		db:     db,
@@ -637,18 +630,13 @@ func InitDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Auto-migrate models
-	if err := db.AutoMigrate(
-		&models.Notification{},
-		&models.Template{},
-		&models.Channel{},
-		&models.Subscription{},
-		&models.Delivery{},
-		&models.WebhookEvent{},
-		&models.NotificationLog{},
-	); err != nil {
-		return nil, fmt.Errorf("failed to migrate database: %w", err)
-	}
+	// NOTE: Database migrations are managed by Atlas (see migrations/ directory and atlas.hcl)
+	// Run migrations before starting the service:
+	//   cd microservices/notification-service
+	//   atlas migrate apply --env dev
+	//
+	// AutoMigrate is NOT used in this project as per best practices documented in CLAUDE.md
+	// All schema changes must be tracked in version-controlled migration files
 
 	return db, nil
 }
