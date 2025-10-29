@@ -390,7 +390,8 @@ h.service.CreateAdminUser(...)  // ❌ Fails
 
 **Priority**: 🔴 P0 (Critical)
 **Service**: user-service + tenant-admin-service
-**Status**: ⏳ Pending
+**Status**: 🟡 IN PROGRESS (SAML Migration Phase 1/8 Complete)
+**Commit**: 20796a5 (Phase 1)
 
 **Problem**:
 - user-service and tenant-admin-service implement identical authentication
@@ -398,27 +399,64 @@ h.service.CreateAdminUser(...)  // ❌ Fails
 - Two databases with overlapping schemas (statuspage_user + tenant_admin_db)
 - Doubles maintenance, backup costs, operational complexity
 
-**Solution**: Deprecate user-service, migrate SAML (if needed) to tenant-admin-service
+**Solution**: Deprecate user-service, migrate SAML to tenant-admin-service (USER CONFIRMED: SAML IS REQUIRED)
 
-**Implementation Plan**:
-- [x] Verify no active services use user-service (DONE - only api-gateway references it)
-- [x] Compare feature sets (DONE - tenant-admin wins 17-5)
-- [ ] Determine if SAML/SSO feature is required (DECISION NEEDED)
-- [ ] If SAML needed: Migrate SAML code to tenant-admin-service (8 hours)
+**SAML Migration Progress** (20% complete - 1/8 phases):
+
+**Phase 1: SSO Models + User Fields** ✅ COMPLETE (2025-10-29):
+- [x] Created tenant-admin-service/internal/models/sso.go (280 lines)
+- [x] Updated User model with AuthMethod, SSOProviderID, IsSSOUser fields
+- [x] Adapted all models for multi-tenancy (UUID, TenantID)
+- [x] Created SAML_MIGRATION_PLAN.md (comprehensive 8-phase guide)
+
+**Phase 2: SAML Dependency** ⏳ NEXT (30 min):
+- [ ] Add github.com/crewjam/saml@v0.5.1 to go.mod
+- [ ] Run go mod tidy
+- [ ] Verify build
+
+**Phase 3: SAML Service** ⏳ PENDING (2 hours):
+- [ ] Copy saml_service.go from user-service
+- [ ] Adapt for multi-tenancy (tenantID params, scoped queries)
+- [ ] Integrate with TenantAdminService, SessionManager
+
+**Phase 4: SAML Handlers** ⏳ PENDING (2 hours):
+- [ ] Copy saml_handler.go from user-service
+- [ ] Add subdomain extraction logic
+- [ ] Integrate with tenant-admin AuthService
+
+**Phase 5: Database Migrations** ⏳ PENDING (1 hour):
+- [ ] Create 5 migration files (SSO tables)
+- [ ] Apply to tenant_admin_db
+
+**Phase 6: Route Registration** ⏳ PENDING (30 min):
+- [ ] Initialize SAMLService in main.go
+- [ ] Register /saml routes
+
+**Phase 7: Testing** ⏳ PENDING (2 hours):
+- [ ] End-to-end SAML flow testing
+- [ ] JIT provisioning testing
+
+**Phase 8: Documentation** ⏳ PENDING (1 hour):
+- [ ] Update all docs with SAML support
+
+**Deprecation Plan** (after Phase 8):
 - [ ] Mark user-service as DEPRECATED in docs
 - [ ] Stop user-service in all environments
 - [ ] Archive statuspage_user database
 
-**Files to Change**:
-- README.md - Remove user-service
-- SERVICE_CATALOG.md - Remove user-service
-- DATABASE_ARCHITECTURE.md - Remove statuspage_user
-- docker-compose files - Remove user-service
-- If SAML needed: tenant-admin-service (models, services, handlers)
+**Files Changed**:
+- ✅ tenant-admin-service/internal/models/sso.go - CREATED
+- ✅ tenant-admin-service/internal/models/tenant_admin.go - UPDATED
+- ✅ SAML_MIGRATION_PLAN.md - CREATED
 
-**Estimated Effort**: 15 hours (with SAML), 5 hours (without SAML)
-**Risk**: Low (service is unused)
-**Cost Savings**: ~$100-200/month
+**Estimated Effort**:
+- Phase 1: ✅ 1 hour (DONE)
+- Phases 2-8: ⏳ 7 hours remaining
+- Deprecation: ⏳ 2 hours
+- **Total**: 10 hours
+
+**Risk**: Medium (complex SAML logic, tenant context required)
+**Cost Savings**: ~$100-200/month (after deprecation)
 
 ---
 
