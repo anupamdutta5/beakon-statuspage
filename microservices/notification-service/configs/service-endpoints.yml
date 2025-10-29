@@ -1,0 +1,102 @@
+# Service Endpoints Configuration for Notification Service
+# Defines external integration endpoints with circuit breaker settings
+
+endpoints:
+  # Slack API
+  slack-api:
+    url: https://slack.com/api
+    timeout: 10s
+    retries: 2
+    circuit_breaker:
+      enabled: true
+      threshold: 10          # Slack can handle more load
+      timeout: 120s          # 2 minutes before retry
+      half_open_requests: 5
+
+  # Microsoft Teams Webhooks
+  teams-webhook:
+    url: ${TEAMS_WEBHOOK_URL}  # Dynamic per integration
+    timeout: 10s
+    retries: 2
+    circuit_breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60s
+      half_open_requests: 3
+
+  # Discord Webhooks
+  discord-webhook:
+    url: https://discord.com/api/webhooks
+    timeout: 10s
+    retries: 2
+    circuit_breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60s
+      half_open_requests: 3
+
+  # Telegram Bot API
+  telegram-api:
+    url: https://api.telegram.org
+    timeout: 10s
+    retries: 2
+    circuit_breaker:
+      enabled: true
+      threshold: 10
+      timeout: 120s
+      half_open_requests: 5
+
+  # PagerDuty Events API
+  pagerduty-api:
+    url: https://events.pagerduty.com/v2
+    timeout: 10s
+    retries: 3
+    circuit_breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60s
+      half_open_requests: 3
+
+  # Twilio SMS API
+  twilio-api:
+    url: https://api.twilio.com
+    timeout: 10s
+    retries: 2
+    circuit_breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60s
+      half_open_requests: 3
+
+  # SendGrid Email API
+  sendgrid-api:
+    url: https://api.sendgrid.com/v3
+    timeout: 15s
+    retries: 2
+    circuit_breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60s
+      half_open_requests: 3
+
+  # Generic Webhooks (user-configured)
+  webhook:
+    url: ${WEBHOOK_URL}  # Dynamic per webhook
+    timeout: 15s
+    retries: 1  # Don't retry user webhooks too much
+    circuit_breaker:
+      enabled: true
+      threshold: 3          # Fail faster for user endpoints
+      timeout: 30s
+      half_open_requests: 2
+
+  # Push Notification Service (if separate)
+  push-service:
+    url: ${PUSH_SERVICE_URL:-http://push-service:8094}
+    timeout: 5s
+    retries: 2
+    circuit_breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60s
+      half_open_requests: 3
