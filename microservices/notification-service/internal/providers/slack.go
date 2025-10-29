@@ -2,6 +2,7 @@
 package providers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,18 +11,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anupamdutta5/shared-resilience"
 	"go.uber.org/zap"
 )
 
 // SlackProvider implements notifications via Slack webhooks.
 type SlackProvider struct {
-	webhookURL  string
-	channel     string
-	username    string
-	iconEmoji   string
-	enabled     bool
-	httpClient  *http.Client
-	logger      *zap.Logger
+	webhookURL    string
+	channel       string
+	username      string
+	iconEmoji     string
+	enabled       bool
+	serviceClient *resilience.ServiceClient
+	logger        *zap.Logger
 }
 
 // SlackConfig represents Slack configuration.
@@ -75,7 +77,7 @@ type SlackBlock struct {
 }
 
 // NewSlackProvider creates a new Slack provider.
-func NewSlackProvider(config map[string]interface{}, logger *zap.Logger) (*SlackProvider, error) {
+func NewSlackProvider(config map[string]interface{}, serviceClient *resilience.ServiceClient, logger *zap.Logger) (*SlackProvider, error) {
 	var slackConfig SlackConfig
 	configBytes, err := json.Marshal(config)
 	if err != nil {
@@ -87,15 +89,13 @@ func NewSlackProvider(config map[string]interface{}, logger *zap.Logger) (*Slack
 	}
 
 	provider := &SlackProvider{
-		webhookURL: slackConfig.WebhookURL,
-		channel:    slackConfig.Channel,
-		username:   slackConfig.Username,
-		iconEmoji:  slackConfig.IconEmoji,
-		enabled:    slackConfig.Enabled,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-		logger: logger,
+		webhookURL:    slackConfig.WebhookURL,
+		channel:       slackConfig.Channel,
+		username:      slackConfig.Username,
+		iconEmoji:     slackConfig.IconEmoji,
+		enabled:       slackConfig.Enabled,
+		serviceClient: serviceClient,
+		logger:        logger,
 	}
 
 	if err := provider.ValidateConfig(config); err != nil {
@@ -130,22 +130,17 @@ func (p *SlackProvider) Send(ctx context.Context, request *NotificationRequest) 
 		}, err
 	}
 
-	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, "POST", p.webhookURL, strings.NewReader(string(payload)))
-	if err != nil {
-		return &NotificationResponse{
-			Success: false,
-			Status:  "failed",
-			Error:   fmt.Sprintf("Failed to create request: %v", err),
-			SentAt:  time.Now(),
-		}, err
-	}
+	// Send via ServiceClient with circuit breaker and retries
+	resp, err := p.serviceClient.Call(ctx, resilience.ServiceRequest{
+		ServiceName: "slack-api",
+		Method:      "POST",
+		URL:         p.webhookURL,
+		Body:        payload,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+	})
 
-	// Set headers
-	req.Header.Set("Content-Type", "application/json")
-
-	// Send request
-	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return &NotificationResponse{
 			Success: false,
@@ -154,19 +149,8 @@ func (p *SlackProvider) Send(ctx context.Context, request *NotificationRequest) 
 			SentAt:  time.Now(),
 		}, err
 	}
-	defer resp.Body.Close()
 
-	// Read response
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return &NotificationResponse{
-			Success:      false,
-			Status:       "failed",
-			ResponseCode: resp.StatusCode,
-			Error:        fmt.Sprintf("Failed to read response: %v", err),
-			SentAt:       time.Now(),
-		}, err
-	}
+	body := resp.Body
 
 	response := &NotificationResponse{
 		Success:      resp.StatusCode >= 200 && resp.StatusCode < 300,
