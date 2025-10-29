@@ -945,7 +945,7 @@ func (s *SaaSAdminService) ValidatePricingPlan(ctx context.Context, plan *models
 
 	// Return all validation errors if any
 	if len(errors) > 0 {
-		return fmt.Errorf(strings.Join(errors, "; "))
+		return fmt.Errorf("%s", strings.Join(errors, "; "))
 	}
 
 	s.logger.Info("Pricing plan validation successful", zap.String("plan_name", plan.Name))
@@ -974,7 +974,7 @@ func (s *SaaSAdminService) SyncPricingToLandingPage(ctx context.Context) error {
 // initDatabase initializes the database connection.
 // This is kept for backward compatibility and testing purposes.
 func initDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
 		cfg.Host,
 		cfg.User,
 		cfg.Password,

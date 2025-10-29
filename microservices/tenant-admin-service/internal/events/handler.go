@@ -5,21 +5,31 @@ import (
 	"fmt"
 
 	"github.com/anupamdutta5/tenant-admin-service/internal/models"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
+// TenantServiceInterface defines the methods needed from TenantAdminService
+// This interface allows proper dependency injection and testing
+type TenantServiceInterface interface {
+	CreateAdminUser(ctx context.Context, tenantID uuid.UUID, email, password string) error
+	CreateTenant(tenant *models.Tenant) error
+}
+
 // RabbitMQTenantEventHandler handles tenant lifecycle events
 type RabbitMQTenantEventHandler struct {
-	db     *gorm.DB
-	logger *zap.Logger
+	db            *gorm.DB
+	tenantService TenantServiceInterface
+	logger        *zap.Logger
 }
 
 // NewRabbitMQTenantEventHandler creates a new tenant event handler
-func NewRabbitMQTenantEventHandler(db *gorm.DB, logger *zap.Logger) *RabbitMQTenantEventHandler {
+func NewRabbitMQTenantEventHandler(db *gorm.DB, tenantService TenantServiceInterface, logger *zap.Logger) *RabbitMQTenantEventHandler {
 	return &RabbitMQTenantEventHandler{
-		db:     db,
-		logger: logger,
+		db:            db,
+		tenantService: tenantService,
+		logger:        logger,
 	}
 }
 
@@ -52,6 +62,37 @@ func (h *RabbitMQTenantEventHandler) HandleTenantCreated(ctx context.Context, ev
 	h.logger.Info("Successfully created tenant from event",
 		zap.String("tenant_id", tenant.ID.String()),
 		zap.String("tenant_name", tenant.Name))
+
+	// Create admin user if credentials are provided in the event
+	if event.Data.AdminEmail != nil && *event.Data.AdminEmail != "" {
+		// Use provided password or generate a secure one
+		password := ""
+		if event.Data.AdminPassword != nil && *event.Data.AdminPassword != "" {
+			password = *event.Data.AdminPassword
+		} else {
+			// Generate a secure random password (UUID-based)
+			password = uuid.New().String()
+			h.logger.Info("No password provided, auto-generating secure password for admin user",
+				zap.String("tenant_id", tenant.ID.String()),
+				zap.String("email", *event.Data.AdminEmail))
+		}
+
+		// Use service layer to create admin user (proper business logic separation)
+		if err := h.tenantService.CreateAdminUser(ctx, tenant.ID, *event.Data.AdminEmail, password); err != nil {
+			h.logger.Error("Failed to create admin user for tenant",
+				zap.String("tenant_id", tenant.ID.String()),
+				zap.String("admin_email", *event.Data.AdminEmail),
+				zap.Error(err))
+			// Return error so message gets requeued
+			return fmt.Errorf("failed to create admin user: %w", err)
+		}
+		h.logger.Info("Successfully created admin user from event",
+			zap.String("tenant_id", tenant.ID.String()),
+			zap.String("admin_email", *event.Data.AdminEmail))
+	} else {
+		h.logger.Warn("No admin email provided in event, skipping admin user creation",
+			zap.String("tenant_id", tenant.ID.String()))
+	}
 
 	return nil
 }

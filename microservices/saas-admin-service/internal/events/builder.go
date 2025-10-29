@@ -8,13 +8,14 @@ import (
 )
 
 // NewTenantCreatedEvent creates a new tenant created event from SaaSTenant
-func NewTenantCreatedEvent(tenant *models.SaaSTenant, metadata EventMetadata) TenantEvent {
+// adminEmail and adminPassword are optional - if provided, tenant-admin-service will create admin user
+func NewTenantCreatedEvent(tenant *models.SaaSTenant, metadata EventMetadata, adminEmail, adminPassword string) TenantEvent {
 	return TenantEvent{
 		EventID:   uuid.New().String(),
 		EventType: TenantCreated,
 		TenantID:  tenant.ID,
 		Timestamp: time.Now().UTC(),
-		Data:      saasTenantToData(tenant),
+		Data:      saasTenantToDataWithAdmin(tenant, adminEmail, adminPassword),
 		Metadata:  metadata,
 	}
 }
@@ -57,6 +58,11 @@ func NewTenantRestoredEvent(tenant *models.SaaSTenant, metadata EventMetadata) T
 
 // saasTenantToData converts a SaaSTenant model to TenantData event data
 func saasTenantToData(tenant *models.SaaSTenant) TenantData {
+	return saasTenantToDataWithAdmin(tenant, "", "")
+}
+
+// saasTenantToDataWithAdmin converts a SaaSTenant model to TenantData event data with admin credentials
+func saasTenantToDataWithAdmin(tenant *models.SaaSTenant, adminEmail, adminPassword string) TenantData {
 	// Convert string fields to pointers for optional fields
 	var domain, subdomain, billingEmail, settings, branding, features *string
 
@@ -91,23 +97,34 @@ func saasTenantToData(tenant *models.SaaSTenant) TenantData {
 		deletedAt = &tenant.DeletedAt.Time
 	}
 
+	// Convert admin credentials to pointers
+	var adminEmailPtr, adminPasswordPtr *string
+	if adminEmail != "" {
+		adminEmailPtr = &adminEmail
+	}
+	if adminPassword != "" {
+		adminPasswordPtr = &adminPassword
+	}
+
 	return TenantData{
-		ID:           tenant.ID,
-		Name:         tenant.Name,
-		Slug:         tenant.Slug,
-		Domain:       domain,
-		Subdomain:    subdomain,
-		ContactEmail: tenant.ContactEmail,
-		BillingEmail: billingEmail,
-		PlanID:       tenant.PlanID,
-		Status:       tenant.Status,
-		MaxUsers:     maxUsers,
-		Settings:     settings,
-		Branding:     branding,
-		Features:     features,
-		IsActive:     tenant.IsActive,
-		CreatedAt:    tenant.CreatedAt,
-		UpdatedAt:    tenant.UpdatedAt,
-		DeletedAt:    deletedAt,
+		ID:            tenant.ID,
+		Name:          tenant.Name,
+		Slug:          tenant.Slug,
+		Domain:        domain,
+		Subdomain:     subdomain,
+		ContactEmail:  tenant.ContactEmail,
+		BillingEmail:  billingEmail,
+		PlanID:        tenant.PlanID,
+		Status:        tenant.Status,
+		MaxUsers:      maxUsers,
+		Settings:      settings,
+		Branding:      branding,
+		Features:      features,
+		IsActive:      tenant.IsActive,
+		CreatedAt:     tenant.CreatedAt,
+		UpdatedAt:     tenant.UpdatedAt,
+		DeletedAt:     deletedAt,
+		AdminEmail:    adminEmailPtr,
+		AdminPassword: adminPasswordPtr,
 	}
 }

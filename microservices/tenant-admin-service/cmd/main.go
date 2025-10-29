@@ -301,8 +301,8 @@ func main() {
 	// Use GetRabbitMQURL() from config instead of hardcoded credentials
 	rabbitmqURL := localConfig.GetRabbitMQURL()
 
-	// Create event handler
-	eventHandler := events.NewRabbitMQTenantEventHandler(dbManager.GetDB(), logger)
+	// Create event handler with proper service injection (best practice)
+	eventHandler := events.NewRabbitMQTenantEventHandler(dbManager.GetDB(), tenantAdminService, logger)
 
 	// Create consumer
 	eventConsumer, err := events.NewConsumer(events.ConsumerConfig{

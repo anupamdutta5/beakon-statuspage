@@ -1322,7 +1322,8 @@ func (h *SaaSAdminHandler) CreateTenant(c *gin.Context) {
 			UserAgent:     c.Request.UserAgent(),
 		}
 
-		event := events.NewTenantCreatedEvent(tenant, metadata)
+		// Include admin credentials in event so tenant-admin-service can create admin user
+		event := events.NewTenantCreatedEvent(tenant, metadata, req.AdminEmail, req.AdminPassword)
 		if err := h.eventPublisher.PublishTenantEvent(c.Request.Context(), event); err != nil {
 			h.logger.Error("Failed to publish tenant created event",
 				zap.Error(err),
@@ -1330,9 +1331,10 @@ func (h *SaaSAdminHandler) CreateTenant(c *gin.Context) {
 			// Log but don't fail - tenant is already created in saas_admin
 			// The tenant-admin service will need to be synced manually or via retry mechanism
 		} else {
-			h.logger.Info("Published tenant created event",
+			h.logger.Info("Published tenant created event with admin credentials",
 				zap.String("event_id", event.EventID),
-				zap.String("tenant_id", tenant.ID.String()))
+				zap.String("tenant_id", tenant.ID.String()),
+				zap.String("admin_email", req.AdminEmail))
 		}
 	} else {
 		h.logger.Warn("Event publisher not configured, falling back to HTTP sync")

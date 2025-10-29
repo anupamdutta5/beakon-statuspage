@@ -300,9 +300,9 @@ func (s *ComponentService) ReorderComponents(ctx context.Context, tenantID uuid.
 		if err := tx.Where("id = ? AND tenant_id = ?", componentID, tenantID).First(&component).Error; err != nil {
 			tx.Rollback()
 			if err == gorm.ErrRecordNotFound {
-				return fmt.Errorf("component %d not found", componentID)
+				return fmt.Errorf("component %s not found", componentID)
 			}
-			return fmt.Errorf("failed to get component %d: %w", componentID, err)
+			return fmt.Errorf("failed to get component %s: %w", componentID, err)
 		}
 
 		if err := tx.Model(&component).Update("position", position).Error; err != nil {

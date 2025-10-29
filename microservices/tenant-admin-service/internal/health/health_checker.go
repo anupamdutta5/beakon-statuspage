@@ -2,8 +2,6 @@ package health
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
@@ -319,7 +317,7 @@ func (hc *HealthChecker) CheckLiveness(ctx context.Context) HealthReport {
 	hc.mu.RUnlock()
 
 	results := make([]Check, 0, len(criticalChecks))
-	for name, checkFunc := range criticalChecks {
+	for _, checkFunc := range criticalChecks {
 		checkCtx, cancel := context.WithTimeout(ctx, 2*time.Second) // Shorter timeout for liveness
 		result := checkFunc(checkCtx)
 		cancel()
