@@ -169,6 +169,8 @@ func setupRoutes(router *gin.Engine, adminHandler *handlers.SaaSAdminHandler) {
 			tenants.POST("", adminHandler.CreateTenant)
 			tenants.GET("/archived", adminHandler.GetArchivedTenants)           // List archived tenants
 			tenants.POST("/:id/restore", adminHandler.RestoreTenant)            // Restore archived tenant
+			tenants.GET("/verify-sync", adminHandler.VerifySync)                // Verify tenant sync status
+			tenants.POST("/reconcile", adminHandler.ReconcileTenants)           // Reconcile out-of-sync tenants
 			tenants.GET("/:id", adminHandler.GetTenant)
 			tenants.PUT("/:id", adminHandler.UpdateTenant)
 			tenants.DELETE("/:id", adminHandler.DeleteTenant)

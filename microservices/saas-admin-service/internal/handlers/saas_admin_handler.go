@@ -21,9 +21,58 @@ import (
 	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+)
+
+// Prometheus metrics for tenant sync operations
+var (
+	// tenantSyncTotal tracks total tenant sync operations by method and status
+	tenantSyncTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "tenant_sync_total",
+			Help: "Total tenant sync operations",
+		},
+		[]string{"method", "status"}, // method: rabbitmq|http, status: success|failure
+	)
+
+	// tenantSyncDuration tracks duration of tenant sync operations
+	tenantSyncDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "tenant_sync_duration_seconds",
+			Help:    "Duration of tenant sync operations in seconds",
+			Buckets: prometheus.DefBuckets, // 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10
+		},
+		[]string{"method"}, // method: rabbitmq|http
+	)
+
+	// tenantCreationTotal tracks total tenant creation attempts
+	tenantCreationTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "tenant_creation_total",
+			Help: "Total tenant creation attempts",
+		},
+	)
+
+	// tenantVerificationTotal tracks tenant sync verification operations
+	tenantVerificationTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "tenant_verification_total",
+			Help: "Total tenant sync verification operations",
+		},
+	)
+
+	// tenantReconciliationTotal tracks tenant reconciliation operations
+	tenantReconciliationTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "tenant_reconciliation_total",
+			Help: "Total tenant reconciliation operations",
+		},
+		[]string{"status"}, // status: success|failure
+	)
 )
 
 // SaaSAdminHandler handles SaaS admin-related HTTP requests.
@@ -1286,6 +1335,9 @@ func (h *SaaSAdminHandler) CreateTenant(c *gin.Context) {
 
 	h.logger.Info("Creating tenant", zap.String("name", req.Name))
 
+	// Increment tenant creation counter
+	tenantCreationTotal.Inc()
+
 	// Get or use default plan
 	var planID uuid.UUID
 	if req.PlanID != "" {
@@ -1337,6 +1389,9 @@ func (h *SaaSAdminHandler) CreateTenant(c *gin.Context) {
 
 	// Publish tenant created event to RabbitMQ
 	if h.eventPublisher != nil {
+		// Start timing for RabbitMQ sync
+		startTime := time.Now()
+
 		metadata := events.EventMetadata{
 			Source:        "saas-admin-service",
 			CorrelationID: c.GetString("X-Correlation-ID"),
@@ -1348,24 +1403,43 @@ func (h *SaaSAdminHandler) CreateTenant(c *gin.Context) {
 		// Include admin credentials in event so tenant-admin-service can create admin user
 		event := events.NewTenantCreatedEvent(tenant, metadata, req.AdminEmail, req.AdminPassword)
 		if err := h.eventPublisher.PublishTenantEvent(c.Request.Context(), event); err != nil {
+			// Record failure metrics
+			tenantSyncTotal.WithLabelValues("rabbitmq", "failure").Inc()
+			tenantSyncDuration.WithLabelValues("rabbitmq").Observe(time.Since(startTime).Seconds())
+
 			h.logger.Error("Failed to publish tenant created event",
 				zap.Error(err),
 				zap.String("tenant_id", tenant.ID.String()))
 			// Log but don't fail - tenant is already created in saas_admin
 			// The tenant-admin service will need to be synced manually or via retry mechanism
 		} else {
+			// Record success metrics
+			tenantSyncTotal.WithLabelValues("rabbitmq", "success").Inc()
+			tenantSyncDuration.WithLabelValues("rabbitmq").Observe(time.Since(startTime).Seconds())
+
 			h.logger.Info("Published tenant created event with admin credentials",
 				zap.String("event_id", event.EventID),
 				zap.String("tenant_id", tenant.ID.String()),
 				zap.String("admin_email", req.AdminEmail))
 		}
 	} else {
+		// Start timing for HTTP fallback sync
+		startTime := time.Now()
+
 		h.logger.Warn("Event publisher not configured, falling back to HTTP sync")
 		// Fallback to old HTTP method if event publisher is not available
 		if err := h.createTenantInTenantAdminService(tenant, req.AdminEmail, req.AdminPassword); err != nil {
+			// Record failure metrics
+			tenantSyncTotal.WithLabelValues("http", "failure").Inc()
+			tenantSyncDuration.WithLabelValues("http").Observe(time.Since(startTime).Seconds())
+
 			h.logger.Error("Failed to create tenant in tenant-admin service",
 				zap.Error(err),
 				zap.String("tenant_id", tenant.ID.String()))
+		} else {
+			// Record success metrics
+			tenantSyncTotal.WithLabelValues("http", "success").Inc()
+			tenantSyncDuration.WithLabelValues("http").Observe(time.Since(startTime).Seconds())
 		}
 	}
 
@@ -1757,6 +1831,301 @@ func (h *SaaSAdminHandler) RestoreTenant(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
 		"message": "Tenant restored successfully",
+	})
+}
+
+// VerifySync verifies tenant synchronization between saas_admin and tenant_admin_db
+// GET /api/v1/tenants/verify-sync
+//
+// Returns:
+//
+//	{
+//	  "total": 10,
+//	  "in_sync": 8,
+//	  "out_of_sync": [
+//	    {"id": "uuid", "name": "Tenant A", "reason": "not_found_in_tenant_admin"},
+//	    {"id": "uuid", "name": "Tenant B", "reason": "http_error"}
+//	  ],
+//	  "errors": ["Failed to check tenant X: connection refused"]
+//	}
+func (h *SaaSAdminHandler) VerifySync(c *gin.Context) {
+	h.logger.Info("Verifying tenant synchronization")
+
+	// Increment verification counter
+	tenantVerificationTotal.Inc()
+
+	// Get all tenants from saas_admin database
+	tenants, err := h.service.ListTenants(c.Request.Context())
+	if err != nil {
+		h.logger.Error("Failed to list tenants for sync verification", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to retrieve tenants",
+		})
+		return
+	}
+
+	total := len(tenants)
+	inSync := 0
+	outOfSync := []gin.H{}
+	errors := []string{}
+
+	// Check each tenant in tenant-admin-service
+	for _, tenant := range tenants {
+		exists, err := h.checkTenantExistsInTenantAdmin(c.Request.Context(), tenant.ID)
+
+		if err != nil {
+			// HTTP or network error
+			errMsg := fmt.Sprintf("Failed to check tenant %s (%s): %v", tenant.Name, tenant.ID.String(), err)
+			h.logger.Warn("Sync verification error",
+				zap.String("tenant_id", tenant.ID.String()),
+				zap.String("tenant_name", tenant.Name),
+				zap.Error(err))
+			errors = append(errors, errMsg)
+			outOfSync = append(outOfSync, gin.H{
+				"id":     tenant.ID.String(),
+				"name":   tenant.Name,
+				"slug":   tenant.Slug,
+				"reason": "http_error",
+				"error":  err.Error(),
+			})
+		} else if !exists {
+			// Tenant not found in tenant-admin-service
+			h.logger.Warn("Tenant out of sync - not found in tenant-admin",
+				zap.String("tenant_id", tenant.ID.String()),
+				zap.String("tenant_name", tenant.Name))
+			outOfSync = append(outOfSync, gin.H{
+				"id":     tenant.ID.String(),
+				"name":   tenant.Name,
+				"slug":   tenant.Slug,
+				"reason": "not_found_in_tenant_admin",
+			})
+		} else {
+			// In sync
+			inSync++
+		}
+	}
+
+	h.logger.Info("Sync verification complete",
+		zap.Int("total", total),
+		zap.Int("in_sync", inSync),
+		zap.Int("out_of_sync", len(outOfSync)),
+		zap.Int("errors", len(errors)))
+
+	c.JSON(http.StatusOK, gin.H{
+		"total":        total,
+		"in_sync":      inSync,
+		"out_of_sync":  outOfSync,
+		"errors":       errors,
+		"verified_at":  time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+// checkTenantExistsInTenantAdmin checks if a tenant exists in tenant-admin-service
+// Returns (exists bool, error) - error indicates HTTP/network failure
+func (h *SaaSAdminHandler) checkTenantExistsInTenantAdmin(ctx context.Context, tenantID uuid.UUID) (bool, error) {
+	// Use ServiceClient with circuit breaker if available (best practice)
+	if h.serviceClient != nil {
+		path := fmt.Sprintf("/api/v1/tenants/%s", tenantID.String())
+		resp, err := h.serviceClient.Get(ctx, "tenant-admin-service", path, nil)
+
+		if err != nil {
+			return false, fmt.Errorf("service client error: %w", err)
+		}
+
+		// 200 OK = tenant exists
+		// 404 Not Found = tenant doesn't exist (but request succeeded)
+		// Other codes = error
+		if resp.StatusCode == http.StatusOK {
+			return true, nil
+		} else if resp.StatusCode == http.StatusNotFound {
+			return false, nil
+		} else {
+			return false, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		}
+	}
+
+	// Fallback to raw HTTP client (no circuit breaker protection)
+	h.logger.Warn("Using fallback HTTP client for tenant existence check",
+		zap.String("tenant_id", tenantID.String()))
+
+	url := fmt.Sprintf("%s/api/v1/tenants/%s", h.tenantAdminServiceURL, tenantID.String())
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := h.httpClient.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("http request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		return true, nil
+	} else if resp.StatusCode == http.StatusNotFound {
+		return false, nil
+	} else {
+		return false, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+}
+
+// ReconcileTenants reconciles out-of-sync tenants by re-publishing events or calling HTTP endpoints
+// POST /api/v1/tenants/reconcile
+//
+// Request body:
+//
+//	{
+//	  "tenant_ids": ["uuid1", "uuid2", "uuid3"]
+//	}
+//
+// Response:
+//
+//	{
+//	  "total": 3,
+//	  "success": 2,
+//	  "failed": 1,
+//	  "results": [
+//	    {"id": "uuid1", "status": "success", "method": "rabbitmq"},
+//	    {"id": "uuid2", "status": "success", "method": "http"},
+//	    {"id": "uuid3", "status": "failed", "error": "tenant not found"}
+//	  ]
+//	}
+func (h *SaaSAdminHandler) ReconcileTenants(c *gin.Context) {
+	var request struct {
+		TenantIDs []string `json:"tenant_ids" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request body",
+		})
+		return
+	}
+
+	h.logger.Info("Reconciling tenants",
+		zap.Int("count", len(request.TenantIDs)))
+
+	total := len(request.TenantIDs)
+	success := 0
+	failed := 0
+	results := []gin.H{}
+
+	for _, tenantIDStr := range request.TenantIDs {
+		tenantID, err := uuid.Parse(tenantIDStr)
+		if err != nil {
+			h.logger.Warn("Invalid tenant ID in reconcile request", zap.String("id", tenantIDStr))
+			failed++
+			tenantReconciliationTotal.WithLabelValues("failure").Inc()
+			results = append(results, gin.H{
+				"id":     tenantIDStr,
+				"status": "failed",
+				"error":  "invalid UUID format",
+			})
+			continue
+		}
+
+		// Get tenant from saas_admin database
+		tenant, err := h.service.GetTenant(c.Request.Context(), tenantID)
+		if err != nil {
+			h.logger.Error("Failed to get tenant for reconciliation",
+				zap.String("tenant_id", tenantIDStr),
+				zap.Error(err))
+			failed++
+			tenantReconciliationTotal.WithLabelValues("failure").Inc()
+			results = append(results, gin.H{
+				"id":     tenantIDStr,
+				"status": "failed",
+				"error":  "tenant not found in saas_admin",
+			})
+			continue
+		}
+
+		// Try RabbitMQ event first (preferred method)
+		if h.eventPublisher != nil {
+			metadata := events.EventMetadata{
+				Source:        "saas-admin-service",
+				CorrelationID: c.GetString("X-Correlation-ID"),
+				UserID:        c.GetString("user_id"),
+				IPAddress:     c.ClientIP(),
+				UserAgent:     c.Request.UserAgent(),
+			}
+
+			// Publish as tenant.created event for reconciliation
+			// Note: No admin credentials for reconciliation (tenant already exists)
+			event := events.NewTenantCreatedEvent(tenant, metadata, "", "")
+			if err := h.eventPublisher.PublishTenantEvent(c.Request.Context(), event); err != nil {
+				h.logger.Warn("RabbitMQ publish failed during reconciliation, falling back to HTTP",
+					zap.String("tenant_id", tenantIDStr),
+					zap.Error(err))
+
+				// Fallback to HTTP
+				if httpErr := h.createTenantInTenantAdminService(tenant, "", ""); httpErr != nil {
+					h.logger.Error("HTTP fallback also failed during reconciliation",
+						zap.String("tenant_id", tenantIDStr),
+						zap.Error(httpErr))
+					failed++
+					tenantReconciliationTotal.WithLabelValues("failure").Inc()
+					results = append(results, gin.H{
+						"id":     tenantIDStr,
+						"status": "failed",
+						"error":  fmt.Sprintf("both rabbitmq and http failed: %v", httpErr),
+					})
+				} else {
+					success++
+					tenantReconciliationTotal.WithLabelValues("success").Inc()
+					results = append(results, gin.H{
+						"id":     tenantIDStr,
+						"name":   tenant.Name,
+						"status": "success",
+						"method": "http_fallback",
+					})
+				}
+			} else {
+				success++
+				tenantReconciliationTotal.WithLabelValues("success").Inc()
+				results = append(results, gin.H{
+					"id":     tenantIDStr,
+					"name":   tenant.Name,
+					"status": "success",
+					"method": "rabbitmq",
+				})
+			}
+		} else {
+			// No RabbitMQ, use HTTP directly
+			if err := h.createTenantInTenantAdminService(tenant, "", ""); err != nil {
+				h.logger.Error("HTTP reconciliation failed",
+					zap.String("tenant_id", tenantIDStr),
+					zap.Error(err))
+				failed++
+				tenantReconciliationTotal.WithLabelValues("failure").Inc()
+				results = append(results, gin.H{
+					"id":     tenantIDStr,
+					"status": "failed",
+					"error":  fmt.Sprintf("http error: %v", err),
+				})
+			} else {
+				success++
+				tenantReconciliationTotal.WithLabelValues("success").Inc()
+				results = append(results, gin.H{
+					"id":     tenantIDStr,
+					"name":   tenant.Name,
+					"status": "success",
+					"method": "http",
+				})
+			}
+		}
+	}
+
+	h.logger.Info("Tenant reconciliation complete",
+		zap.Int("total", total),
+		zap.Int("success", success),
+		zap.Int("failed", failed))
+
+	c.JSON(http.StatusOK, gin.H{
+		"total":   total,
+		"success": success,
+		"failed":  failed,
+		"results": results,
 	})
 }
 
