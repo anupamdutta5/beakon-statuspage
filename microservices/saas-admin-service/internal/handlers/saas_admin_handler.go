@@ -3,6 +3,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,6 +18,7 @@ import (
 	"github.com/anupamdutta5/saas-admin-service/internal/events"
 	"github.com/anupamdutta5/saas-admin-service/internal/models"
 	"github.com/anupamdutta5/saas-admin-service/internal/services"
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -26,7 +28,8 @@ import (
 
 // SaaSAdminHandler handles SaaS admin-related HTTP requests.
 type SaaSAdminHandler struct {
-	httpClient           *http.Client
+	httpClient           *http.Client // Deprecated: Use serviceClient for all HTTP calls
+	serviceClient        *resilience.ServiceClient // Service client with circuit breakers and retries
 	service              *services.SaaSAdminService
 	serviceURLs          config.ServiceURLs
 	tenantAdminServiceURL string
@@ -51,8 +54,28 @@ func NewSaaSAdminHandler(service *services.SaaSAdminService, tenantAdminDB *gorm
 	// Create JWT manager with 24-hour token expiration
 	jwtManager := auth.NewJWTManager(jwtSecret, 24*time.Hour)
 
+	// Load service endpoints configuration for circuit breakers and retries
+	configLoader := resilience.NewConfigLoader("configs")
+	serviceEndpoints, err := configLoader.LoadServiceEndpoints()
+	if err != nil {
+		logger.Warn("Failed to load service endpoints, using fallback HTTP client",
+			zap.Error(err))
+		serviceEndpoints = nil
+	}
+
+	// Initialize service client with circuit breakers (best practice)
+	var serviceClient *resilience.ServiceClient
+	if serviceEndpoints != nil {
+		serviceClient = resilience.NewServiceClient(serviceEndpoints, logger)
+		logger.Info("Service client initialized with circuit breakers",
+			zap.Int("endpoints", len(serviceEndpoints)))
+	} else {
+		logger.Warn("Service client not initialized, using raw HTTP client (no circuit breakers)")
+	}
+
 	return &SaaSAdminHandler{
-		httpClient:            &http.Client{},
+		httpClient:            &http.Client{}, // Kept for backward compatibility
+		serviceClient:         serviceClient,
 		service:               service,
 		serviceURLs:           serviceURLs,
 		tenantAdminServiceURL: tenantAdminURL,
@@ -2062,12 +2085,34 @@ func (h *SaaSAdminHandler) createTenantInTenantAdminService(tenant *models.SaaST
 		"admin_password": adminPassword,
 	}
 
+	// Use ServiceClient with circuit breakers if available (best practice)
+	if h.serviceClient != nil {
+		ctx := context.Background()
+		resp, err := h.serviceClient.Post(ctx, "tenant-admin-service", "/api/v1/public/tenants", payload, nil)
+		if err != nil {
+			return fmt.Errorf("failed to create tenant via service client: %w", err)
+		}
+
+		if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("tenant-admin service returned status %d: %s", resp.StatusCode, string(resp.Body))
+		}
+
+		h.logger.Info("Successfully created tenant in tenant-admin service (with circuit breaker)",
+			zap.String("tenant_id", tenant.ID.String()),
+			zap.String("slug", tenant.Slug))
+
+		return nil
+	}
+
+	// Fallback to raw HTTP client (no circuit breaker protection)
+	h.logger.Warn("Using fallback HTTP client without circuit breaker",
+		zap.String("tenant_id", tenant.ID.String()))
+
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
 
-	// Make POST request to tenant-admin service public API
 	url := h.tenantAdminServiceURL + "/api/v1/public/tenants"
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payloadBytes))
 	if err != nil {
@@ -2087,7 +2132,7 @@ func (h *SaaSAdminHandler) createTenantInTenantAdminService(tenant *models.SaaST
 		return fmt.Errorf("tenant-admin service returned status %d: %s", resp.StatusCode, string(body))
 	}
 
-	h.logger.Info("Successfully created tenant in tenant-admin service",
+	h.logger.Info("Successfully created tenant in tenant-admin service (fallback path)",
 		zap.String("tenant_id", tenant.ID.String()),
 		zap.String("slug", tenant.Slug))
 

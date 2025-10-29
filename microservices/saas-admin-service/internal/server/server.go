@@ -62,8 +62,13 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 		return nil, fmt.Errorf("failed to create GORM DB: %w", err)
 	}
 
+	// NOTE: This server package is deprecated and not used by main.go
+	// The code below is kept for backward compatibility but may not compile
+	// See cmd/main.go for the active server implementation
+
 	// Create service with database connection
-	service, err = services.NewSaaSAdminService(cfg, logger, db)
+	// TODO: Add cache parameter when this code is reactivated
+	service, err = services.NewSaaSAdminService(cfg, logger, db, nil) // nil cache for now
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize service: %w", err)
 	}
@@ -74,7 +79,8 @@ func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 		ComponentService:   fmt.Sprintf("http://localhost:%d", 8084),
 		IncidentService:    fmt.Sprintf("http://localhost:%d", 8086),
 	}
-	adminHandler := handlers.NewSaaSAdminHandler(service, serviceURLs, logger)
+	// TODO: Add tenantAdminDB and eventPublisher parameters when this code is reactivated
+	adminHandler := handlers.NewSaaSAdminHandler(service, nil, nil, serviceURLs, logger)
 
 	// Create server address from host and port
 	serverAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)

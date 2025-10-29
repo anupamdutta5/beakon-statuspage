@@ -1,12 +1,35 @@
 # Service Endpoints Configuration for SaaS Admin Service
-# Defines endpoints for service-to-service communication
+# Defines endpoints for service-to-service communication with resilience patterns
 
 endpoints:
+  # Tenant Admin Service - Primary downstream service for tenant management
   tenant-admin-service:
-    url: ${TENANT_ADMIN_SERVICE_URL:-http://tenant-admin-service:8099}
+    url: ${TENANT_ADMIN_SERVICE_URL:-http://localhost:8099}
     timeout: 30s
     retries: 3
+    retry_delay: 1s
+    circuit_breaker:
+      enabled: true
+      threshold: 5              # Open circuit after 5 consecutive failures
+      timeout: 60s              # Keep circuit open for 60 seconds
+      half_open_requests: 2     # Allow 2 requests in half-open state
+
+  # User Service - For user authentication and management
+  user-service:
+    url: ${USER_SERVICE_URL:-http://localhost:8081}
+    timeout: 10s
+    retries: 2
+    retry_delay: 500ms
     circuit_breaker:
       enabled: true
       threshold: 5
-      timeout: 60s
+      timeout: 30s
+      half_open_requests: 1
+
+# Global defaults (can be overridden per endpoint)
+defaults:
+  timeout: 30s
+  retries: 3
+  retry_delay: 1s
+  retry_backoff: exponential   # exponential or linear
+  retry_max_delay: 10s
