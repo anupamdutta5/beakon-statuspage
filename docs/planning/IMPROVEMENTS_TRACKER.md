@@ -390,8 +390,8 @@ h.service.CreateAdminUser(...)  // ❌ Fails
 
 **Priority**: 🔴 P0 (Critical)
 **Service**: user-service + tenant-admin-service
-**Status**: 🟡 IN PROGRESS (SAML Migration 75% Complete - Phases 1-6/8)
-**Commits**: 20796a5 (Phase 1), 0a3c7bc (Phases 3-4), d85cf5d (Phase 5), fbbb171 (Phase 6)
+**Status**: 🟡 IN PROGRESS (SAML Migration 87.5% Complete - Phases 1-8/8, Testing Pending)
+**Commits**: 20796a5 (Phase 1), 0a3c7bc (Phases 3-4), d85cf5d (Phase 5), fbbb171 (Phase 6), cb57ff1 (Phase 8 Docs)
 
 **Problem**:
 - user-service and tenant-admin-service implement identical authentication
@@ -446,6 +446,7 @@ h.service.CreateAdminUser(...)  // ❌ Fails
 - [x] Build verified successfully
 
 **Phase 7: Testing** ⏳ PENDING (2 hours):
+- [ ] Apply SSO migrations to tenant_admin_db (./apply_sso_migrations.sh)
 - [ ] Test SSO provider creation API
 - [ ] Test SP metadata endpoint
 - [ ] Configure test IdP (Okta developer)
@@ -455,12 +456,12 @@ h.service.CreateAdminUser(...)  // ❌ Fails
 - [ ] Test attribute mapping
 - [ ] Test Single Logout
 
-**Phase 8: Documentation** ⏳ PENDING (1 hour):
-- [ ] Update README.md
-- [ ] Update SERVICE_CATALOG.md
-- [ ] Update DATABASE_ARCHITECTURE.md
-- [ ] Update AUTHENTICATION_GUIDE.md
-- [ ] Create SAML configuration guide
+**Phase 8: Documentation** ✅ COMPLETE (2025-10-29):
+- [x] Update tenant-admin-service/README.md (commit: cb57ff1)
+- [x] Update SERVICE_CATALOG.md (commit: cb57ff1)
+- [x] Update DATABASE_ARCHITECTURE.md (commit: cb57ff1)
+- [x] Create SAML_CONFIGURATION_GUIDE.md (commit: cb57ff1)
+- [x] Organize documentation into docs/ structure (commit: 721b571)
 
 **Deprecation Plan** (after Phase 8):
 - [ ] Mark user-service as DEPRECATED in docs
