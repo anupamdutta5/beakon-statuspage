@@ -1,6 +1,6 @@
 # Beakon Microservices - Service Catalog
 
-**Last Updated**: 2025-10-26
+**Last Updated**: 2025-10-29
 **Total Services**: 19 active (+ 2 deprecated)
 **Architecture**: Microservices with Direct Service Communication + Separated Frontend Services
 **Shared Library**: shared-resilience (100% adoption)
@@ -28,7 +28,7 @@
 | event-store-service | 8096 | statuspage_event_store | ✅ Active | ✅ Full | Event sourcing |
 | branding-service | 8097 | statuspage_branding | ✅ Active | ✅ Full | Theming & branding |
 | saas-admin-service | 8098 | saas_admin | ✅ Active | ✅ Full | Platform admin API |
-| tenant-admin-service | 8099 | tenant_admin_db | ✅ Active | ✅ Full | Multi-tenant mgmt API |
+| tenant-admin-service | 8099 | tenant_admin_db | ✅ Active | ✅ Full | Multi-tenant mgmt + SAML/SSO |
 | landing-page-service | 8100 | statuspage_landing | ✅ Active | ✅ Full | Marketing website |
 | **Consumer Services** |
 | analytics-consumer | N/A | statuspage_analytics_consumer | ✅ Active | ✅ Full | Analytics processing |
@@ -683,21 +683,47 @@ echo "127.0.0.1 anupam.localhost monday.localhost" | sudo tee -a /etc/hosts
 - Usage tracking and statistics
 - Subdomain-based tenant isolation middleware
 - RabbitMQ event consumer (tenant sync from saas-admin)
+- **SAML/SSO Authentication (NEW)**: Enterprise single sign-on support
+  - SAML 2.0 protocol support
+  - Multi-provider support per tenant (Okta, Azure AD, Google Workspace)
+  - SP-initiated and IdP-initiated flows
+  - JIT (Just-In-Time) user provisioning
+  - Attribute mapping from IdP to user fields
+  - SSO provider management API
+  - SSO audit logging
 
 **Web Routes**:
 - ❌ All static frontend routes removed
 - ✅ Frontend now served by tenant-admin-frontend (port 3002)
 
 **API Endpoints**:
+
+*Authentication*:
 - `POST /api/v1/auth/login` - Tenant admin login
 - `POST /api/v1/auth/logout` - Logout
 - `POST /api/v1/auth/verify` - Verify token
+- `POST /api/v1/auth/refresh` - Refresh access token
+
+*SAML/SSO (NEW)*:
+- `POST /api/v1/saml/login` - Initiate SAML login (SP-initiated)
+- `POST /api/v1/saml/acs` - Assertion Consumer Service (IdP callback)
+- `GET /api/v1/saml/metadata` - Get Service Provider metadata XML
+- `POST /api/v1/saml/logout` - SAML Single Logout
+- `GET /api/v1/sso/providers` - List SSO providers (protected)
+- `GET /api/v1/sso/providers/:id` - Get SSO provider details (protected)
+- `POST /api/v1/sso/providers` - Create SSO provider (protected)
+- `PUT /api/v1/sso/providers/:id` - Update SSO provider (protected)
+- `DELETE /api/v1/sso/providers/:id` - Delete SSO provider (protected)
+
+*Tenants*:
 - `POST /api/v1/public/tenants` - Create tenant
 - `GET /api/v1/public/tenants` - List tenants (public)
 - `GET /api/v1/tenants` - List tenants (authenticated)
 - `GET /api/v1/tenants/:id` - Get tenant
 - `PUT /api/v1/tenants/:id` - Update tenant
 - `DELETE /api/v1/tenants/:id` - Delete tenant
+
+*RBAC*:
 - `GET /api/v1/admins` - List tenant admins
 - `POST /api/v1/admins` - Create admin
 - `GET /api/v1/users/:tenant_id` - List users
@@ -710,16 +736,26 @@ echo "127.0.0.1 anupam.localhost monday.localhost" | sudo tee -a /etc/hosts
 - `POST /api/v1/rbac/teams` - Create team
 
 **Database Tables** (in tenant_admin_db):
+
+*Core Multi-Tenancy*:
 - `tenants` - Tenant records (with max_users)
-- `users` - Tenant users
+- `users` - Tenant users (with SSO fields: auth_method, sso_provider_id, is_sso_user)
+- `domains` - Custom domain management
+- `audit_logs` - Audit trail
+
+*RBAC*:
 - `roles` - RBAC roles
 - `permissions` - RBAC permissions
 - `user_roles` - Role assignments
 - `teams` - Team definitions
 - `team_members` - Team membership
 - `sessions` - Session tracking
-- `domains` - Custom domain management
-- `audit_logs` - Audit trail
+
+*SAML/SSO (NEW)*:
+- `sso_providers` - SSO configurations (SAML/OAuth/OIDC)
+- `sso_user_identities` - Links users to IdP identities
+- `saml_requests` - Tracks pending SAML auth requests (5-min expiry)
+- `sso_audit_logs` - Complete SSO event audit trail
 
 **Key Features**:
 1. **Max Users Enforcement**: Validates tenant user limit before user creation

@@ -43,6 +43,16 @@ The Tenant Admin Service is the core multi-tenancy management service for the Be
 - **Audit Logging**: Comprehensive security audit trails
 - **Multi-tenant Isolation**: Secure data separation between tenants
 
+### Enterprise Authentication (SAML/SSO)
+- **SAML 2.0 Authentication**: Enterprise single sign-on support
+- **Multi-Provider Support**: Multiple SSO providers per tenant
+- **SP-Initiated Flow**: Service Provider initiated authentication
+- **IdP-Initiated Flow**: Identity Provider initiated authentication
+- **JIT Provisioning**: Just-In-Time user creation from SAML assertions
+- **Attribute Mapping**: Flexible mapping of IdP attributes to user fields
+- **SSO Provider Management**: CRUD operations for SSO configurations
+- **SSO Audit Logging**: Complete audit trail for SSO events
+
 ## API Endpoints
 
 ### Health & Authentication
@@ -56,6 +66,20 @@ The Tenant Admin Service is the core multi-tenancy management service for the Be
 ### Protected Authentication Routes
 - `POST /api/v1/auth/logout` - User logout
 - `POST /api/v1/auth/verify` - Token verification
+- `POST /api/v1/auth/refresh` - Refresh access token
+
+### SAML/SSO Authentication (Public)
+- `POST /api/v1/saml/login` - Initiate SAML login (SP-initiated)
+- `POST /api/v1/saml/acs` - Assertion Consumer Service (IdP callback)
+- `GET /api/v1/saml/metadata` - Get Service Provider metadata XML
+- `POST /api/v1/saml/logout` - SAML Single Logout
+
+### SSO Provider Management (Protected)
+- `GET /api/v1/sso/providers` - List SSO providers for tenant
+- `GET /api/v1/sso/providers/:id` - Get SSO provider details
+- `POST /api/v1/sso/providers` - Create SSO provider
+- `PUT /api/v1/sso/providers/:id` - Update SSO provider
+- `DELETE /api/v1/sso/providers/:id` - Delete SSO provider
 
 ### Tenant Management
 - `GET /api/v1/tenants` - List tenants
@@ -196,17 +220,29 @@ The service manages these core models:
 ## Configuration
 
 ### Environment Variables
+
+**Server Configuration**:
 - `SERVER_PORT`: HTTP server port (default from shared-resilience config)
 - `SERVER_HOST`: HTTP server host
 - `ENVIRONMENT`: Runtime environment (development/production)
+
+**Database Configuration**:
 - `DB_HOST`: Database host
 - `DB_PORT`: Database port
 - `DB_USER`: Database username
 - `DB_PASSWORD`: Database password
-- `DB_NAME`: Database name
-- `JWT_SECRET`: JWT signing secret
+- `DB_NAME`: Database name (tenant_admin_db)
+
+**Authentication Configuration**:
+- `JWT_SECRET`: JWT signing secret (min 32 characters)
 - `REDIS_HOST`: Redis host (optional)
 - `REDIS_PORT`: Redis port (optional)
+- `BASE_DOMAIN`: Base domain for subdomain tenant routing (default: localhost)
+
+**SAML/SSO Configuration** (NEW):
+- `SAML_BASE_URL`: Base URL for SAML Service Provider (default: http://localhost:port)
+  - Example: `https://statuspage.acme.com`
+  - Used for constructing SAML metadata URLs and ACS endpoints
 
 ### Service Integration URLs
 - `COMPONENT_SERVICE_URL`: Component service endpoint (default: http://localhost:8001)
@@ -269,6 +305,21 @@ tenant-admin-service/
 - Session validation and management
 - Multi-tenant data isolation
 - Comprehensive audit logging
+
+### SAML/SSO Architecture (NEW)
+- **SAML 2.0 Protocol**: Full support for enterprise SSO
+- **Multi-Provider Support**: Multiple SSO providers per tenant (Okta, Azure AD, Google Workspace, etc.)
+- **Tenant-Scoped Providers**: Each tenant manages their own SSO configurations
+- **SP-Initiated Flow**: Users initiate login from status page → redirect to IdP → SAML assertion → JWT token
+- **IdP-Initiated Flow**: Users login at IdP → SAML assertion sent to status page → JWT token
+- **JIT Provisioning**: Automatic user creation from SAML assertions with configurable attribute mapping
+- **Session Management**: SAML sessions tracked for Single Logout (SLO) support
+- **Audit Trail**: Complete logging of all SSO events (login success/failure, config changes, etc.)
+- **Database Tables**:
+  - `sso_providers` - SSO configurations (SAML/OAuth/OIDC)
+  - `sso_user_identities` - Links users to IdP identities
+  - `saml_requests` - Tracks pending SAML auth requests
+  - `sso_audit_logs` - Complete audit trail
 
 ### Status Page Integration
 - Direct integration with component, incident, and monitoring services

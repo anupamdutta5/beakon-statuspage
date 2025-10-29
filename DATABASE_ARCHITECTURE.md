@@ -26,7 +26,7 @@ The Beakon platform follows microservices best practices with a **database-per-s
 
 | Database Name | Service | Tables | Size Estimate | Backup Priority |
 |---------------|---------|--------|---------------|-----------------|
-| tenant_admin_db | saas-admin-service, tenant-admin-service | 25+ | Large | **CRITICAL** |
+| tenant_admin_db | saas-admin-service, tenant-admin-service | 29+ | Large | **CRITICAL** |
 | statuspage_user | user-service | 5 | Medium | **CRITICAL** |
 | statuspage_component | component-service | 6 | Medium | HIGH |
 | statuspage_notification | notification-service | 7 | Large | HIGH |
@@ -78,7 +78,7 @@ tenant_settings           -- Tenant-specific settings
 domains                   -- Custom domain management
 
 -- User Management
-users                     -- Tenant users
+users                     -- Tenant users (with SSO fields: auth_method, sso_provider_id, is_sso_user)
 sessions                  -- Session tracking
 
 -- RBAC System
@@ -106,6 +106,104 @@ tenant_usage              -- Usage metrics
 tenant_billing            -- Billing records
 tenant_notifications      -- Notification preferences
 tenant_backups            -- Backup metadata
+
+-- SAML/SSO (NEW - October 2025)
+sso_providers             -- SSO/SAML configurations (SAML/OAuth/OIDC)
+sso_user_identities       -- Links users to IdP identities
+saml_requests             -- Tracks pending SAML auth requests (5-min expiry)
+sso_audit_logs            -- Complete SSO event audit trail
+```
+
+#### SSO/SAML Schema Details (NEW - October 2025)
+
+**sso_providers Table**:
+```sql
+CREATE TABLE sso_providers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMP,
+
+    -- Organization
+    organization_domain VARCHAR(255) NOT NULL,  -- e.g., "acme.com"
+    organization_name VARCHAR(255) NOT NULL,
+
+    -- Provider
+    provider_type VARCHAR(50) NOT NULL,         -- 'saml', 'oauth', 'oidc'
+    provider_name VARCHAR(255) NOT NULL,        -- 'Okta', 'Azure AD', etc.
+
+    -- SAML fields
+    entity_id TEXT,
+    idp_entity_id TEXT,
+    sso_url TEXT,
+    slo_url TEXT,
+    idp_metadata_xml TEXT,
+    idp_certificate TEXT,
+
+    -- Configuration
+    is_enabled BOOLEAN DEFAULT TRUE,
+    is_default BOOLEAN DEFAULT FALSE,
+    allow_idp_initiated BOOLEAN DEFAULT TRUE,
+    enable_jit_provisioning BOOLEAN DEFAULT TRUE,
+    default_role VARCHAR(50) DEFAULT 'viewer',
+    attribute_mapping JSONB DEFAULT '{}'
+);
+CREATE INDEX idx_sso_providers_tenant ON sso_providers(tenant_id);
+CREATE INDEX idx_sso_providers_domain ON sso_providers(organization_domain);
+```
+
+**sso_user_identities Table**:
+```sql
+CREATE TABLE sso_user_identities (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    sso_provider_id UUID NOT NULL REFERENCES sso_providers(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+
+    idp_user_id VARCHAR(500) NOT NULL,          -- NameID from IdP
+    session_index VARCHAR(500),                  -- For SAML SLO
+    attributes JSONB DEFAULT '{}',
+
+    last_login_at TIMESTAMP,
+    login_count INTEGER DEFAULT 0,
+
+    UNIQUE(sso_provider_id, idp_user_id, tenant_id)
+);
+```
+
+**saml_requests Table**:
+```sql
+CREATE TABLE saml_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    request_id VARCHAR(500) UNIQUE NOT NULL,
+    sso_provider_id UUID NOT NULL REFERENCES sso_providers(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    relay_state TEXT,
+    expires_at TIMESTAMP NOT NULL,              -- 5-minute expiration
+    is_completed BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+```
+
+**sso_audit_logs Table**:
+```sql
+CREATE TABLE sso_audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    sso_provider_id UUID REFERENCES sso_providers(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+
+    event_type VARCHAR(100) NOT NULL,           -- login_success, login_failure, etc.
+    saml_request_id VARCHAR(500),
+    saml_response_status VARCHAR(100),
+
+    ip_address VARCHAR(45),
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_sso_audit_tenant ON sso_audit_logs(tenant_id);
+CREATE INDEX idx_sso_audit_created_at ON sso_audit_logs(created_at DESC);
 ```
 
 #### Why Sharing Is Acceptable
