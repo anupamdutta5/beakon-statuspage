@@ -20,14 +20,14 @@ import (
 
 // WebhookProvider implements notifications via HTTP webhooks.
 type WebhookProvider struct {
-	url         string
-	method      string
-	headers     map[string]string
-	secret      string
-	timeout     time.Duration
-	enabled     bool
-	httpClient  *http.Client
-	logger      *zap.Logger
+	url           string
+	method        string
+	headers       map[string]string
+	secret        string
+	timeout       time.Duration
+	enabled       bool
+	serviceClient *resilience.ServiceClient
+	logger        *zap.Logger
 }
 
 // WebhookConfig represents webhook configuration.
@@ -55,7 +55,7 @@ type WebhookPayload struct {
 }
 
 // NewWebhookProvider creates a new webhook provider.
-func NewWebhookProvider(config map[string]interface{}, logger *zap.Logger) (*WebhookProvider, error) {
+func NewWebhookProvider(config map[string]interface{}, serviceClient *resilience.ServiceClient, logger *zap.Logger) (*WebhookProvider, error) {
 	var webhookConfig WebhookConfig
 	configBytes, err := json.Marshal(config)
 	if err != nil {
@@ -83,16 +83,14 @@ func NewWebhookProvider(config map[string]interface{}, logger *zap.Logger) (*Web
 	}
 
 	provider := &WebhookProvider{
-		url:     webhookConfig.URL,
-		method:  webhookConfig.Method,
-		headers: webhookConfig.Headers,
-		secret:  webhookConfig.Secret,
-		timeout: time.Duration(webhookConfig.Timeout) * time.Second,
-		enabled: webhookConfig.Enabled,
-		httpClient: &http.Client{
-			Timeout: time.Duration(webhookConfig.Timeout) * time.Second,
-		},
-		logger: logger,
+		url:           webhookConfig.URL,
+		method:        webhookConfig.Method,
+		headers:       webhookConfig.Headers,
+		secret:        webhookConfig.Secret,
+		timeout:       time.Duration(webhookConfig.Timeout) * time.Second,
+		enabled:       webhookConfig.Enabled,
+		serviceClient: serviceClient,
+		logger:        logger,
 	}
 
 	if err := provider.ValidateConfig(config); err != nil {
@@ -160,34 +158,31 @@ func (p *WebhookProvider) Send(ctx context.Context, request *NotificationRequest
 		}
 	}
 
-	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, p.method, p.url, strings.NewReader(string(payloadBytes)))
-	if err != nil {
-		return &NotificationResponse{
-			Success: false,
-			Status:  "failed",
-			Error:   fmt.Sprintf("Failed to create request: %v", err),
-			SentAt:  time.Now(),
-		}, err
-	}
-
-	// Set headers
+	// Prepare headers
+	headers := make(map[string]string)
 	for key, value := range p.headers {
-		req.Header.Set(key, value)
+		headers[key] = value
 	}
 
-	// Add signature header if secret is provided
+	// Add signature headers if secret is provided
 	if p.secret != "" {
 		signature := p.generateSignature(payloadBytes)
-		req.Header.Set("X-Webhook-Signature", signature)
-		req.Header.Set("X-Webhook-Signature-256", "sha256="+signature)
+		headers["X-Webhook-Signature"] = signature
+		headers["X-Webhook-Signature-256"] = "sha256=" + signature
 	}
 
 	// Add user agent
-	req.Header.Set("User-Agent", "StatusPage-Webhook/1.0")
+	headers["User-Agent"] = "StatusPage-Webhook/1.0"
 
-	// Send request
-	resp, err := p.httpClient.Do(req)
+	// Send via ServiceClient with circuit breaker and retries
+	resp, err := p.serviceClient.Call(ctx, resilience.ServiceRequest{
+		ServiceName: "webhook",
+		Method:      p.method,
+		URL:         p.url,
+		Body:        payloadBytes,
+		Headers:     headers,
+	})
+
 	if err != nil {
 		return &NotificationResponse{
 			Success: false,
@@ -196,19 +191,8 @@ func (p *WebhookProvider) Send(ctx context.Context, request *NotificationRequest
 			SentAt:  time.Now(),
 		}, err
 	}
-	defer resp.Body.Close()
 
-	// Read response
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return &NotificationResponse{
-			Success:      false,
-			Status:       "failed",
-			ResponseCode: resp.StatusCode,
-			Error:        fmt.Sprintf("Failed to read response: %v", err),
-			SentAt:       time.Now(),
-		}, err
-	}
+	body := resp.Body
 
 	response := &NotificationResponse{
 		Success:      resp.StatusCode >= 200 && resp.StatusCode < 300,
