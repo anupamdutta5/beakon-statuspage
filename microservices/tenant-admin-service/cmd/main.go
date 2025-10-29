@@ -19,7 +19,7 @@ import (
 	"github.com/anupamdutta5/tenant-admin-service/internal/events"
 	"github.com/anupamdutta5/tenant-admin-service/internal/handlers"
 	"github.com/anupamdutta5/tenant-admin-service/internal/middleware"
-	"github.com/anupamdutta5/tenant-admin-service/internal/models"
+	// "github.com/anupamdutta5/tenant-admin-service/internal/models" // Unused after disabling AutoMigrate
 	"github.com/anupamdutta5/tenant-admin-service/internal/sessions"
 	"github.com/anupamdutta5/tenant-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
