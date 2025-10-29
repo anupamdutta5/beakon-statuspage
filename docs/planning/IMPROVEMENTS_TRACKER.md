@@ -16,8 +16,8 @@
 | **Monitoring & Observability** | 5 | 0 | 3 | 2 | 2 | 0 | 3 |
 | **Database & Consistency** | 3 | 1 | 1 | 1 | 2 | 0 | 1 |
 | **Architecture / Technical Debt** | 3 | 1 | 1 | 1 | 0 | 0 | 3 |
-| **Documentation** | 3 | 0 | 2 | 1 | 2 | 0 | 1 |
-| **TOTAL** | **29** | **7** | **12** | **10** | **10** | **1** | **18** |
+| **Documentation** | 3 | 0 | 2 | 1 | 3 | 0 | 0 |
+| **TOTAL** | **29** | **7** | **12** | **10** | **11** | **1** | **17** |
 
 ---
 
@@ -653,21 +653,24 @@ h.service.CreateAdminUser(...)  // ❌ Fails
 ### 3. Add RabbitMQ Event Flow Diagram
 
 **Priority**: 🟢 P2 (Medium)
-**Status**: ⏳ Pending
+**Status**: ✅ COMPLETE (2025-10-29)
 
 **Problem**:
 - No visual diagram of RabbitMQ event flows
 - Hard to understand event-driven patterns
 
-**Implementation Plan**:
-- [ ] Create EVENT_FLOWS.md document
-- [ ] Add diagrams for each event type
-- [ ] Document queues, exchanges, routing keys
+**Implementation**:
+- [x] Created EVENT_FLOWS.md document (comprehensive guide)
+- [x] Added ASCII diagrams for 6 event flows
+- [x] Documented all exchanges, queues, routing keys
+- [x] Added message payload examples
+- [x] Documented retry strategy, DLQs, monitoring
+- [x] Added best practices and troubleshooting
 
-**Files to Change**:
-- `EVENT_FLOWS.md` - NEW FILE
+**Files Created**:
+- `docs/architecture/EVENT_FLOWS.md` - 500+ lines
 
-**Estimated Effort**: 2 hours
+**Actual Effort**: 1 hour
 **Risk**: None
 
 ---
