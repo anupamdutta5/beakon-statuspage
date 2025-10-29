@@ -40,10 +40,8 @@ type OnCallService struct {
 
 // NewOnCallService creates a new on-call service.
 func NewOnCallService(db *gorm.DB, logger *zap.Logger) *OnCallService {
-	// Auto-migrate on-call schedules table
-	if err := db.AutoMigrate(&models.OnCallSchedule{}); err != nil {
-		logger.Error("Failed to migrate on_call_schedules table", zap.Error(err))
-	}
+	// NOTE: Database migrations managed by Atlas (see ../../../migrations/ and atlas.hcl)
+	// AutoMigrate is NOT used - all schema changes via version-controlled migrations
 
 	return &OnCallService{
 		db:     db,

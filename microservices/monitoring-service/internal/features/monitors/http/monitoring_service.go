@@ -30,60 +30,8 @@ type MonitoringService struct {
 
 // NewMonitoringService creates a new monitoring service.
 func NewMonitoringService(db *gorm.DB, logger *zap.Logger) *MonitoringService {
-	// Auto-migrate models for monitoring service
-	if err := db.AutoMigrate(
-		// Core monitoring models
-		&models.MonitoredService{},
-		&models.HealthCheck{},
-		&models.HealthCheckResult{},
-		&models.Alert{},
-		&models.UptimeCheck{},
-		&models.UptimeResult{},
-		&models.PerformanceMetric{},
-		&models.PerformanceDataPoint{},
-		&models.LogEntry{},
-		&models.CustomMetric{},
-		&models.CustomMetricDataPoint{},
-		// Component monitoring models
-		&models.MonitoredComponent{},
-		&models.MonitoredContainer{},
-		&models.ContainerHealthCheck{},
-		&models.ComponentMetric{},
-		// External monitoring models
-		&models.ExternalService{},
-		&models.ExternalServiceHealthCheck{},
-		// Docker monitoring models
-		&models.DockerContainer{},
-		&models.DockerContainerHealthCheck{},
-		// Kubernetes monitoring models
-		&models.KubernetesResource{},
-		&models.KubernetesEvent{},
-		// Maintenance management models
-		&models.MaintenanceWindow{},
-		&models.MaintenanceComponent{},
-		&models.MaintenanceUpdate{},
-		&models.MaintenanceTemplate{},
-		// Status automation models
-		&models.StatusAutomation{},
-		&models.StatusAutomationIntegration{},
-		// Integration models
-		&models.Integration{},
-		&models.ComponentMapping{},
-		&models.IntegrationSyncLog{},
-		// Webhook models
-		&models.WebhookEndpoint{},
-		&models.WebhookDelivery{},
-		&models.WebhookEvent{},
-		// Anomaly detection models (Week 13)
-		&models.MetricSnapshot{},
-		&models.AnomalyBaseline{},
-		&models.DetectedAnomaly{},
-		&models.AnomalyDetectionConfig{},
-	); err != nil {
-		logger.Error("Failed to migrate monitoring service database", zap.Error(err))
-	} else {
-		logger.Info("Monitoring service database migration completed successfully")
-	}
+	// NOTE: Database migrations managed by Atlas (see ../../../../migrations/ and atlas.hcl)
+	// AutoMigrate is NOT used - all schema changes via version-controlled migrations
 
 	return &MonitoringService{
 		db:                    db,
@@ -599,53 +547,8 @@ func InitDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Auto-migrate models
-	if err := db.AutoMigrate(
-		// Core monitoring models
-		&models.MonitoredService{},
-		&models.HealthCheck{},
-		&models.HealthCheckResult{},
-		&models.Alert{},
-		&models.UptimeCheck{},
-		&models.UptimeResult{},
-		&models.PerformanceMetric{},
-		&models.PerformanceDataPoint{},
-		&models.LogEntry{},
-
-		// Component monitoring models
-		&models.MonitoredComponent{},
-		&models.MonitoredContainer{},
-		&models.ContainerHealthCheck{},
-		&models.ComponentMetric{},
-
-		// External monitoring models
-		&models.ExternalService{},
-		&models.ExternalServiceHealthCheck{},
-
-		// Custom metrics models
-		&models.CustomMetric{},
-		&models.CustomMetricDataPoint{},
-
-		// Status automation models
-		&models.StatusAutomation{},
-		&models.StatusAutomationIntegration{},
-
-		// Kubernetes monitoring models
-		&models.KubernetesResource{},
-		&models.KubernetesEvent{},
-
-		// Docker monitoring models
-		&models.DockerContainer{},
-		&models.DockerContainerHealthCheck{},
-
-		// Maintenance management models
-		&models.MaintenanceWindow{},
-		&models.MaintenanceComponent{},
-		&models.MaintenanceUpdate{},
-		&models.MaintenanceTemplate{},
-	); err != nil {
-		return nil, fmt.Errorf("failed to migrate database: %w", err)
-	}
+	// NOTE: Database migrations managed by Atlas (see ../../../../migrations/ and atlas.hcl)
+	// AutoMigrate is NOT used - all schema changes via version-controlled migrations
 
 	return db, nil
 }

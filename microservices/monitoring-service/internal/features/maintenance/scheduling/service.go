@@ -61,10 +61,8 @@ type MaintenanceService struct {
 
 // NewMaintenanceService creates a new maintenance service.
 func NewMaintenanceService(db *gorm.DB, logger *zap.Logger) *MaintenanceService {
-	// Auto-migrate maintenance windows table
-	if err := db.AutoMigrate(&MaintenanceWindow{}); err != nil {
-		logger.Error("Failed to migrate maintenance_windows table", zap.Error(err))
-	}
+	// NOTE: Database migrations managed by Atlas (see ../../../../migrations/ and atlas.hcl)
+	// AutoMigrate is NOT used - all schema changes via version-controlled migrations
 
 	return &MaintenanceService{
 		db:     db,

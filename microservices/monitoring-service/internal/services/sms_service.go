@@ -58,10 +58,8 @@ func NewSMSService(db *gorm.DB, logger *zap.Logger, twilioSID, twilioToken, twil
 		logger.Info("SMS service initialized with Twilio", zap.String("from_number", twilioFrom))
 	}
 
-	// Auto-migrate SMS notifications table
-	if err := db.AutoMigrate(&SMSNotification{}); err != nil {
-		logger.Error("Failed to migrate SMS notifications table", zap.Error(err))
-	}
+	// NOTE: Database migrations managed by Atlas (see ../../../migrations/ and atlas.hcl)
+	// AutoMigrate is NOT used - all schema changes via version-controlled migrations
 
 	return &SMSService{
 		db:          db,

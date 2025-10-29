@@ -50,10 +50,8 @@ type EscalationService struct {
 
 // NewEscalationService creates a new escalation service.
 func NewEscalationService(db *gorm.DB, logger *zap.Logger, smsService *SMSService, onCallService *OnCallService) *EscalationService {
-	// Auto-migrate escalation tables
-	if err := db.AutoMigrate(&models.EscalationPolicy{}, &EscalationTracker{}); err != nil {
-		logger.Error("Failed to migrate escalation tables", zap.Error(err))
-	}
+	// NOTE: Database migrations managed by Atlas (see ../../../migrations/ and atlas.hcl)
+	// AutoMigrate is NOT used - all schema changes via version-controlled migrations
 
 	return &EscalationService{
 		db:            db,
