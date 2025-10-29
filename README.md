@@ -131,13 +131,15 @@ See **[FEATURES.md](FEATURES.md)** for complete feature documentation.
 ### Microservices Overview
 
 ```
-Clients → API Gateway (8080) → Backend Services
-                               ├── User Service (8081)
-                               ├── Component Service (8084)
-                               ├── Notification Service (8085)
-                               ├── Incident Service (8086)
-                               ├── Monitoring Service (8092)
-                               └── ... (10 more)
+Frontends (Next.js)                  Backend Services
+├── SaaS Admin (3001) ────────────┐  ├── SaaS Admin API (8098)
+└── Tenant Admin (3002) ──────────┼─→├── Tenant Admin API (8099)
+                                   │  ├── Component Service (8084)
+External Clients ──────────────────┘  ├── Notification Service (8085)
+                                      ├── Incident Service (8086)
+                                      ├── Monitoring Service (8092)
+                                      ├── Branding Service (8097)
+                                      └── ... (8 more services)
 
 PostgreSQL (14 databases) ← All Services
 RabbitMQ ← Event-Driven Communication
@@ -145,10 +147,10 @@ Redis ← Optional Caching
 ```
 
 ### Key Design Patterns
+- **Direct HTTP Communication**: Services communicate directly with circuit breakers
 - **Database-per-service**: Complete data isolation
 - **Event-driven**: RabbitMQ for async communication
-- **Shared library**: `shared-resilience` for common functionality
-- **API Gateway**: Centralized routing & auth
+- **Shared library**: `shared-resilience` for circuit breakers, retries, health checks
 
 See **[docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md)** for detailed architecture.
 
@@ -156,12 +158,14 @@ See **[docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md)** f
 
 ## 🔧 Services
 
-### Backend HTTP Services (15)
+### Backend HTTP Services (13 Active + 2 Deprecated)
+
+**Active Services:**
 
 | Service | Port | Purpose |
 |---------|------|---------|
-| api-gateway | 8080 | Request routing, JWT validation |
-| user-service | 8081 | Authentication |
+| saas-admin-service | 8098 | Platform admin API |
+| tenant-admin-service | 8099 | Tenant management + SAML/SSO |
 | component-service | 8084 | Component management |
 | notification-service | 8085 | Multi-channel notifications |
 | incident-service | 8086 | Incident lifecycle |
@@ -171,9 +175,14 @@ See **[docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md)** f
 | status-ui-service | 8093 | Public status pages |
 | event-store-service | 8096 | Event sourcing |
 | branding-service | 8097 | Customization |
-| saas-admin-service | 8098 | Platform admin |
-| tenant-admin-service | 8099 | Tenant management |
 | landing-page-service | 8100 | Marketing site |
+
+**Deprecated Services:**
+
+| Service | Port | Status | Reason |
+|---------|------|--------|--------|
+| api-gateway | 8080 | ⚠️ DEPRECATED | Services now communicate directly with circuit breakers |
+| user-service | 8081 | ⚠️ DEPRECATED | Functionality migrated to tenant-admin-service |
 
 ### Background Consumers (4)
 - analytics-consumer, audit-consumer, billing-consumer, notification-consumer
