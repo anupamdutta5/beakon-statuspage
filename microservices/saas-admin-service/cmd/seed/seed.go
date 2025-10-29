@@ -33,10 +33,14 @@ func main() {
 	}
 	defer database.CloseDatabase(db)
 
-	// Auto-migrate models
-	log.Println("Running database migrations...")
+	// NOTE: Database migrations are managed by Atlas (see ../../migrations/ and atlas.hcl)
+	// Before running this seed script, ensure migrations are applied:
+	//   cd microservices/saas-admin-service
+	//   atlas migrate apply --env dev
+	//
+	// This seed script only populates initial data, not schema.
 
-	// Convert to GORM DB for migration
+	// Convert to GORM DB for seeding
 	gormDB, err := gorm.Open(postgres.New(postgres.Config{
 		Conn: db,
 	}), &gorm.Config{})
@@ -44,25 +48,8 @@ func main() {
 		log.Fatalf("Failed to create GORM instance: %v", err)
 	}
 
-	err = gormDB.AutoMigrate(
-		&models.Platform{},
-		&models.SaaSPlan{},
-		&models.PricingTier{},
-		&models.PricingFeature{},
-		&models.PlanFeature{},
-		&models.SaaSFeature{},
-		&models.SaaSFeatureFlag{},
-		&models.SaaSAdminUser{},
-		&models.SaaSNotification{},
-		&models.SaaSActivity{},
-		&models.SaaSBackup{},
-		&models.SaaSStats{},
-	)
-	if err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
-	}
-
-	// Seed the database
+	// Seed the database with initial data
+	log.Println("Seeding database with initial data...")
 	if err := seed.SeedPricingPlans(gormDB); err != nil {
 		log.Fatalf("Failed to seed database: %v", err)
 	}
