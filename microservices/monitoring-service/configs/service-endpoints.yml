@@ -1,0 +1,119 @@
+# Service Endpoints Configuration for Monitoring Service
+# Defines downstream service URLs with circuit breaker settings
+
+endpoints:
+  # Notification Service - for alert delivery
+  notification-service:
+    url: ${NOTIFICATION_SERVICE_URL:-http://notification-service:8085}
+    timeout: 10s
+    retries: 3
+    circuit_breaker:
+      enabled: true
+      threshold: 5          # Open circuit after 5 failures
+      timeout: 60s          # Keep circuit open for 60 seconds
+      half_open_requests: 3 # Allow 3 requests in half-open state
+
+  # Incident Service - for auto-incident creation
+  incident-service:
+    url: ${INCIDENT_SERVICE_URL:-http://incident-service:8086}
+    timeout: 15s
+    retries: 3
+    circuit_breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60s
+      half_open_requests: 3
+
+  # Component Service - for component status updates
+  component-service:
+    url: ${COMPONENT_SERVICE_URL:-http://component-service:8084}
+    timeout: 10s
+    retries: 3
+    circuit_breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60s
+      half_open_requests: 3
+
+  # External HTTP/HTTPS endpoints being monitored
+  # (These are user-configured, so circuit breaker is more lenient)
+  external-monitors:
+    url: ${EXTERNAL_MONITOR_URL}  # Dynamic, set per monitor
+    timeout: 30s
+    retries: 1  # Don't retry user endpoints (we want real failure detection)
+    circuit_breaker:
+      enabled: false  # Don't circuit break user endpoints
+
+  # Slack Integration
+  slack-api:
+    url: https://slack.com/api
+    timeout: 10s
+    retries: 2
+    circuit_breaker:
+      enabled: true
+      threshold: 10  # Slack can handle more load
+      timeout: 120s
+      half_open_requests: 5
+
+  # Microsoft Teams Integration
+  teams-webhook:
+    url: ${TEAMS_WEBHOOK_URL}  # Dynamic, set per integration
+    timeout: 10s
+    retries: 2
+    circuit_breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60s
+      half_open_requests: 3
+
+  # Discord Integration
+  discord-webhook:
+    url: https://discord.com/api/webhooks
+    timeout: 10s
+    retries: 2
+    circuit_breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60s
+      half_open_requests: 3
+
+  # Telegram Integration
+  telegram-api:
+    url: https://api.telegram.org
+    timeout: 10s
+    retries: 2
+    circuit_breaker:
+      enabled: true
+      threshold: 10
+      timeout: 120s
+      half_open_requests: 5
+
+  # PagerDuty Integration
+  pagerduty-api:
+    url: https://events.pagerduty.com/v2
+    timeout: 10s
+    retries: 3
+    circuit_breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60s
+      half_open_requests: 3
+
+  # SMS Service (Twilio/etc)
+  sms-provider:
+    url: ${SMS_PROVIDER_URL:-https://api.twilio.com}
+    timeout: 10s
+    retries: 2
+    circuit_breaker:
+      enabled: true
+      threshold: 5
+      timeout: 60s
+      half_open_requests: 3
+
+  # Generic Webhook Endpoints (user-configured)
+  webhook:
+    url: ${WEBHOOK_URL}  # Dynamic, set per webhook
+    timeout: 15s
+    retries: 1  # Don't retry webhooks too aggressively
+    circuit_breaker:
+      enabled: false  # Let users manage their own webhook failures
