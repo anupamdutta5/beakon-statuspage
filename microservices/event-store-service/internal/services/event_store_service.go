@@ -396,18 +396,13 @@ func initDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	sqlDB.SetMaxIdleConns(cfg.MaxIdle)
 	sqlDB.SetConnMaxLifetime(time.Duration(cfg.MaxLifetime) * time.Second)
 
-	// Auto-migrate models
-	if err := db.AutoMigrate(
-		&models.Stream{},
-		&models.Event{},
-		&models.Snapshot{},
-		&models.Projection{},
-		&models.Subscription{},
-		&models.EventStoreStats{},
-		&models.StreamStats{},
-	); err != nil {
-		return nil, fmt.Errorf("failed to migrate database: %w", err)
-	}
+	// NOTE: Database migrations are managed by Atlas (see migrations/ directory and atlas.hcl)
+	// Run migrations before starting the service:
+	//   cd microservices/event-store-service
+	//   atlas migrate apply --env dev
+	//
+	// AutoMigrate is NOT used in this project as per best practices documented in CLAUDE.md
+	// All schema changes must be tracked in version-controlled migration files
 
 	return db, nil
 }

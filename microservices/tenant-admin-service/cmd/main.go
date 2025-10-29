@@ -84,43 +84,13 @@ func main() {
 
 	logger.Info("Database connection established successfully")
 
-	// Auto-migrate Tenant Admin Service models
+	// Database migrations are managed by Atlas (atlas.hcl)
+	// DO NOT use GORM AutoMigrate - it conflicts with Atlas schema management
+	// To apply migrations: atlas migrate apply --env dev
+	// To create new migrations: atlas migrate diff <name> --env dev
 	db := dbManager.GetDB()
 
-	// Auto migrate all models at once
-	if err := db.AutoMigrate(
-		&models.Tenant{},
-		&models.TenantBranding{},
-		&models.TenantAdmin{},
-		&models.TenantSettings{},
-		&models.TenantFeatureFlag{},
-		&models.TenantUsage{},
-		&models.TenantBilling{},
-		&models.TenantNotification{},
-		&models.TenantActivity{},
-		&models.TenantBackup{},
-		&models.TenantStats{},
-		&models.StatusPage{},
-		&models.StatusPageConfig{},
-		&models.Domain{},
-		&models.DomainVerificationRecord{},
-		&models.Role{},
-		&models.Permission{},
-		&models.UserRole{},
-		&models.Team{},
-		&models.TeamMember{},
-		&models.TeamRole{},
-		&models.Session{},
-		&models.AuditLog{},
-		&models.User{},
-		&models.DependencyEdge{},
-	); err != nil {
-		logger.Warn("Auto-migrate models had issues (continuing anyway)", zap.Error(err))
-	} else {
-		logger.Info("Successfully migrated all models")
-	}
-
-	logger.Info("Tenant Admin Service database migration completed")
+	logger.Info("Tenant Admin Service using Atlas for migrations - AutoMigrate disabled")
 
 	// Initialize circuit breakers for external dependencies
 	var circuitBreakers = make(map[string]*resilience.CircuitBreaker)
@@ -287,8 +257,11 @@ func main() {
 	subscriberService := services.NewSubscriberService(db, redisClient, logger)
 	dependencyService := services.NewDependencyService(db)
 
+	// Initialize session service for refresh token management
+	sessionService := services.NewSessionService(db, logger)
+
 	// Initialize modernized handlers with shared error handling
-	tenantAdminHandler := handlers.NewTenantAdminHandler(tenantAdminService, statusPageService, rbacService, logger)
+	tenantAdminHandler := handlers.NewTenantAdminHandler(tenantAdminService, statusPageService, rbacService, sessionService, logger)
 	domainHandler := handlers.NewDomainHandler(domainService, logger)
 	rbacHandler := handlers.NewRBACHandler(rbacService, logger)
 	userHandler := handlers.NewUserHandler(tenantAdminService, logger)
@@ -485,6 +458,7 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 		auth := api.Group("/auth")
 		{
 			auth.POST("/login", tenantHandler.Login)
+			auth.POST("/refresh", tenantHandler.RefreshToken) // Refresh access token using refresh token
 		}
 
 		// Public routes (no authentication required)

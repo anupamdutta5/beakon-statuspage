@@ -1004,23 +1004,13 @@ func initDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to ping database: %v", err)
 	}
 
-	// Auto-migrate models
-	if err := db.AutoMigrate(
-		&models.Platform{},
-		&models.SaaSPlan{},
-		&models.PricingTier{},
-		&models.PricingFeature{},
-		&models.PlanFeature{},
-		&models.SaaSFeature{},
-		&models.SaaSFeatureFlag{},
-		&models.SaaSAdminUser{},
-		&models.SaaSNotification{},
-		&models.SaaSActivity{},
-		&models.SaaSBackup{},
-		&models.SaaSStats{},
-	); err != nil {
-		return nil, fmt.Errorf("failed to migrate database: %w", err)
-	}
+	// NOTE: Database migrations are managed by Atlas (see migrations/ directory and atlas.hcl)
+	// Run migrations before starting the service:
+	//   cd microservices/saas-admin-service
+	//   atlas migrate apply --env dev
+	//
+	// AutoMigrate is NOT used in this project as per best practices documented in CLAUDE.md
+	// All schema changes must be tracked in version-controlled migration files
 
 	return db, nil
 }
