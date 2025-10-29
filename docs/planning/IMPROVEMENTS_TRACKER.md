@@ -12,12 +12,12 @@
 |----------|--------------|---------------|-----------|-------------|-------|-------------|---------|
 | **Circuit Breakers & Resilience** | 8 | 3 | 3 | 2 | 2 | 0 | 6 |
 | **Event-Driven Architecture** | 4 | 2 | 1 | 1 | 1 | 0 | 3 |
-| **Authentication & Security** | 3 | 0 | 2 | 1 | 1 | 0 | 2 |
+| **Authentication & Security** | 3 | 0 | 2 | 1 | 1 | 1 | 1 |
 | **Monitoring & Observability** | 5 | 0 | 3 | 2 | 2 | 0 | 3 |
 | **Database & Consistency** | 3 | 1 | 1 | 1 | 2 | 0 | 1 |
 | **Architecture / Technical Debt** | 3 | 1 | 1 | 1 | 0 | 0 | 3 |
-| **Documentation** | 3 | 0 | 1 | 2 | 0 | 0 | 3 |
-| **TOTAL** | **29** | **7** | **12** | **10** | **8** | **0** | **21** |
+| **Documentation** | 3 | 0 | 2 | 1 | 2 | 0 | 1 |
+| **TOTAL** | **29** | **7** | **12** | **10** | **10** | **1** | **18** |
 
 ---
 
@@ -600,22 +600,25 @@ h.service.CreateAdminUser(...)  // ❌ Fails
 ### 1. README.md Still Shows API Gateway
 
 **Priority**: 🟡 P1 (High)
-**Status**: ⏳ Pending
+**Status**: ✅ COMPLETE (2025-10-29)
+**Commit**: 9aebeac
 
 **Problem**:
-- README.md architecture diagram shows API Gateway as entry point
+- README.md architecture diagram showed API Gateway as entry point
 - API Gateway was deprecated on October 26, 2025
-- Misleads new developers
+- Misled new developers
 
-**Implementation Plan**:
-- [ ] Update README.md architecture diagram
-- [ ] Show direct service communication pattern
-- [ ] Document circuit breaker usage
+**Implementation**:
+- [x] Updated README.md architecture diagram (removed API Gateway)
+- [x] Showed direct service communication pattern with circuit breakers
+- [x] Documented frontend → backend communication
+- [x] Added deprecation table for api-gateway and user-service
+- [x] Updated Key Design Patterns section
 
-**Files to Change**:
-- `README.md:134-145`
+**Files Changed**:
+- `README.md` - Architecture section completely rewritten
 
-**Estimated Effort**: 1 hour
+**Actual Effort**: 30 minutes
 **Risk**: None
 
 ---
@@ -623,20 +626,26 @@ h.service.CreateAdminUser(...)  // ❌ Fails
 ### 2. SERVICE_CATALOG.md Recommends API Gateway
 
 **Priority**: 🟡 P1 (High)
-**Status**: ⏳ Pending
+**Status**: ✅ COMPLETE (2025-10-29)
+**Commit**: 0bb7e15
 
 **Problem**:
-- SERVICE_CATALOG.md states services should communicate via API Gateway
-- Contradicts actual architecture
+- SERVICE_CATALOG.md stated services should communicate via API Gateway
+- Contradicted actual architecture
 
-**Implementation Plan**:
-- [ ] Update SERVICE_CATALOG.md communication pattern section
-- [ ] Document direct HTTP + circuit breaker pattern
+**Implementation**:
+- [x] Updated SERVICE_CATALOG.md communication pattern section (complete rewrite)
+- [x] Documented direct HTTP + circuit breaker pattern with code examples
+- [x] Added frontend communication patterns
+- [x] Expanded event-driven communication with RabbitMQ examples
+- [x] Updated summary table (marked api-gateway, user-service as DEPRECATED)
+- [x] Updated authentication section (JWT from tenant-admin-service)
+- [x] Updated development ports and start commands
 
-**Files to Change**:
-- `SERVICE_CATALOG.md:1015-1046`
+**Files Changed**:
+- `docs/architecture/SERVICE_CATALOG.md` - Major rewrite of communication patterns
 
-**Estimated Effort**: 1 hour
+**Actual Effort**: 1 hour
 **Risk**: None
 
 ---
