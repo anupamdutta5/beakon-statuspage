@@ -10,7 +10,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/anupamdutta5/branding-service/internal/config"
 	"github.com/anupamdutta5/branding-service/internal/handlers"
 	"github.com/anupamdutta5/branding-service/internal/models"
 	"github.com/anupamdutta5/branding-service/internal/services"
@@ -28,18 +27,7 @@ func TestBrandingHandler_HealthCheck(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	cfg := &config.Config{
-		Database: config.DatabaseConfig{
-			Host:     "localhost",
-			Port:     5432,
-			User:     "test",
-			Password: "test",
-			Name:     "test",
-		},
-	}
-	brandingService, _ := services.NewBrandingService(cfg, logger)
-	// Override the database connection with our test database
-	brandingService.SetDB(db)
+	brandingService := services.NewBrandingService(db, logger)
 	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	router := gin.New()
@@ -72,18 +60,7 @@ func TestBrandingHandler_CreateBrand(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	cfg := &config.Config{
-		Database: config.DatabaseConfig{
-			Host:     "localhost",
-			Port:     5432,
-			User:     "test",
-			Password: "test",
-			Name:     "test",
-		},
-	}
-	brandingService, _ := services.NewBrandingService(cfg, logger)
-	// Override the database connection with our test database
-	brandingService.SetDB(db)
+	brandingService := services.NewBrandingService(db, logger)
 	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	router := gin.New()
@@ -136,9 +113,7 @@ func TestBrandingHandler_GetBrand(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, logger)
-	brandingService.SetDB(db)
+	brandingService := services.NewBrandingService(db, logger)
 	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	// Create a brand first
@@ -188,9 +163,7 @@ func TestBrandingHandler_UpdateBrand(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, logger)
-	brandingService.SetDB(db)
+	brandingService := services.NewBrandingService(db, logger)
 	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	// Create a brand first
@@ -247,9 +220,7 @@ func TestBrandingHandler_DeleteBrand(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, logger)
-	brandingService.SetDB(db)
+	brandingService := services.NewBrandingService(db, logger)
 	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	// Create a brand first
@@ -282,7 +253,7 @@ func TestBrandingHandler_DeleteBrand(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	// Verify deletion
-	_, err = brandingService.GetBrand(context.Background(), brand.ID)
+	_, err = brandingService.GetBrand(context.Background(), brand.ID, 1)
 	assert.Error(t, err)
 }
 
@@ -292,9 +263,7 @@ func TestBrandingHandler_ListBrands(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, logger)
-	brandingService.SetDB(db)
+	brandingService := services.NewBrandingService(db, logger)
 	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	// Create multiple brands
@@ -340,9 +309,7 @@ func TestBrandingHandler_CreateTheme(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, logger)
-	brandingService.SetDB(db)
+	brandingService := services.NewBrandingService(db, logger)
 	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	// Create a brand first
@@ -410,9 +377,7 @@ func TestBrandingHandler_CreateAsset(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, logger)
-	brandingService.SetDB(db)
+	brandingService := services.NewBrandingService(db, logger)
 	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	// Create a brand first
@@ -488,9 +453,7 @@ func TestBrandingHandler_ListAssets(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, logger)
-	brandingService.SetDB(db)
+	brandingService := services.NewBrandingService(db, logger)
 	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	// Create a brand first
@@ -549,9 +512,7 @@ func TestBrandingHandler_CreateCustomCSS(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, logger)
-	brandingService.SetDB(db)
+	brandingService := services.NewBrandingService(db, logger)
 	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	// Create a brand first
@@ -617,9 +578,7 @@ func TestBrandingHandler_GetStats(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	cfg := &config.Config{}
-	brandingService, _ := services.NewBrandingService(cfg, logger)
-	brandingService.SetDB(db)
+	brandingService := services.NewBrandingService(db, logger)
 	handler := handlers.NewBrandingHandler(brandingService, logger)
 
 	router := gin.New()

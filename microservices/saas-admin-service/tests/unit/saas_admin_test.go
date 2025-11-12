@@ -7,9 +7,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
+	"time"
 
+	"github.com/anupamdutta5/saas-admin-service/internal/cache"
 	"github.com/anupamdutta5/saas-admin-service/internal/config"
+	"github.com/anupamdutta5/saas-admin-service/internal/events"
 	"github.com/anupamdutta5/saas-admin-service/internal/handlers"
 	"github.com/anupamdutta5/saas-admin-service/internal/models"
 	"github.com/anupamdutta5/saas-admin-service/internal/services"
@@ -27,9 +31,13 @@ func TestSaaSAdminHandler_HealthCheck(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
+	cfg := loadTestConfig(t)
+	cache := setupMockCache()
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db, cache)
+	tenantAdminDB := setupTestDB(t) // Mock tenant admin DB
+	eventPublisher := setupMockEventPublisher(logger)
+	serviceURLs := setupMockServiceURLs()
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, tenantAdminDB, eventPublisher, serviceURLs, logger)
 
 	router := gin.New()
 	router.GET("/health", handler.HealthCheck)
@@ -56,9 +64,13 @@ func TestSaaSAdminHandler_CreatePlan(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
+	cfg := loadTestConfig(t)
+	cache := setupMockCache()
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db, cache)
+	tenantAdminDB := setupTestDB(t) // Mock tenant admin DB
+	eventPublisher := setupMockEventPublisher(logger)
+	serviceURLs := setupMockServiceURLs()
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, tenantAdminDB, eventPublisher, serviceURLs, logger)
 
 	router := gin.New()
 	router.POST("/plans", handler.CreatePlan)
@@ -107,9 +119,13 @@ func TestSaaSAdminHandler_GetPlan(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
+	cfg := loadTestConfig(t)
+	cache := setupMockCache()
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db, cache)
+	tenantAdminDB := setupTestDB(t) // Mock tenant admin DB
+	eventPublisher := setupMockEventPublisher(logger)
+	serviceURLs := setupMockServiceURLs()
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, tenantAdminDB, eventPublisher, serviceURLs, logger)
 
 	// Create a plan first
 	plan := models.SaaSPlan{
@@ -152,9 +168,13 @@ func TestSaaSAdminHandler_UpdatePlan(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
+	cfg := loadTestConfig(t)
+	cache := setupMockCache()
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db, cache)
+	tenantAdminDB := setupTestDB(t) // Mock tenant admin DB
+	eventPublisher := setupMockEventPublisher(logger)
+	serviceURLs := setupMockServiceURLs()
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, tenantAdminDB, eventPublisher, serviceURLs, logger)
 
 	// Create a plan first
 	plan := models.SaaSPlan{
@@ -211,9 +231,13 @@ func TestSaaSAdminHandler_DeletePlan(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
+	cfg := loadTestConfig(t)
+	cache := setupMockCache()
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db, cache)
+	tenantAdminDB := setupTestDB(t) // Mock tenant admin DB
+	eventPublisher := setupMockEventPublisher(logger)
+	serviceURLs := setupMockServiceURLs()
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, tenantAdminDB, eventPublisher, serviceURLs, logger)
 
 	// Create a plan first
 	plan := models.SaaSPlan{
@@ -257,9 +281,13 @@ func TestSaaSAdminHandler_ListPlans(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
+	cfg := loadTestConfig(t)
+	cache := setupMockCache()
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db, cache)
+	tenantAdminDB := setupTestDB(t) // Mock tenant admin DB
+	eventPublisher := setupMockEventPublisher(logger)
+	serviceURLs := setupMockServiceURLs()
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, tenantAdminDB, eventPublisher, serviceURLs, logger)
 
 	// Create multiple plans
 	plans := []models.SaaSPlan{
@@ -303,9 +331,13 @@ func TestSaaSAdminHandler_CreateFeatureFlag(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
+	cfg := loadTestConfig(t)
+	cache := setupMockCache()
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db, cache)
+	tenantAdminDB := setupTestDB(t) // Mock tenant admin DB
+	eventPublisher := setupMockEventPublisher(logger)
+	serviceURLs := setupMockServiceURLs()
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, tenantAdminDB, eventPublisher, serviceURLs, logger)
 
 	router := gin.New()
 	router.POST("/feature-flags", handler.CreateFeatureFlag)
@@ -347,9 +379,13 @@ func TestSaaSAdminHandler_GetFeatureFlags(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
+	cfg := loadTestConfig(t)
+	cache := setupMockCache()
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db, cache)
+	tenantAdminDB := setupTestDB(t) // Mock tenant admin DB
+	eventPublisher := setupMockEventPublisher(logger)
+	serviceURLs := setupMockServiceURLs()
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, tenantAdminDB, eventPublisher, serviceURLs, logger)
 
 	// Create some feature flags
 	featureFlags := []models.SaaSFeatureFlag{
@@ -391,9 +427,13 @@ func TestSaaSAdminHandler_GetPlatformStats(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
+	cfg := loadTestConfig(t)
+	cache := setupMockCache()
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db, cache)
+	tenantAdminDB := setupTestDB(t) // Mock tenant admin DB
+	eventPublisher := setupMockEventPublisher(logger)
+	serviceURLs := setupMockServiceURLs()
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, tenantAdminDB, eventPublisher, serviceURLs, logger)
 
 	router := gin.New()
 	router.GET("/stats", handler.GetStats)
@@ -426,9 +466,13 @@ func TestSaaSAdminHandler_UpdateFeatureFlag(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
+	cfg := loadTestConfig(t)
+	cache := setupMockCache()
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db, cache)
+	tenantAdminDB := setupTestDB(t) // Mock tenant admin DB
+	eventPublisher := setupMockEventPublisher(logger)
+	serviceURLs := setupMockServiceURLs()
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, tenantAdminDB, eventPublisher, serviceURLs, logger)
 
 	// Create a feature flag first
 	featureFlag := models.SaaSFeatureFlag{
@@ -476,9 +520,13 @@ func TestSaaSAdminHandler_DeleteFeatureFlag(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
-	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db)
-	handler := handlers.NewSaaSAdminHandler(saasAdminService, logger)
+	cfg := loadTestConfig(t)
+	cache := setupMockCache()
+	saasAdminService, _ := services.NewSaaSAdminService(cfg, logger, db, cache)
+	tenantAdminDB := setupTestDB(t) // Mock tenant admin DB
+	eventPublisher := setupMockEventPublisher(logger)
+	serviceURLs := setupMockServiceURLs()
+	handler := handlers.NewSaaSAdminHandler(saasAdminService, tenantAdminDB, eventPublisher, serviceURLs, logger)
 
 	// Create a feature flag first
 	featureFlag := models.SaaSFeatureFlag{
@@ -515,12 +563,136 @@ func TestSaaSAdminHandler_DeleteFeatureFlag(t *testing.T) {
 
 // Helper function to setup test database
 func setupTestDB(t *testing.T) *gorm.DB {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
 	require.NoError(t, err)
 
-	// Auto migrate
-	err = db.AutoMigrate(&models.SaaSPlan{}, &models.SaaSFeatureFlag{}, &models.SaaSStats{})
+	// Manually execute migrations without PostgreSQL-specific default values
+	// Use AUTOINCREMENT for IDs instead of UUID for SQLite compatibility
+	err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS saas_plans (
+			id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+			created_at DATETIME,
+			updated_at DATETIME,
+			deleted_at DATETIME,
+			name TEXT NOT NULL UNIQUE,
+			slug TEXT NOT NULL UNIQUE,
+			description TEXT,
+			price REAL NOT NULL,
+			currency TEXT DEFAULT 'USD',
+			billing_interval TEXT DEFAULT 'monthly',
+			max_tenants INTEGER DEFAULT 1,
+			max_users INTEGER DEFAULT 5,
+			max_services INTEGER DEFAULT 10,
+			max_monitors INTEGER DEFAULT 50,
+			max_subscribers INTEGER DEFAULT 1000,
+			max_incidents INTEGER DEFAULT 100,
+			max_maintenance INTEGER DEFAULT 50,
+			custom_domain BOOLEAN DEFAULT FALSE,
+			white_label BOOLEAN DEFAULT FALSE,
+			api BOOLEAN DEFAULT FALSE,
+			integrations BOOLEAN DEFAULT FALSE,
+			analytics BOOLEAN DEFAULT FALSE,
+			support TEXT DEFAULT 'email',
+			is_active BOOLEAN DEFAULT TRUE,
+			is_public BOOLEAN DEFAULT TRUE,
+			is_popular BOOLEAN DEFAULT FALSE,
+			button_text TEXT DEFAULT 'Get Started',
+			button_url TEXT DEFAULT '/signup',
+			display_order INTEGER DEFAULT 0,
+			features TEXT,
+			limits TEXT,
+			metadata TEXT
+		)
+	`).Error
+	require.NoError(t, err)
+
+	err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS saas_feature_flags (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			created_at DATETIME,
+			updated_at DATETIME,
+			deleted_at DATETIME,
+			name TEXT NOT NULL UNIQUE,
+			description TEXT,
+			is_enabled BOOLEAN DEFAULT FALSE,
+			config TEXT,
+			metadata TEXT
+		)
+	`).Error
+	require.NoError(t, err)
+
+	err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS saas_stats (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			created_at DATETIME,
+			updated_at DATETIME,
+			deleted_at DATETIME,
+			key TEXT NOT NULL UNIQUE,
+			value TEXT,
+			metadata TEXT
+		)
+	`).Error
 	require.NoError(t, err)
 
 	return db
+}
+
+// MockCache implements the cache.Cache interface for unit tests
+type MockCache struct{}
+
+func (m *MockCache) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+	return nil
+}
+
+func (m *MockCache) Get(ctx context.Context, key string, dest interface{}) error {
+	return nil
+}
+
+func (m *MockCache) Del(ctx context.Context, keys ...string) error {
+	return nil
+}
+
+func (m *MockCache) IsHealthy(ctx context.Context) bool {
+	return true
+}
+
+// Helper function to setup mock cache for tests
+func setupMockCache() cache.Cache {
+	return &MockCache{}
+}
+
+// Helper function to setup mock event publisher for tests
+func setupMockEventPublisher(logger *zap.Logger) *events.Publisher {
+	// Create a mock RabbitMQ connection (won't actually connect in tests)
+	// Return nil for unit tests as we don't need actual event publishing
+	return nil
+}
+
+// Helper function to setup mock service URLs for tests
+func setupMockServiceURLs() config.ServiceURLs {
+	return config.ServiceURLs{
+		TenantAdminService: "http://localhost:8099",
+	}
+}
+
+// Helper function to load test configuration
+func loadTestConfig(t *testing.T) *config.Config {
+	// Use development environment for tests
+	os.Setenv("ENVIRONMENT", "development")
+	defer os.Unsetenv("ENVIRONMENT")
+
+	// Load configuration using the service's standard config loader
+	// The shared-resilience library will automatically find the correct config path
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Failed to load test configuration: %v", err)
+	}
+
+	// Override database settings for testing (SQLite will be provided directly)
+	cfg.Database.Host = "localhost"
+	cfg.Database.Name = ":memory:"
+
+	return &cfg
 }

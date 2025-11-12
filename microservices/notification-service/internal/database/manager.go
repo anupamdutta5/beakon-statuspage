@@ -103,7 +103,7 @@ func (m *Manager) connect() error {
 		Conn: sqlDB,
 	}), &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-		Logger: log.NewGormLogger(m.loggerger),
+		Logger: NewGormLogger(m.logger),
 	})
 	if err != nil {
 		sqlDB.Close()

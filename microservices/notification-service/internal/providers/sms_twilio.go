@@ -3,6 +3,7 @@ package providers
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anupamdutta5/shared-resilience"
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"go.uber.org/zap"
 )
 
@@ -82,20 +83,25 @@ func (p *TwilioSMSProvider) Send(ctx context.Context, request *NotificationReque
 	twilioURL := fmt.Sprintf("https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json", p.accountSID)
 
 	// Prepare auth header (Basic Auth)
-	authHeader := "Basic " + resilience.BasicAuth(p.accountSID, p.authToken)
+	auth := p.accountSID + ":" + p.authToken
+	authHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
 
-	// Send via ServiceClient with circuit breaker
-	resp, err := p.serviceClient.Call(ctx, resilience.ServiceRequest{
-		ServiceName: "twilio-api",
-		Method:      "POST",
-		URL:         twilioURL,
-		Body:        []byte(data.Encode()),
-		Headers: map[string]string{
-			"Content-Type":  "application/x-www-form-urlencoded",
-			"Authorization": authHeader,
-		},
-	})
+	// Create HTTP request for Twilio API
+	req, err := http.NewRequestWithContext(ctx, "POST", twilioURL, strings.NewReader(data.Encode()))
+	if err != nil {
+		return &NotificationResponse{
+			Success: false,
+			Status:  "failed",
+			Error:   fmt.Sprintf("Failed to create request: %v", err),
+			SentAt:  time.Now(),
+		}, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Authorization", authHeader)
 
+	// Send via HTTP client (external API)
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return &NotificationResponse{
 			Success: false,
@@ -104,8 +110,14 @@ func (p *TwilioSMSProvider) Send(ctx context.Context, request *NotificationReque
 			SentAt:  time.Now(),
 		}, err
 	}
+	defer resp.Body.Close()
 
-	body := resp.Body
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		p.logger.Warn("Failed to read Twilio response body", zap.Error(err))
+		body = []byte{}
+	}
 
 	// Parse response
 	var twilioResp map[string]interface{}

@@ -1,6 +1,7 @@
 package services
 
 import (
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -126,17 +127,15 @@ type TeamsAttachment struct {
 type TeamsIntegrationService struct {
 	db         *gorm.DB
 	logger     *zap.Logger
-	httpClient *http.Client
+	serviceClient *resilience.ServiceClient
 }
 
 // NewTeamsIntegrationService creates a new Teams integration service
-func NewTeamsIntegrationService(db *gorm.DB, logger *zap.Logger) *TeamsIntegrationService {
+func NewTeamsIntegrationService(db *gorm.DB, serviceClient *resilience.ServiceClient, logger *zap.Logger) *TeamsIntegrationService {
 	return &TeamsIntegrationService{
 		db:     db,
 		logger: logger,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		serviceClient: serviceClient,
 	}
 }
 
@@ -345,9 +344,6 @@ func (s *TeamsIntegrationService) buildAdaptiveCardMessage(eventType string, mon
 
 	// Build facts
 	facts := []TeamsFact{
-		{Title: "Status", Value: statusText},
-		{Title: "Monitor", Value: monitorName},
-		{Title: "Time", Value: time.Now().Format("January 2, 2006 at 3:04 PM MST")},
 	}
 
 	// Add additional facts from details
@@ -475,7 +471,10 @@ func (s *TeamsIntegrationService) sendTeamsMessage(ctx context.Context, integrat
 	req.Header.Set("Content-Type", "application/json")
 
 	// Send request
-	resp, err := s.httpClient.Do(req)
+
+	// Send request using HTTP client
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		s.logger.Error("Failed to send Teams message", zap.Error(err))
 		notification.Status = "failed"
@@ -535,7 +534,9 @@ func (s *TeamsIntegrationService) TestWebhook(webhookURL string) error {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := s.httpClient.Do(req)
+	// Send request using HTTP client
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send test message: %w", err)
 	}
@@ -577,7 +578,6 @@ func (s *TeamsIntegrationService) GetNotificationStats(tenantID uuid.UUID, start
 			"total_sent":     0,
 			"total_failed":   0,
 			"success_rate":   0.0,
-			"by_event_type":  map[string]int64{},
 		}, nil
 	}
 

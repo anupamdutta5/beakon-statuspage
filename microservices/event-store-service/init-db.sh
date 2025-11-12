@@ -22,7 +22,7 @@ set -e
 # CONFIGURATION (will be replaced per service)
 # ============================================
 SERVICE_NAME="event-store-service"
-DB_NAME="statuspage_events"
+DB_NAME="events_db"
 MIGRATIONS_DIR="./migrations"
 SEEDS_DIR="./seeds"
 

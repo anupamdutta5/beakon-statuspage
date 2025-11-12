@@ -15,6 +15,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // Server represents the Landing Page Service server.
@@ -28,12 +29,9 @@ type Server struct {
 }
 
 // New creates a new Landing Page Service server.
-func New(cfg *config.Config, logger *zap.Logger) (*Server, error) {
+func New(db *gorm.DB, cfg *config.Config, logger *zap.Logger) (*Server, error) {
 	// Initialize landing service
-	service, err := services.NewLandingService(cfg, logger)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize landing service: %w", err)
-	}
+	service := services.NewLandingService(db, cfg, logger)
 
 	// Initialize SEO service
 	seoConfig := &services.SEOConfig{

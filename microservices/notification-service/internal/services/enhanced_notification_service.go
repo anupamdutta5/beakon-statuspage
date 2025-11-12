@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/anupamdutta5/notification-service/internal/models"
 	"github.com/anupamdutta5/notification-service/internal/providers"
 	"go.uber.org/zap"
@@ -22,11 +23,11 @@ type EnhancedNotificationService struct {
 }
 
 // NewEnhancedNotificationService creates a new enhanced notification service.
-func NewEnhancedNotificationService(db *gorm.DB, logger *zap.Logger) *EnhancedNotificationService {
+func NewEnhancedNotificationService(db *gorm.DB, serviceClient *resilience.ServiceClient, logger *zap.Logger) *EnhancedNotificationService {
 	service := &EnhancedNotificationService{
 		db:              db,
 		logger:          logger,
-		providerManager: providers.NewManager(logger),
+		providerManager: providers.NewManager(serviceClient, logger),
 	}
 
 	// Initialize default providers (this would typically come from configuration)

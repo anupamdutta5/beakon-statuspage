@@ -22,7 +22,7 @@ set -e
 # CONFIGURATION (will be replaced per service)
 # ============================================
 SERVICE_NAME="payment-service"
-DB_NAME="statuspage_payment"
+DB_NAME="payment_db"
 MIGRATIONS_DIR="./migrations"
 SEEDS_DIR="./seeds"
 

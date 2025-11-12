@@ -6,21 +6,24 @@ import (
 	"fmt"
 	"sync"
 
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"go.uber.org/zap"
 )
 
 // Manager manages notification providers.
 type Manager struct {
-	providers map[string]Provider
-	logger    *zap.Logger
-	mu        sync.RWMutex
+	providers     map[string]Provider
+	logger        *zap.Logger
+	serviceClient *resilience.ServiceClient
+	mu            sync.RWMutex
 }
 
 // NewManager creates a new provider manager.
-func NewManager(logger *zap.Logger) *Manager {
+func NewManager(serviceClient *resilience.ServiceClient, logger *zap.Logger) *Manager {
 	return &Manager{
-		providers: make(map[string]Provider),
-		logger:    logger,
+		providers:     make(map[string]Provider),
+		logger:        logger,
+		serviceClient: serviceClient,
 	}
 }
 
@@ -167,18 +170,18 @@ func (m *Manager) CreateProvider(config *ProviderConfig) (Provider, error) {
 	switch config.Type {
 	case "sms":
 		if config.Name == "twilio" {
-			return NewTwilioSMSProvider(config.Settings, m.logger)
+			return NewTwilioSMSProvider(config.Settings, m.serviceClient, m.logger)
 		}
 		return nil, fmt.Errorf("unsupported SMS provider: %s", config.Name)
 
 	case "slack":
-		return NewSlackProvider(config.Settings, m.logger)
+		return NewSlackProvider(config.Settings, m.serviceClient, m.logger)
 
 	case "teams":
-		return NewTeamsProvider(config.Settings, m.logger)
+		return NewTeamsProvider(config.Settings, m.serviceClient, m.logger)
 
 	case "webhook":
-		return NewWebhookProvider(config.Settings, m.logger)
+		return NewWebhookProvider(config.Settings, m.serviceClient, m.logger)
 
 	default:
 		return nil, fmt.Errorf("unsupported provider type: %s", config.Type)

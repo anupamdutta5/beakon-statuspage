@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/anupamdutta5/event-store-service/internal/config"
 	"github.com/anupamdutta5/event-store-service/internal/models"
 	"github.com/anupamdutta5/event-store-service/internal/services"
 	"github.com/stretchr/testify/assert"
@@ -20,18 +19,7 @@ func TestEventStoreService_ListStreams(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	cfg := &config.Config{
-		Database: config.DatabaseConfig{
-			Host:     "localhost",
-			Port:     5432,
-			User:     "test",
-			Password: "test",
-			Name:     "test",
-		},
-	}
-	eventStoreService, _ := services.NewEventStoreService(cfg, logger)
-	// Override the database connection with our test database
-	eventStoreService.SetDB(db)
+	eventStoreService := services.NewEventStoreService(db, logger)
 
 	// Test
 	streams, err := eventStoreService.ListStreams(context.Background())
@@ -46,18 +34,7 @@ func TestEventStoreService_CreateStream(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	cfg := &config.Config{
-		Database: config.DatabaseConfig{
-			Host:     "localhost",
-			Port:     5432,
-			User:     "test",
-			Password: "test",
-			Name:     "test",
-		},
-	}
-	eventStoreService, _ := services.NewEventStoreService(cfg, logger)
-	// Override the database connection with our test database
-	eventStoreService.SetDB(db)
+	eventStoreService := services.NewEventStoreService(db, logger)
 
 	// Test data
 	stream := &models.Stream{
@@ -79,9 +56,7 @@ func TestEventStoreService_GetStream(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	cfg := &config.Config{}
-	eventStoreService, _ := services.NewEventStoreService(cfg, logger)
-	eventStoreService.SetDB(db)
+	eventStoreService := services.NewEventStoreService(db, logger)
 
 	// Create a stream first
 	stream := &models.Stream{
@@ -108,9 +83,7 @@ func TestEventStoreService_AppendEvent(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	cfg := &config.Config{}
-	eventStoreService, _ := services.NewEventStoreService(cfg, logger)
-	eventStoreService.SetDB(db)
+	eventStoreService := services.NewEventStoreService(db, logger)
 
 	// Create a stream first
 	stream := &models.Stream{
@@ -143,9 +116,7 @@ func TestEventStoreService_GetEvents(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	cfg := &config.Config{}
-	eventStoreService, _ := services.NewEventStoreService(cfg, logger)
-	eventStoreService.SetDB(db)
+	eventStoreService := services.NewEventStoreService(db, logger)
 
 	// Create a stream first
 	stream := &models.Stream{
@@ -195,9 +166,7 @@ func TestEventStoreService_CreateSnapshot(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	cfg := &config.Config{}
-	eventStoreService, _ := services.NewEventStoreService(cfg, logger)
-	eventStoreService.SetDB(db)
+	eventStoreService := services.NewEventStoreService(db, logger)
 
 	// Create a stream first
 	stream := &models.Stream{
@@ -230,9 +199,7 @@ func TestEventStoreService_GetSnapshot(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	cfg := &config.Config{}
-	eventStoreService, _ := services.NewEventStoreService(cfg, logger)
-	eventStoreService.SetDB(db)
+	eventStoreService := services.NewEventStoreService(db, logger)
 
 	// Create a stream first
 	stream := &models.Stream{
@@ -270,9 +237,7 @@ func TestEventStoreService_DeleteStream(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	cfg := &config.Config{}
-	eventStoreService, _ := services.NewEventStoreService(cfg, logger)
-	eventStoreService.SetDB(db)
+	eventStoreService := services.NewEventStoreService(db, logger)
 
 	// Create a stream first
 	stream := &models.Stream{

@@ -18,7 +18,8 @@ data "external_schema" "gorm" {
 env "dev" {
   src = data.external_schema.gorm.url
   url = "postgres://postgres:postgres@localhost:5432/saas_admin?sslmode=disable"
-  dev = "docker://postgres/16/dev?search_path=public"
+  # Use a local dev database for schema comparisons
+  dev = "postgres://postgres:postgres@localhost:5432/saas_admin_dev?sslmode=disable"
 
   migration {
     dir = "file://migrations"

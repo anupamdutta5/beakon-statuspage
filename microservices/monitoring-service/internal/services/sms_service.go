@@ -2,6 +2,7 @@
 package services
 
 import (
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -49,7 +50,7 @@ func (SMSNotification) TableName() string {
 }
 
 // NewSMSService creates a new SMS service instance.
-func NewSMSService(db *gorm.DB, logger *zap.Logger, twilioSID, twilioToken, twilioFrom string) *SMSService {
+func NewSMSService(db *gorm.DB, serviceClient *resilience.ServiceClient, logger *zap.Logger, twilioSID, twilioToken, twilioFrom string) *SMSService {
 	enabled := twilioSID != "" && twilioToken != "" && twilioFrom != ""
 
 	if !enabled {
@@ -62,12 +63,12 @@ func NewSMSService(db *gorm.DB, logger *zap.Logger, twilioSID, twilioToken, twil
 	// AutoMigrate is NOT used - all schema changes via version-controlled migrations
 
 	return &SMSService{
-		db:          db,
-		logger:      logger,
-		twilioSID:   twilioSID,
-		twilioToken: twilioToken,
-		twilioFrom:  twilioFrom,
-		enabled:     enabled,
+		db:            db,
+		logger:        logger,
+		twilioSID:     twilioSID,
+		twilioToken:   twilioToken,
+		twilioFrom:    twilioFrom,
+		enabled:       enabled,
 	}
 }
 

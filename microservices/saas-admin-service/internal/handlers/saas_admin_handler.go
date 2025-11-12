@@ -115,9 +115,28 @@ func NewSaaSAdminHandler(service *services.SaaSAdminService, tenantAdminDB *gorm
 	// Initialize service client with circuit breakers (best practice)
 	var serviceClient *resilience.ServiceClient
 	if serviceEndpoints != nil {
-		serviceClient = resilience.NewServiceClient(serviceEndpoints, logger)
-		logger.Info("Service client initialized with circuit breakers",
-			zap.Int("endpoints", len(serviceEndpoints)))
+		// Create default ServiceClientConfig (v2.0 requirement)
+		serviceClientConfig := resilience.ServiceClientConfig{
+			Timeout: 30 * time.Second, // Default timeout
+			CircuitBreaker: resilience.CircuitBreakerConfig{
+				Name:         "saas-admin-service-client",
+				MaxRequests:  3,
+				Interval:     10 * time.Second,
+				Timeout:      60 * time.Second,
+				FailureRatio: 0.6,
+				MinRequests:  5,
+				Enabled:      true,
+			},
+		}
+
+		var err error
+		serviceClient, err = resilience.NewServiceClient(serviceEndpoints, serviceClientConfig, logger)
+		if err != nil {
+			logger.Warn("Failed to initialize service client", zap.Error(err))
+		} else {
+			logger.Info("Service client initialized with circuit breakers",
+				zap.Int("endpoints", len(serviceEndpoints)))
+		}
 	} else {
 		logger.Warn("Service client not initialized, using raw HTTP client (no circuit breakers)")
 	}

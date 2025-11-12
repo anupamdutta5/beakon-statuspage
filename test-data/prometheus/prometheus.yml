@@ -1,0 +1,38 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Scrape all microservices metrics endpoints
+  - job_name: 'beakon-services'
+    static_configs:
+      - targets:
+          - 'host.docker.internal:8080'  # api-gateway
+          - 'host.docker.internal:8081'  # user-service
+          - 'host.docker.internal:8084'  # component-service
+          - 'host.docker.internal:8085'  # notification-service
+          - 'host.docker.internal:8086'  # incident-service
+          - 'host.docker.internal:8088'  # payment-service
+          - 'host.docker.internal:8090'  # analytics-service
+          - 'host.docker.internal:8092'  # monitoring-service
+          - 'host.docker.internal:8093'  # status-ui-service
+          - 'host.docker.internal:8096'  # event-store-service
+          - 'host.docker.internal:8097'  # branding-service
+          - 'host.docker.internal:8098'  # saas-admin-service
+          - 'host.docker.internal:8099'  # tenant-admin-service
+          - 'host.docker.internal:8100'  # landing-page-service
+
+  # PostgreSQL exporter (optional)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+
+  # Redis exporter (optional)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+
+  # RabbitMQ metrics
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['rabbitmq:15672']

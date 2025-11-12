@@ -1,6 +1,7 @@
 package services
 
 import (
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -128,18 +129,16 @@ type PagerDutyEventResponse struct {
 type PagerDutyIntegrationService struct {
 	db         *gorm.DB
 	logger     *zap.Logger
-	httpClient *http.Client
+	serviceClient *resilience.ServiceClient
 	eventsAPIURL string
 }
 
 // NewPagerDutyIntegrationService creates a new PagerDuty integration service
-func NewPagerDutyIntegrationService(db *gorm.DB, logger *zap.Logger) *PagerDutyIntegrationService {
+func NewPagerDutyIntegrationService(db *gorm.DB, serviceClient *resilience.ServiceClient, logger *zap.Logger) *PagerDutyIntegrationService {
 	return &PagerDutyIntegrationService{
 		db:     db,
 		logger: logger,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		serviceClient: serviceClient,
 		eventsAPIURL: "https://events.pagerduty.com/v2/enqueue",
 	}
 }
@@ -451,8 +450,9 @@ func (s *PagerDutyIntegrationService) sendEvent(ctx context.Context, integration
 
 	req.Header.Set("Content-Type", "application/json")
 
-	// Send request
-	resp, err := s.httpClient.Do(req)
+	// Send request using HTTP client
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send event: %w", err)
 	}
@@ -542,7 +542,9 @@ func (s *PagerDutyIntegrationService) TestIntegration(integrationKey string) err
 
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := s.httpClient.Do(req)
+	// Send request using HTTP client
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send test event: %w", err)
 	}
@@ -563,7 +565,7 @@ func (s *PagerDutyIntegrationService) TestIntegration(integrationKey string) err
 	resolvePayload, _ := json.Marshal(resolveEvent)
 	resolveReq, _ := http.NewRequestWithContext(ctx, "POST", s.eventsAPIURL, bytes.NewBuffer(resolvePayload))
 	resolveReq.Header.Set("Content-Type", "application/json")
-	s.httpClient.Do(resolveReq)
+	client.Do(resolveReq)
 
 	return nil
 }

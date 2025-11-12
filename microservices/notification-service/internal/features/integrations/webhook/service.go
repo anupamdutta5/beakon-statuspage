@@ -15,28 +15,24 @@ import (
 	"time"
 
 	"github.com/anupamdutta5/notification-service/internal/models"
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 // WebhookService handles webhook delivery and management.
 type WebhookService struct {
-	db         *gorm.DB
-	logger     *zap.Logger
-	httpClient *http.Client
+	db            *gorm.DB
+	logger        *zap.Logger
+	serviceClient *resilience.ServiceClient
 }
 
 // NewWebhookService creates a new webhook service.
-func NewWebhookService(db *gorm.DB, logger *zap.Logger) *WebhookService {
-	// Configure HTTP client with reasonable timeouts
-	httpClient := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-
+func NewWebhookService(db *gorm.DB, serviceClient *resilience.ServiceClient, logger *zap.Logger) *WebhookService {
 	return &WebhookService{
-		db:         db,
-		logger:     logger,
-		httpClient: httpClient,
+		db:            db,
+		logger:        logger,
+		serviceClient: serviceClient,
 	}
 }
 
@@ -210,8 +206,22 @@ func (s *WebhookService) deliverWebhook(ctx context.Context, endpoint models.Web
 		req = req.WithContext(ctx)
 	}
 
-	// Send the request
-	resp, err := s.httpClient.Do(req)
+	// Send via ServiceClient with circuit breaker
+	resp, err := s.serviceClient.Call(req.Context(), resilience.ServiceRequest{
+		ServiceName: "webhook",
+		Method:      "POST",
+		URL:         endpoint.URL,
+		Body:        payloadBytes,
+		Headers: map[string]string{
+			"Content-Type":           "application/json",
+			"User-Agent":             "Beakon-StatusPage-Webhook/1.0",
+			"X-Webhook-Timestamp":    req.Header.Get("X-Webhook-Timestamp"),
+			"X-Webhook-Event-Type":   req.Header.Get("X-Webhook-Event-Type"),
+			"X-Webhook-Event-ID":     req.Header.Get("X-Webhook-Event-ID"),
+			"X-Webhook-Signature":    req.Header.Get("X-Webhook-Signature"),
+		},
+	})
+
 	duration := time.Since(startTime).Milliseconds()
 	delivery.Duration = duration
 
@@ -226,20 +236,14 @@ func (s *WebhookService) deliverWebhook(ctx context.Context, endpoint models.Web
 		s.saveDelivery(delivery)
 		return
 	}
-	defer resp.Body.Close()
 
-	// Read response
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		s.logger.Warn("Failed to read webhook response body", zap.Error(err))
-		responseBody = []byte{}
-	}
+	responseBody := resp.Body
 
 	// Store response data
 	delivery.ResponseStatus = resp.StatusCode
 	delivery.ResponseBody = string(responseBody)
 
-	responseHeaders, _ := json.Marshal(resp.Header)
+	responseHeaders, _ := json.Marshal(map[string][]string(resp.Headers))
 	delivery.ResponseHeaders = string(responseHeaders)
 
 	// Check if delivery was successful (2xx status codes)
@@ -415,8 +419,24 @@ func (s *WebhookService) deliverWebhookRetry(ctx context.Context, endpoint model
 		req = req.WithContext(ctx)
 	}
 
-	// Send the request
-	resp, err := s.httpClient.Do(req)
+	// Send via ServiceClient with circuit breaker
+	resp, err := s.serviceClient.Call(req.Context(), resilience.ServiceRequest{
+		ServiceName: "webhook",
+		Method:      "POST",
+		URL:         endpoint.URL,
+		Body:        payloadBytes,
+		Headers: map[string]string{
+			"Content-Type":           "application/json",
+			"User-Agent":             "Beakon-StatusPage-Webhook/1.0",
+			"X-Webhook-Timestamp":    req.Header.Get("X-Webhook-Timestamp"),
+			"X-Webhook-Event-Type":   req.Header.Get("X-Webhook-Event-Type"),
+			"X-Webhook-Event-ID":     req.Header.Get("X-Webhook-Event-ID"),
+			"X-Webhook-Retry":        "true",
+			"X-Webhook-Attempt":      fmt.Sprintf("%d", delivery.AttemptCount),
+			"X-Webhook-Signature":    req.Header.Get("X-Webhook-Signature"),
+		},
+	})
+
 	duration := time.Since(startTime).Milliseconds()
 	delivery.Duration = duration
 
@@ -432,20 +452,14 @@ func (s *WebhookService) deliverWebhookRetry(ctx context.Context, endpoint model
 		s.saveDelivery(delivery)
 		return
 	}
-	defer resp.Body.Close()
 
-	// Read response
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		s.logger.Warn("Failed to read retry webhook response body", zap.Error(err))
-		responseBody = []byte{}
-	}
+	responseBody := resp.Body
 
 	// Store response data
 	delivery.ResponseStatus = resp.StatusCode
 	delivery.ResponseBody = string(responseBody)
 
-	responseHeaders, _ := json.Marshal(resp.Header)
+	responseHeaders, _ := json.Marshal(map[string][]string(resp.Headers))
 	delivery.ResponseHeaders = string(responseHeaders)
 
 	// Check if delivery was successful

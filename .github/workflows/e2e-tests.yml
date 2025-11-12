@@ -1,0 +1,289 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'microservices/**'
+      - 'tests/e2e/**'
+      - '.github/workflows/e2e-tests.yml'
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  e2e-tests:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      rabbitmq:
+        image: rabbitmq:3.12-management-alpine
+        ports:
+          - 5672:5672
+          - 15672:15672
+        env:
+          RABBITMQ_DEFAULT_USER: guest
+          RABBITMQ_DEFAULT_PASS: guest
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Set up test databases
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: |
+          cd microservices
+          ./init-all-databases.sh
+
+      - name: Build services
+        run: |
+          echo "Building tenant-admin-service..."
+          cd microservices/tenant-admin-service
+          go build -o tenant-admin-service cmd/main.go
+          cd ../..
+
+          echo "Building saas-admin-service..."
+          cd microservices/saas-admin-service
+          go build -o saas-admin-service cmd/main.go
+          cd ../..
+
+          echo "Building component-service..."
+          cd microservices/component-service
+          go build -o component-service cmd/main.go
+          cd ../..
+
+          echo "Building notification-service..."
+          cd microservices/notification-service
+          go build -o notification-service cmd/main.go
+          cd ../..
+
+          echo "Building monitoring-service..."
+          cd microservices/monitoring-service
+          go build -o monitoring-service cmd/main.go
+          cd ../..
+
+      - name: Start tenant-admin-service
+        working-directory: microservices/tenant-admin-service
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: tenant_admin_db
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          RABBITMQ_HOST: localhost
+          RABBITMQ_PORT: 5672
+          SERVER_PORT: 8099
+        run: |
+          ./tenant-admin-service > tenant-admin.log 2>&1 &
+          echo $! > tenant-admin.pid
+
+      - name: Start saas-admin-service
+        working-directory: microservices/saas-admin-service
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: saas_admin
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          RABBITMQ_HOST: localhost
+          RABBITMQ_PORT: 5672
+          SERVER_PORT: 8098
+        run: |
+          ./saas-admin-service > saas-admin.log 2>&1 &
+          echo $! > saas-admin.pid
+
+      - name: Start component-service
+        working-directory: microservices/component-service
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: statuspage_component
+          SERVER_PORT: 8084
+        run: |
+          ./component-service > component.log 2>&1 &
+          echo $! > component.pid
+
+      - name: Start notification-service
+        working-directory: microservices/notification-service
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: statuspage_notification
+          RABBITMQ_HOST: localhost
+          RABBITMQ_PORT: 5672
+          SERVER_PORT: 8085
+        run: |
+          ./notification-service > notification.log 2>&1 &
+          echo $! > notification.pid
+
+      - name: Start monitoring-service
+        working-directory: microservices/monitoring-service
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: statuspage_monitoring
+          SERVER_PORT: 8092
+        run: |
+          ./monitoring-service > monitoring.log 2>&1 &
+          echo $! > monitoring.pid
+
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for services to start..."
+          sleep 15
+
+          # Check each service health
+          services=("8099:tenant-admin" "8098:saas-admin" "8084:component" "8085:notification" "8092:monitoring")
+
+          for service in "${services[@]}"; do
+            IFS=':' read -r port name <<< "$service"
+            echo "Checking $name service on port $port..."
+
+            for i in {1..30}; do
+              if curl -f http://localhost:$port/health > /dev/null 2>&1; then
+                echo "$name service is ready"
+                break
+              fi
+
+              if [ $i -eq 30 ]; then
+                echo "ERROR: $name service failed to start"
+                echo "Service logs:"
+                cat microservices/${name}-service/${name}.log || true
+                exit 1
+              fi
+
+              sleep 2
+            done
+          done
+
+      - name: Run E2E Test 1 - Tenant Onboarding
+        working-directory: tests/e2e/tenant-onboarding
+        run: |
+          go test -v -timeout 5m ./01_tenant_onboarding_test.go
+
+      - name: Run E2E Test 2 - Monitoring & Alerting
+        working-directory: tests/e2e/monitoring-alerting
+        run: |
+          go test -v -timeout 5m ./02_monitoring_alerting_test.go
+
+      - name: Run E2E Test 3 - Status Page Viewing
+        working-directory: tests/e2e/status-page-viewing
+        run: |
+          go test -v -timeout 5m ./03_status_page_viewing_test.go
+
+      - name: Run E2E Test 4 - Session Resilience
+        working-directory: tests/e2e/session-resilience
+        run: |
+          go test -v -timeout 5m ./04_session_resilience_test.go
+
+      - name: Upload service logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: service-logs
+          path: |
+            microservices/tenant-admin-service/tenant-admin.log
+            microservices/saas-admin-service/saas-admin.log
+            microservices/component-service/component.log
+            microservices/notification-service/notification.log
+            microservices/monitoring-service/monitoring.log
+          retention-days: 7
+
+      - name: Stop services
+        if: always()
+        run: |
+          if [ -f microservices/tenant-admin-service/tenant-admin.pid ]; then
+            kill $(cat microservices/tenant-admin-service/tenant-admin.pid) || true
+          fi
+          if [ -f microservices/saas-admin-service/saas-admin.pid ]; then
+            kill $(cat microservices/saas-admin-service/saas-admin.pid) || true
+          fi
+          if [ -f microservices/component-service/component.pid ]; then
+            kill $(cat microservices/component-service/component.pid) || true
+          fi
+          if [ -f microservices/notification-service/notification.pid ]; then
+            kill $(cat microservices/notification-service/notification.pid) || true
+          fi
+          if [ -f microservices/monitoring-service/monitoring.pid ]; then
+            kill $(cat microservices/monitoring-service/monitoring.pid) || true
+          fi
+
+  e2e-summary:
+    name: E2E Test Summary
+    runs-on: ubuntu-latest
+    needs: e2e-tests
+    if: always()
+
+    steps:
+      - name: Check E2E results
+        run: |
+          if [ "${{ needs.e2e-tests.result }}" == "failure" ]; then
+            echo "::error::E2E tests failed"
+            exit 1
+          elif [ "${{ needs.e2e-tests.result }}" == "success" ]; then
+            echo "::notice::All E2E tests passed!"
+            echo "## E2E Test Results ✅" >> $GITHUB_STEP_SUMMARY
+            echo "All end-to-end test scenarios passed successfully:" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Tenant Onboarding Flow" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Monitoring & Alerting Flow" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Status Page Viewing Flow" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Session Resilience Flow" >> $GITHUB_STEP_SUMMARY
+          fi

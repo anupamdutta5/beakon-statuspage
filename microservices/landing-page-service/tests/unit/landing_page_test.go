@@ -2,6 +2,7 @@ package unit
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -49,46 +50,12 @@ func setupTestDB() *gorm.DB {
 func TestLandingService_GetLandingPageData(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
-	// Create test config
-	testConfig := &config.Config{
-		Environment: "test",
-		Service: config.ServiceConfig{
-			Name:        "landing-page-service",
-			Version:     "1.0.0",
-			Description: "Landing Page Service for Testing",
-		},
-		Server: config.ServerConfig{
-			Host: "localhost",
-			Port: 8097,
-		},
-		Database: config.DatabaseConfig{
-			Host:     "localhost",
-			Port:     5432,
-			User:     "test",
-			Password: "test",
-			Name:     "test_db",
-		},
-		Landing: config.LandingConfig{
-			SiteName:        "Test StatusPage",
-			SiteURL:         "http://localhost:8097",
-			SiteDescription: "Test landing page for status page service",
-			SiteKeywords:    []string{"test", "status", "page"},
-			ContactEmail:    "test@example.com",
-			SupportEmail:    "support@example.com",
-			AnalyticsID:     "test-analytics",
-			OGImage:         "/static/images/og-image.png",
-			Favicon:         "/static/images/favicon.ico",
-			Theme:           "modern",
-		},
-		Logging: config.LoggingConfig{
-			Level:  "debug",
-			Format: "console",
-		},
-	}
+	// Load test config
+	testConfig := loadTestConfig(t)
 
 	// Create service using constructor
-	service, err := services.NewLandingService(testConfig, logger)
-	require.NoError(t, err)
+	db := setupTestDB()
+	service := services.NewLandingService(db, testConfig, logger)
 
 	// Test getting landing page data
 	data, err := service.GetLandingPageData(context.Background())
@@ -107,46 +74,12 @@ func TestLandingService_GetLandingPageData(t *testing.T) {
 func TestLandingService_HeroSection(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
-	// Create test config
-	testConfig := &config.Config{
-		Environment: "test",
-		Service: config.ServiceConfig{
-			Name:        "landing-page-service",
-			Version:     "1.0.0",
-			Description: "Landing Page Service for Testing",
-		},
-		Server: config.ServerConfig{
-			Host: "localhost",
-			Port: 8097,
-		},
-		Database: config.DatabaseConfig{
-			Host:     "localhost",
-			Port:     5432,
-			User:     "test",
-			Password: "test",
-			Name:     "test_db",
-		},
-		Landing: config.LandingConfig{
-			SiteName:        "Test StatusPage",
-			SiteURL:         "http://localhost:8097",
-			SiteDescription: "Test landing page for status page service",
-			SiteKeywords:    []string{"test", "status", "page"},
-			ContactEmail:    "test@example.com",
-			SupportEmail:    "support@example.com",
-			AnalyticsID:     "test-analytics",
-			OGImage:         "/static/images/og-image.png",
-			Favicon:         "/static/images/favicon.ico",
-			Theme:           "modern",
-		},
-		Logging: config.LoggingConfig{
-			Level:  "debug",
-			Format: "console",
-		},
-	}
+	// Load test config
+	testConfig := loadTestConfig(t)
 
 	// Create service using constructor
-	service, err := services.NewLandingService(testConfig, logger)
-	require.NoError(t, err)
+	db := setupTestDB()
+	service := services.NewLandingService(db, testConfig, logger)
 
 	// Test getting hero section (should return default data when no database)
 	hero, err := service.GetHeroSection(context.Background())
@@ -170,36 +103,11 @@ func TestLandingService_Article(t *testing.T) {
 
 	logger, _ := zap.NewDevelopment()
 
-	// Create test config
-	testConfig := &config.Config{
-		Environment: "test",
-		Service: config.ServiceConfig{
-			Name:        "landing-page-service",
-			Version:     "1.0.0",
-			Description: "Landing Page Service for Testing",
-		},
-		Server: config.ServerConfig{
-			Host: "localhost",
-			Port: 8097,
-		},
-		Database: config.DatabaseConfig{
-			Host:     "localhost",
-			Port:     5432,
-			User:     "test",
-			Password: "test",
-			Name:     "test_db",
-		},
-		Logging: config.LoggingConfig{
-			Level:  "debug",
-			Format: "console",
-		},
-	}
+	// Load test config
+	testConfig := loadTestConfig(t)
 
 	// Create service using constructor
-	service, err := services.NewLandingService(testConfig, logger)
-	require.NoError(t, err)
-	// Override the database connection with our test database
-	service.SetDB(db)
+	service := services.NewLandingService(db, testConfig, logger)
 
 	// Test creating article
 	publishedAt := time.Now()
@@ -217,7 +125,7 @@ func TestLandingService_Article(t *testing.T) {
 		PublishedAt: &publishedAt,
 	}
 
-	err = service.CreateArticle(context.Background(), article)
+	err := service.CreateArticle(context.Background(), article)
 	require.NoError(t, err)
 	assert.NotZero(t, article.ID)
 
@@ -239,36 +147,11 @@ func TestLandingService_Testimonial(t *testing.T) {
 
 	logger, _ := zap.NewDevelopment()
 
-	// Create test config
-	testConfig := &config.Config{
-		Environment: "test",
-		Service: config.ServiceConfig{
-			Name:        "landing-page-service",
-			Version:     "1.0.0",
-			Description: "Landing Page Service for Testing",
-		},
-		Server: config.ServerConfig{
-			Host: "localhost",
-			Port: 8097,
-		},
-		Database: config.DatabaseConfig{
-			Host:     "localhost",
-			Port:     5432,
-			User:     "test",
-			Password: "test",
-			Name:     "test_db",
-		},
-		Logging: config.LoggingConfig{
-			Level:  "debug",
-			Format: "console",
-		},
-	}
+	// Load test config
+	testConfig := loadTestConfig(t)
 
 	// Create service using constructor
-	service, err := services.NewLandingService(testConfig, logger)
-	require.NoError(t, err)
-	// Override the database connection with our test database
-	service.SetDB(db)
+	service := services.NewLandingService(db, testConfig, logger)
 
 	// Test creating testimonial
 	testimonial := &models.Testimonial{
@@ -279,10 +162,9 @@ func TestLandingService_Testimonial(t *testing.T) {
 		Content:  "This is a great service!",
 		Rating:   5,
 		Status:   "active",
-		Order:    1,
 	}
 
-	err = service.CreateTestimonial(context.Background(), testimonial)
+	err := service.CreateTestimonial(context.Background(), testimonial)
 	require.NoError(t, err)
 	assert.NotZero(t, testimonial.ID)
 
@@ -304,36 +186,11 @@ func TestLandingService_FAQ(t *testing.T) {
 
 	logger, _ := zap.NewDevelopment()
 
-	// Create test config
-	testConfig := &config.Config{
-		Environment: "test",
-		Service: config.ServiceConfig{
-			Name:        "landing-page-service",
-			Version:     "1.0.0",
-			Description: "Landing Page Service for Testing",
-		},
-		Server: config.ServerConfig{
-			Host: "localhost",
-			Port: 8097,
-		},
-		Database: config.DatabaseConfig{
-			Host:     "localhost",
-			Port:     5432,
-			User:     "test",
-			Password: "test",
-			Name:     "test_db",
-		},
-		Logging: config.LoggingConfig{
-			Level:  "debug",
-			Format: "console",
-		},
-	}
+	// Load test config
+	testConfig := loadTestConfig(t)
 
 	// Create service using constructor
-	service, err := services.NewLandingService(testConfig, logger)
-	require.NoError(t, err)
-	// Override the database connection with our test database
-	service.SetDB(db)
+	service := services.NewLandingService(db, testConfig, logger)
 
 	// Test creating FAQ
 	faq := &models.FAQ{
@@ -341,10 +198,10 @@ func TestLandingService_FAQ(t *testing.T) {
 		Answer:   "This is a test service for landing pages.",
 		Category: "General",
 		Status:   "active",
-		Order:    1,
+		SortOrder: 1,
 	}
 
-	err = service.CreateFAQ(context.Background(), faq)
+	err := service.CreateFAQ(context.Background(), faq)
 	require.NoError(t, err)
 	assert.NotZero(t, faq.ID)
 
@@ -366,36 +223,11 @@ func TestLandingService_ContactForm(t *testing.T) {
 
 	logger, _ := zap.NewDevelopment()
 
-	// Create test config
-	testConfig := &config.Config{
-		Environment: "test",
-		Service: config.ServiceConfig{
-			Name:        "landing-page-service",
-			Version:     "1.0.0",
-			Description: "Landing Page Service for Testing",
-		},
-		Server: config.ServerConfig{
-			Host: "localhost",
-			Port: 8097,
-		},
-		Database: config.DatabaseConfig{
-			Host:     "localhost",
-			Port:     5432,
-			User:     "test",
-			Password: "test",
-			Name:     "test_db",
-		},
-		Logging: config.LoggingConfig{
-			Level:  "debug",
-			Format: "console",
-		},
-	}
+	// Load test config
+	testConfig := loadTestConfig(t)
 
 	// Create service using constructor
-	service, err := services.NewLandingService(testConfig, logger)
-	require.NoError(t, err)
-	// Override the database connection with our test database
-	service.SetDB(db)
+	service := services.NewLandingService(db, testConfig, logger)
 
 	// Test submitting contact form
 	contactForm := &models.ContactForm{
@@ -409,7 +241,7 @@ func TestLandingService_ContactForm(t *testing.T) {
 		UserAgent: "Test User Agent",
 	}
 
-	err = service.SubmitContactForm(context.Background(), contactForm)
+	err := service.SubmitContactForm(context.Background(), contactForm)
 	require.NoError(t, err)
 	assert.NotZero(t, contactForm.ID)
 }
@@ -425,36 +257,11 @@ func TestLandingService_Newsletter(t *testing.T) {
 
 	logger, _ := zap.NewDevelopment()
 
-	// Create test config
-	testConfig := &config.Config{
-		Environment: "test",
-		Service: config.ServiceConfig{
-			Name:        "landing-page-service",
-			Version:     "1.0.0",
-			Description: "Landing Page Service for Testing",
-		},
-		Server: config.ServerConfig{
-			Host: "localhost",
-			Port: 8097,
-		},
-		Database: config.DatabaseConfig{
-			Host:     "localhost",
-			Port:     5432,
-			User:     "test",
-			Password: "test",
-			Name:     "test_db",
-		},
-		Logging: config.LoggingConfig{
-			Level:  "debug",
-			Format: "console",
-		},
-	}
+	// Load test config
+	testConfig := loadTestConfig(t)
 
 	// Create service using constructor
-	service, err := services.NewLandingService(testConfig, logger)
-	require.NoError(t, err)
-	// Override the database connection with our test database
-	service.SetDB(db)
+	service := services.NewLandingService(db, testConfig, logger)
 
 	// Test newsletter subscription
 	newsletter := &models.Newsletter{
@@ -466,7 +273,7 @@ func TestLandingService_Newsletter(t *testing.T) {
 		UserAgent: "Test User Agent",
 	}
 
-	err = service.SubscribeNewsletter(context.Background(), newsletter)
+	err := service.SubscribeNewsletter(context.Background(), newsletter)
 	require.NoError(t, err)
 	assert.NotZero(t, newsletter.ID)
 }
@@ -482,40 +289,37 @@ func TestLandingHandler_HealthCheck(t *testing.T) {
 
 	logger, _ := zap.NewDevelopment()
 
-	// Create test config
-	testConfig := &config.Config{
-		Environment: "test",
-		Service: config.ServiceConfig{
-			Name:        "landing-page-service",
-			Version:     "1.0.0",
-			Description: "Landing Page Service for Testing",
-		},
-		Server: config.ServerConfig{
-			Host: "localhost",
-			Port: 8097,
-		},
-		Database: config.DatabaseConfig{
-			Host:     "localhost",
-			Port:     5432,
-			User:     "test",
-			Password: "test",
-			Name:     "test_db",
-		},
-		Logging: config.LoggingConfig{
-			Level:  "debug",
-			Format: "console",
-		},
-	}
+	// Load test config
+	testConfig := loadTestConfig(t)
 
 	// Create service using constructor
-	service, err := services.NewLandingService(testConfig, logger)
-	require.NoError(t, err)
+	service := services.NewLandingService(db, testConfig, logger)
 
 	// Create handler
 	handler := handlers.NewLandingHandler(service, logger)
 
 	// Test health check
-	err = service.Health(context.Background())
+	err := service.Health(context.Background())
 	require.NoError(t, err)
 	assert.NotNil(t, handler)
+}
+
+// Helper function to load test configuration
+func loadTestConfig(t *testing.T) *config.Config {
+	// Use development environment for tests
+	os.Setenv("ENVIRONMENT", "development")
+	defer os.Unsetenv("ENVIRONMENT")
+
+	// Load configuration using the service's standard config loader
+	// The shared-resilience library will automatically find the correct config path
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Failed to load test configuration: %v", err)
+	}
+
+	// Override database settings for testing (SQLite will be provided directly)
+	cfg.Database.Host = "localhost"
+	cfg.Database.Name = ":memory:"
+
+	return &cfg
 }

@@ -1,0 +1,115 @@
+# Docker Compose Test Environment
+# Complete test infrastructure for all 17 active microservices
+# Includes: PostgreSQL (14 databases), Redis, RabbitMQ, MockServer
+
+version: '3.8'
+
+services:
+  # PostgreSQL 16 with all 14 databases pre-initialized
+  postgres:
+    image: postgres:16-alpine
+    container_name: beakon-test-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./microservices/postgres/init-databases.sql:/docker-entrypoint-initdb.d/01-init-databases.sql
+      - postgres-test-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - beakon-test
+
+  # Redis 7 for caching and session storage
+  redis:
+    image: redis:7-alpine
+    container_name: beakon-test-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - beakon-test
+
+  # RabbitMQ 4.1.4 with management UI
+  rabbitmq:
+    image: rabbitmq:4.1.4-management-alpine
+    container_name: beakon-test-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: test
+      RABBITMQ_DEFAULT_PASS: testpass
+      RABBITMQ_DEFAULT_VHOST: /
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - beakon-test
+
+  # MockServer for external API mocking (Slack, Teams, Discord, etc.)
+  mockserver:
+    image: mockserver/mockserver:latest
+    container_name: beakon-test-mockserver
+    environment:
+      MOCKSERVER_PROPERTY_FILE: /config/mockserver.properties
+      MOCKSERVER_INITIALIZATION_JSON_PATH: /config/initializerJson.json
+    ports:
+      - "1080:1080"   # MockServer port
+    volumes:
+      - ./test-data/mockserver:/config
+    networks:
+      - beakon-test
+
+  # Prometheus for metrics testing (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: beakon-test-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./test-data/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-test-data:/prometheus
+    networks:
+      - beakon-test
+
+  # Grafana for visualization (optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: beakon-test-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-test-data:/var/lib/grafana
+    networks:
+      - beakon-test
+
+volumes:
+  postgres-test-data:
+  prometheus-test-data:
+  grafana-test-data:
+
+networks:
+  beakon-test:
+    driver: bridge

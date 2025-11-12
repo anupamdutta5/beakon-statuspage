@@ -3,12 +3,12 @@ server:
   environment: development
 
 database:
-  host: statuspage-postgres
-  port: 5432
-  user: postgres
-  password: postgres
-  name: tenant_admin_db
-  sslmode: disable
+  host: ${DB_HOST:-postgres}
+  port: ${DB_PORT:-5432}
+  user: ${DB_USER:-postgres}
+  password: ${DB_PASSWORD:-postgres}
+  name: ${DB_NAME:-tenant_admin_db}
+  ssl_mode: ${DB_SSLMODE:-disable}
 
 redis:
   host: beakon-redis

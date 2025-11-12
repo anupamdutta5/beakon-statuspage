@@ -408,12 +408,6 @@ func (h *DiscordHandler) TestIntegration(c *gin.Context) {
 	}
 
 	// Send test notification using SendMonitorAlert
-	testData := map[string]interface{}{
-		"status": "This is a test notification from Beakon Status Page",
-		"response_time": "125ms",
-		"status_code": "200",
-	}
-
 	if err := h.discordService.SendMonitorAlert(
 		c.Request.Context(),
 		0,
@@ -421,7 +415,6 @@ func (h *DiscordHandler) TestIntegration(c *gin.Context) {
 		"up",
 		"Test Monitor",
 		"https://status.example.com",
-		testData,
 	); err != nil {
 		h.logger.Error("Failed to send test notification", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to send test notification", "details": err.Error()})

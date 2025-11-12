@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/anupamdutta5/tenant-admin-service/internal/config"
@@ -13,6 +15,7 @@ import (
 	"github.com/anupamdutta5/tenant-admin-service/internal/models"
 	"github.com/anupamdutta5/tenant-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -26,10 +29,11 @@ func TestTenantAdminHandler_HealthCheck(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
+	cfg := loadTestConfig(t)
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
+	statusPageService, rbacService, sessionService := setupMockServices(db, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, statusPageService, rbacService, sessionService, logger)
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
@@ -61,14 +65,15 @@ func TestTenantAdminHandler_GetTenantSettings(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
+	cfg := loadTestConfig(t)
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
+	statusPageService, rbacService, sessionService := setupMockServices(db, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, statusPageService, rbacService, sessionService, logger)
 
 	// Create tenant settings first
 	settings := models.TenantSettings{
-		TenantID: 1,
+		TenantID: testUUID(1),
 		Settings: `{
 			"notifications": {
 				"email_enabled": true,
@@ -126,14 +131,15 @@ func TestTenantAdminHandler_UpdateTenantSettings(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
+	cfg := loadTestConfig(t)
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
+	statusPageService, rbacService, sessionService := setupMockServices(db, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, statusPageService, rbacService, sessionService, logger)
 
 	// Create tenant settings first
 	settings := models.TenantSettings{
-		TenantID: 1,
+		TenantID: testUUID(1),
 		Settings: `{
 			"notifications": {
 				"email_enabled": true,
@@ -191,28 +197,29 @@ func TestTenantAdminHandler_GetTenantUsers(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
+	cfg := loadTestConfig(t)
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
+	statusPageService, rbacService, sessionService := setupMockServices(db, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, statusPageService, rbacService, sessionService, logger)
 
 	// Create some tenant users
 	users := []models.TenantAdmin{
 		{
-			TenantID: 1,
-			UserID:   1,
+			TenantID: testUUID(1),
+			UserID:   testUUID(1),
 			Role:     "admin",
 			Status:   "active",
 		},
 		{
-			TenantID: 1,
-			UserID:   2,
+			TenantID: testUUID(1),
+			UserID:   testUUID(2),
 			Role:     "user",
 			Status:   "active",
 		},
 		{
-			TenantID: 1,
-			UserID:   3,
+			TenantID: testUUID(1),
+			UserID:   testUUID(3),
 			Role:     "viewer",
 			Status:   "inactive",
 		},
@@ -256,10 +263,11 @@ func TestTenantAdminHandler_AddTenantUser(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
+	cfg := loadTestConfig(t)
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
+	statusPageService, rbacService, sessionService := setupMockServices(db, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, statusPageService, rbacService, sessionService, logger)
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
@@ -270,7 +278,7 @@ func TestTenantAdminHandler_AddTenantUser(t *testing.T) {
 	router.POST("/tenants/:tenant_id/users", handler.CreateTenantAdmin)
 
 	user := models.TenantAdmin{
-		UserID: 1,
+		UserID: testUUID(1),
 		Role:   "user",
 		Status: "active",
 	}
@@ -307,15 +315,16 @@ func TestTenantAdminHandler_UpdateTenantUser(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
+	cfg := loadTestConfig(t)
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
+	statusPageService, rbacService, sessionService := setupMockServices(db, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, statusPageService, rbacService, sessionService, logger)
 
 	// Create a tenant user first
 	user := models.TenantAdmin{
-		TenantID: 1,
-		UserID:   1,
+		TenantID: testUUID(1),
+		UserID:   testUUID(1),
 		Role:     "user",
 		Status:   "active",
 	}
@@ -359,15 +368,16 @@ func TestTenantAdminHandler_RemoveTenantUser(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
+	cfg := loadTestConfig(t)
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
+	statusPageService, rbacService, sessionService := setupMockServices(db, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, statusPageService, rbacService, sessionService, logger)
 
 	// Create a tenant user first
 	user := models.TenantAdmin{
-		TenantID: 1,
-		UserID:   1,
+		TenantID: testUUID(1),
+		UserID:   testUUID(1),
 		Role:     "user",
 		Status:   "active",
 	}
@@ -407,10 +417,11 @@ func TestTenantAdminHandler_GetTenantUsage(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
+	cfg := loadTestConfig(t)
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
+	statusPageService, rbacService, sessionService := setupMockServices(db, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, statusPageService, rbacService, sessionService, logger)
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
@@ -445,10 +456,11 @@ func TestTenantAdminHandler_GetTenantBilling(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
+	cfg := loadTestConfig(t)
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
+	statusPageService, rbacService, sessionService := setupMockServices(db, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, statusPageService, rbacService, sessionService, logger)
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
@@ -479,20 +491,21 @@ func TestTenantAdminHandler_GetTenantFeatureFlags(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
+	cfg := loadTestConfig(t)
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
+	statusPageService, rbacService, sessionService := setupMockServices(db, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, statusPageService, rbacService, sessionService, logger)
 
 	// Create some tenant feature flags
 	flags := []models.TenantFeatureFlag{
 		{
-			TenantID:  1,
+			TenantID:  testUUID(1),
 			Name:      "feature1",
 			IsEnabled: true,
 		},
 		{
-			TenantID:  1,
+			TenantID:  testUUID(1),
 			Name:      "feature2",
 			IsEnabled: false,
 		},
@@ -536,14 +549,15 @@ func TestTenantAdminHandler_UpdateTenantFeatureFlag(t *testing.T) {
 	// Setup
 	db := setupTestDB(t)
 	logger, _ := zap.NewDevelopment()
-	cfg := &config.Config{}
+	cfg := loadTestConfig(t)
 	tenantAdminService, _ := services.NewTenantAdminService(cfg, logger)
 	tenantAdminService.SetDB(db)
-	handler := handlers.NewTenantAdminHandler(tenantAdminService, nil, logger)
+	statusPageService, rbacService, sessionService := setupMockServices(db, logger)
+	handler := handlers.NewTenantAdminHandler(tenantAdminService, statusPageService, rbacService, sessionService, logger)
 
 	// Create a tenant feature flag first
 	flag := models.TenantFeatureFlag{
-		TenantID:  1,
+		TenantID:  testUUID(1),
 		Name:      "test_feature",
 		IsEnabled: false,
 	}
@@ -580,6 +594,26 @@ func TestTenantAdminHandler_UpdateTenantFeatureFlag(t *testing.T) {
 	assert.Equal(t, "Tenant feature flag updated successfully", response["message"])
 }
 
+// Helper function to load test configuration
+func loadTestConfig(t *testing.T) *config.Config {
+	// Use development environment for tests
+	os.Setenv("ENVIRONMENT", "development")
+	defer os.Unsetenv("ENVIRONMENT")
+
+	// Load configuration using the service's standard config loader
+	// The shared-resilience library will automatically find the correct config path
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Failed to load test configuration: %v", err)
+	}
+
+	// Override database settings for testing (SQLite will be injected via SetDB)
+	cfg.Database.Host = "localhost"
+	cfg.Database.Name = ":memory:"
+
+	return cfg
+}
+
 // Helper function to setup test database
 func setupTestDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -590,4 +624,25 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 
 	return db
+}
+
+// Helper function to setup mock services for tests
+func setupMockServices(db *gorm.DB, logger *zap.Logger) (*services.StatusPageManagementService, *services.RBACService, *services.SessionService) {
+	// StatusPageManagementService
+	statusPageConfig := &services.StatusPageConfig{}
+	statusPageService := services.NewStatusPageManagementService(db, logger, statusPageConfig)
+
+	// SessionService
+	sessionService := services.NewSessionService(db, logger)
+
+	// RBACService (requires sessionManager, use nil for unit tests)
+	rbacService := services.NewRBACService(db, logger, nil)
+
+	return statusPageService, rbacService, sessionService
+}
+
+// Helper function to generate test UUIDs
+func testUUID(id uint) uuid.UUID {
+	// Generate deterministic UUIDs for testing based on uint ID
+	return uuid.MustParse("00000000-0000-0000-0000-" + fmt.Sprintf("%012d", id))
 }

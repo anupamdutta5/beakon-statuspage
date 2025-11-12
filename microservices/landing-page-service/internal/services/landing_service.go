@@ -11,43 +11,37 @@ import (
 	"github.com/anupamdutta5/landing-page-service/internal/config"
 	"github.com/anupamdutta5/landing-page-service/internal/models"
 	"go.uber.org/zap"
-	"gorm.io/driver/postgres"
+	
 	"gorm.io/gorm"
 )
 
 // LandingService handles landing page-related business logic.
 type LandingService struct {
-	config       *config.Config
 	logger       *zap.Logger
 	db           *gorm.DB
+	config       *config.Config
 	httpClient   *http.Client
 	saasAdminURL string
 }
 
 // NewLandingService creates a new landing service.
-func NewLandingService(cfg *config.Config, logger *zap.Logger) (*LandingService, error) {
-	// Try to initialize database connection, but don't fail if it doesn't work
-	db, err := initDatabase(cfg.Database)
-	if err != nil {
-		logger.Warn("Failed to initialize database, running without database", zap.Error(err))
-		db = nil // Set to nil to indicate no database
-	}
-
+// Updated for v2.0 - accepts *gorm.DB and *config.Config for service-specific configuration.
+func NewLandingService(db *gorm.DB, cfg *config.Config, logger *zap.Logger) *LandingService {
 	// Initialize HTTP client for SaaS admin service communication
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
 	}
 
-	// Set SaaS admin service URL (you can make this configurable)
-	saasAdminURL := "http://localhost:8080" // Default, should be configurable
+	// Set SaaS admin service URL (should be configured via service-endpoints.yml)
+	saasAdminURL := "http://localhost:8080" // Default fallback
 
 	return &LandingService{
-		config:       cfg,
 		logger:       logger,
 		db:           db,
+		config:       cfg,
 		httpClient:   httpClient,
 		saasAdminURL: saasAdminURL,
-	}, nil
+	}
 }
 
 // SetDB sets the database connection (for testing)
@@ -930,38 +924,5 @@ func (s *LandingService) getDefaultArticles() []*models.Article {
 	}
 }
 
-// initDatabase initializes the database connection.
-func initDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
-	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Name, cfg.SSLMode)
-
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	// Configure connection pool
-	sqlDB, err := db.DB()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
-	}
-
-	sqlDB.SetMaxOpenConns(cfg.MaxConns)
-	sqlDB.SetMaxIdleConns(cfg.MaxIdle)
-	sqlDB.SetConnMaxLifetime(time.Duration(cfg.MaxLifetime) * time.Second)
-
-	// Database migrations are managed by Atlas CLI
-	// To apply migrations: atlas migrate apply --env dev
-	// To generate new migrations: atlas migrate diff <name> --env dev
-	// See: atlas.hcl for configuration
-	// Migration files: migrations/*.sql
-
-	// Note: GORM AutoMigrate has been replaced with Atlas for production-ready,
-	// version-controlled database migrations. This provides:
-	// - Proper migration versioning and rollback support
-	// - SQL review before applying changes
-	// - Better handling of PostgreSQL-specific features
-	// - Consistent migrations across all 20+ microservices
-
-	return db, nil
-}
+// initDatabase removed in v2.0 - database initialization now handled by shared-resilience
+// Database connection is passed in via constructor

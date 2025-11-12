@@ -120,7 +120,7 @@ func (p *SlackProvider) Send(ctx context.Context, request *NotificationRequest) 
 	message := p.createSlackMessage(request)
 
 	// Marshal message to JSON
-	payload, err := json.Marshal(message)
+	payloadBytes, err := json.Marshal(message)
 	if err != nil {
 		return &NotificationResponse{
 			Success: false,
@@ -130,17 +130,21 @@ func (p *SlackProvider) Send(ctx context.Context, request *NotificationRequest) 
 		}, err
 	}
 
-	// Send via ServiceClient with circuit breaker and retries
-	resp, err := p.serviceClient.Call(ctx, resilience.ServiceRequest{
-		ServiceName: "slack-api",
-		Method:      "POST",
-		URL:         p.webhookURL,
-		Body:        payload,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-	})
+	// Create HTTP request for external Slack webhook
+	req, err := http.NewRequestWithContext(ctx, "POST", p.webhookURL, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		return &NotificationResponse{
+			Success: false,
+			Status:  "failed",
+			Error:   fmt.Sprintf("Failed to create request: %v", err),
+			SentAt:  time.Now(),
+		}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
 
+	// Send via HTTP client (external webhook)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return &NotificationResponse{
 			Success: false,
@@ -149,8 +153,14 @@ func (p *SlackProvider) Send(ctx context.Context, request *NotificationRequest) 
 			SentAt:  time.Now(),
 		}, err
 	}
+	defer resp.Body.Close()
 
-	body := resp.Body
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		p.logger.Warn("Failed to read Slack response body", zap.Error(err))
+		body = []byte{}
+	}
 
 	response := &NotificationResponse{
 		Success:      resp.StatusCode >= 200 && resp.StatusCode < 300,

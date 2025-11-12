@@ -13,6 +13,7 @@ import (
 	"github.com/anupamdutta5/monitoring-service/internal/handlers"
 	"github.com/anupamdutta5/monitoring-service/internal/models"
 	"github.com/anupamdutta5/monitoring-service/internal/services"
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,8 +28,10 @@ func TestMonitoringHandler_Health(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, logger)
-	handler := handlers.NewMonitoringHandler(monitoringService, logger)
+	serviceClient := setupMockServiceClient(logger)
+	monitoringService := services.NewMonitoringService(db, serviceClient, logger)
+	maintenanceManagementService := services.NewMaintenanceManagementService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, maintenanceManagementService, logger)
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
@@ -60,8 +63,10 @@ func TestMonitoringHandler_CreateService(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, logger)
-	handler := handlers.NewMonitoringHandler(monitoringService, logger)
+	serviceClient := setupMockServiceClient(logger)
+	monitoringService := services.NewMonitoringService(db, serviceClient, logger)
+	maintenanceManagementService := services.NewMaintenanceManagementService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, maintenanceManagementService, logger)
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
@@ -119,8 +124,10 @@ func TestMonitoringHandler_GetService(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, logger)
-	handler := handlers.NewMonitoringHandler(monitoringService, logger)
+	serviceClient := setupMockServiceClient(logger)
+	monitoringService := services.NewMonitoringService(db, serviceClient, logger)
+	maintenanceManagementService := services.NewMaintenanceManagementService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, maintenanceManagementService, logger)
 
 	// Create a service first
 	service := models.MonitoredService{
@@ -172,8 +179,10 @@ func TestMonitoringHandler_UpdateService(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, logger)
-	handler := handlers.NewMonitoringHandler(monitoringService, logger)
+	serviceClient := setupMockServiceClient(logger)
+	monitoringService := services.NewMonitoringService(db, serviceClient, logger)
+	maintenanceManagementService := services.NewMaintenanceManagementService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, maintenanceManagementService, logger)
 
 	// Create a service first
 	service := models.MonitoredService{
@@ -242,8 +251,10 @@ func TestMonitoringHandler_DeleteService(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, logger)
-	handler := handlers.NewMonitoringHandler(monitoringService, logger)
+	serviceClient := setupMockServiceClient(logger)
+	monitoringService := services.NewMonitoringService(db, serviceClient, logger)
+	maintenanceManagementService := services.NewMaintenanceManagementService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, maintenanceManagementService, logger)
 
 	// Create a service first
 	service := models.MonitoredService{
@@ -288,8 +299,10 @@ func TestMonitoringHandler_GetServices(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, logger)
-	handler := handlers.NewMonitoringHandler(monitoringService, logger)
+	serviceClient := setupMockServiceClient(logger)
+	monitoringService := services.NewMonitoringService(db, serviceClient, logger)
+	maintenanceManagementService := services.NewMaintenanceManagementService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, maintenanceManagementService, logger)
 
 	// Create multiple services
 	services := []models.MonitoredService{
@@ -334,8 +347,10 @@ func TestMonitoringHandler_CreateHealthCheck(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, logger)
-	handler := handlers.NewMonitoringHandler(monitoringService, logger)
+	serviceClient := setupMockServiceClient(logger)
+	monitoringService := services.NewMonitoringService(db, serviceClient, logger)
+	maintenanceManagementService := services.NewMaintenanceManagementService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, maintenanceManagementService, logger)
 
 	// Create a service first
 	service := models.MonitoredService{
@@ -405,8 +420,10 @@ func TestMonitoringHandler_CreateAlert(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, logger)
-	handler := handlers.NewMonitoringHandler(monitoringService, logger)
+	serviceClient := setupMockServiceClient(logger)
+	monitoringService := services.NewMonitoringService(db, serviceClient, logger)
+	maintenanceManagementService := services.NewMaintenanceManagementService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, maintenanceManagementService, logger)
 
 	// Create a service first
 	service := models.MonitoredService{
@@ -477,8 +494,10 @@ func TestMonitoringHandler_GetAlerts(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, logger)
-	handler := handlers.NewMonitoringHandler(monitoringService, logger)
+	serviceClient := setupMockServiceClient(logger)
+	monitoringService := services.NewMonitoringService(db, serviceClient, logger)
+	maintenanceManagementService := services.NewMaintenanceManagementService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, maintenanceManagementService, logger)
 
 	// Create a service first
 	service := models.MonitoredService{
@@ -539,8 +558,10 @@ func TestMonitoringHandler_AcknowledgeAlert(t *testing.T) {
 	// Setup
 	logger, _ := zap.NewDevelopment()
 	db := setupTestDB(t)
-	monitoringService := services.NewMonitoringService(db, logger)
-	handler := handlers.NewMonitoringHandler(monitoringService, logger)
+	serviceClient := setupMockServiceClient(logger)
+	monitoringService := services.NewMonitoringService(db, serviceClient, logger)
+	maintenanceManagementService := services.NewMaintenanceManagementService(db, logger)
+	handler := handlers.NewMonitoringHandler(monitoringService, maintenanceManagementService, logger)
 
 	// Create a service first
 	service := models.MonitoredService{
@@ -618,4 +639,22 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 
 	return db
+}
+
+// Helper function to create mock ServiceClient for tests
+func setupMockServiceClient(logger *zap.Logger) *resilience.ServiceClient {
+	endpoints := make(map[string]resilience.ServiceEndpoint)
+	serviceClientCfg := resilience.ServiceClientConfig{
+		Timeout: 10 * time.Second,
+		CircuitBreaker: resilience.CircuitBreakerConfig{
+			Enabled:      false, // Disabled for unit tests
+			MaxRequests:  5,
+			Timeout:      30 * time.Second,
+			Interval:     10 * time.Second,
+			FailureRatio: 0.5,
+			MinRequests:  3,
+		},
+	}
+	serviceClient, _ := resilience.NewServiceClient(endpoints, serviceClientCfg, logger)
+	return serviceClient
 }

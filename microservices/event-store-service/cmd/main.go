@@ -1,5 +1,5 @@
-// Package main is the entry point for the Event Store Service.
-// This is the modernized version using the shared-resilience module.
+// Package main is the entry point for the eventstore Service.
+// This is the v2.0 version using shared-resilience v2.0 primitives.
 package main
 
 import (
@@ -12,26 +12,61 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/anupamdutta5/shared-resilience"
-	"github.com/anupamdutta5/event-store-service/internal/config"
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/anupamdutta5/event-store-service/internal/handlers"
 	"github.com/anupamdutta5/event-store-service/internal/services"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
+// ServiceInfo contains basic service metadata
+type ServiceInfo struct {
+	Name        string `yaml:"name"`
+	Version     string `yaml:"version"`
+	Environment string `yaml:"environment"`
+}
+
+// ServiceClientConfig contains HTTP client configuration for downstream services
+type ServiceClientConfig struct {
+	Timeout        time.Duration                   `yaml:"timeout"`
+	CircuitBreaker resilience.CircuitBreakerConfig `yaml:"circuit_breaker"`
+}
+
+// eventstoreServiceConfig is the complete configuration for this service
+type eventstoreServiceConfig struct {
+	// Shared configuration (database, server, JWT, CORS, etc.)
+	SharedConfig resilience.Config `yaml:",inline"`
+
+	// Service-specific configuration
+	Service       ServiceInfo         `yaml:"service"`
+	ServiceClient ServiceClientConfig `yaml:"service_client"`
+	Retry         resilience.RetryConfig `yaml:"retry"`
+}
+
 func main() {
-	// Load configuration from environment variables
-	resilienceConfig := resilience.LoadConfigFromEnv()
-	if err := resilienceConfig.Validate(); err != nil {
+	// ========================================
+	// STEP 1: Load Configuration from YAML
+	// ========================================
+	loader := resilience.NewConfigLoader("configs")
+	var cfg eventstoreServiceConfig
+	if err := loader.Load(&cfg); err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	// Validate configuration (fail fast)
+	if err := cfg.SharedConfig.Validate(); err != nil {
 		log.Fatalf("Configuration validation failed: %v", err)
 	}
 
-	// Initialize logger based on environment
+	// ========================================
+	// STEP 2: Initialize Logger
+	// ========================================
 	var logger *zap.Logger
 	var err error
 
-	if resilienceConfig.Environment == "production" {
+	if cfg.Service.Environment == "production" {
 		logger, err = zap.NewProduction()
 		gin.SetMode(gin.ReleaseMode)
 	} else {
@@ -44,122 +79,201 @@ func main() {
 	}
 	defer logger.Sync()
 
-	logger.Info("Starting Event Store Service",
-		zap.String("service", "event-store-service"),
-		zap.String("version", "1.0.0"),
-		zap.String("environment", resilienceConfig.Environment),
-		zap.Int("port", resilienceConfig.Server.Port),
+	logger.Info("Starting eventstore Service (v2.0)",
+		zap.String("service", cfg.Service.Name),
+		zap.String("version", cfg.Service.Version),
+		zap.String("environment", cfg.Service.Environment),
+		zap.Int("port", cfg.SharedConfig.Server.Port),
+		zap.String("shared_resilience", resilience.Version),
 	)
 
-	// Initialize database manager with connection pooling and health checks
-	dbManager, err := resilience.NewDatabaseManager(resilienceConfig.Database, logger)
+	// ========================================
+	// STEP 3: Initialize Prometheus Registry
+	// ========================================
+	registry := prometheus.NewRegistry()
+	logger.Info("Prometheus registry initialized (injected, not global)")
+
+	// ========================================
+	// STEP 4: Initialize Metrics (with injected registry)
+	// ========================================
+	metrics, err := resilience.NewMetrics(resilience.MetricsConfig{
+		ServiceName: cfg.Service.Name,
+		Namespace:   "beakon",
+		Subsystem:   "event_store",
+		Enabled:     cfg.SharedConfig.Monitoring.MetricsEnabled,
+		Registry:    registry,
+	})
+	if err != nil {
+		logger.Fatal("Failed to initialize metrics", zap.Error(err))
+	}
+	logger.Info("Metrics initialized with custom registry")
+
+	// Log metrics for debugging (can be used later if needed)
+	_ = metrics
+
+	// ========================================
+	// STEP 5: Initialize Database Manager
+	// ========================================
+	dbManager, err := resilience.NewDatabaseManager(cfg.SharedConfig.Database, logger)
 	if err != nil {
 		logger.Fatal("Failed to initialize database manager", zap.Error(err))
 	}
 	defer dbManager.Close()
+	logger.Info("Database manager initialized",
+		zap.String("database", cfg.SharedConfig.Database.Name),
+		zap.Int("max_open_conns", cfg.SharedConfig.Database.MaxOpenConns),
+	)
 
-	// Test database connectivity
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := dbManager.HealthCheck(ctx); err != nil {
-		logger.Fatal("Database health check failed", zap.Error(err))
+	// ========================================
+	// STEP 6: Initialize ServiceClient (with config)
+	// ========================================
+	serviceClientCfg := resilience.ServiceClientConfig{
+		Timeout:        cfg.ServiceClient.Timeout,
+		CircuitBreaker: cfg.ServiceClient.CircuitBreaker,
 	}
 
-	logger.Info("Database connection established successfully")
-
-	// Initialize circuit breakers for external dependencies
-	var circuitBreakers = make(map[string]*resilience.CircuitBreaker)
-
-	if resilienceConfig.CircuitBreaker.Database.Enabled {
-		circuitBreakers["database"] = resilience.NewCircuitBreaker(
-			resilienceConfig.CircuitBreaker.Database.Name,
-			resilienceConfig.CircuitBreaker.Database,
-			logger,
-		)
+	if err := serviceClientCfg.Validate(); err != nil {
+		logger.Fatal("ServiceClient configuration validation failed", zap.Error(err))
 	}
 
-	if resilienceConfig.CircuitBreaker.External.Enabled {
-		circuitBreakers["external"] = resilience.NewCircuitBreaker(
-			resilienceConfig.CircuitBreaker.External.Name,
-			resilienceConfig.CircuitBreaker.External,
-			logger,
-		)
-	}
-
-	// Initialize cache if enabled
-	var cache resilience.Cache
-	if resilienceConfig.Cache.Enabled {
-		if resilienceConfig.Cache.Type == "redis" {
-			cache = resilience.NewRedisCache(resilienceConfig.Redis, resilienceConfig.Cache, logger)
-		} else {
-			cache = resilience.NewInMemoryCache(resilienceConfig.Cache, logger)
-		}
-		logger.Info("Cache initialized", zap.String("type", resilienceConfig.Cache.Type))
-	}
-
-	// Initialize rate limiter if enabled
-	var rateLimiter resilience.RateLimiter
-	if resilienceConfig.RateLimit.Enabled {
-		if resilienceConfig.Cache.Type == "redis" {
-			rateLimiter = resilience.NewRedisRateLimiter(resilienceConfig.Redis, resilienceConfig.RateLimit, logger)
-		} else {
-			rateLimiter = resilience.NewInMemoryRateLimiter(resilienceConfig.RateLimit, logger)
-		}
-		logger.Info("Rate limiter initialized")
-	}
-
-	// Initialize business services with modernized dependencies
-	// Create config using internal config package
-	serviceConfig, err := config.Load()
+	// Load service endpoints from YAML (if exists)
+	endpoints, err := loader.LoadServiceEndpoints()
 	if err != nil {
-		logger.Fatal("Failed to load service config", zap.Error(err))
+		logger.Warn("Failed to load service endpoints", zap.Error(err))
+		endpoints = make(map[string]resilience.ServiceEndpoint) // Empty for now
 	}
-	eventStoreService, err := services.NewEventStoreService(serviceConfig, logger)
-	if err != nil {
-		logger.Fatal("Failed to initialize event store service", zap.Error(err))
-	}
-	// Set database connection from resilience manager
-	eventStoreService.SetDB(dbManager.GetDB())
 
-	// Create Gin router
+	serviceClient, err := resilience.NewServiceClient(endpoints, serviceClientCfg, logger)
+	if err != nil {
+		logger.Fatal("Failed to initialize ServiceClient", zap.Error(err))
+	}
+	logger.Info("ServiceClient initialized with circuit breakers",
+		zap.Duration("timeout", cfg.ServiceClient.Timeout),
+	)
+
+	// ========================================
+	// STEP 7: Initialize Retry Manager
+	// ========================================
+	retryManager, err := resilience.NewRetryManager(cfg.Retry, logger)
+	if err != nil {
+		logger.Fatal("Failed to initialize retry manager", zap.Error(err))
+	}
+	logger.Info("Retry manager initialized",
+		zap.Int("max_retries", cfg.Retry.MaxRetries),
+		zap.Duration("initial_delay", cfg.Retry.InitialDelay),
+	)
+
+	// Log retry manager for debugging (can be used later if needed)
+	_ = retryManager
+	_ = serviceClient
+
+	// ========================================
+	// STEP 8: Initialize Gin Router
+	// ========================================
 	router := gin.New()
 
-	// Add comprehensive middleware stack
-	middleware := resilience.DefaultMiddlewareStack(resilienceConfig, logger)
+	// Add middleware stack
+	middleware := resilience.DefaultMiddlewareStack(&cfg.SharedConfig, logger)
 	for _, mw := range middleware {
 		router.Use(mw)
 	}
+	logger.Info("Middleware stack applied (CORS, rate limiting, security headers)")
 
-	// Add rate limiting middleware if enabled
-	if rateLimiter != nil {
-		router.Use(resilience.RateLimitMiddleware(resilienceConfig.RateLimit.RequestsPerMinute, time.Minute))
+	// ========================================
+	// STEP 9: Initialize Services
+	// ========================================
+	db := dbManager.GetDB()
+	eventStoreService := services.NewEventStoreService(db, logger)
+
+	logger.Info("Event store service initialized")
+
+	// ========================================
+	// STEP 10: Initialize Handlers
+	// ========================================
+	eventStoreHandler := handlers.NewEventStoreHandler(eventStoreService, logger)
+
+	logger.Info("Handlers initialized")
+
+	// ========================================
+	// STEP 11: Setup Routes
+	// ========================================
+
+	// Health check endpoint
+	router.GET("/health", func(c *gin.Context) {
+		dbHealthChecker := resilience.NewDatabaseHealthChecker(dbManager)
+		health := dbHealthChecker.Check(c.Request.Context())
+		c.JSON(http.StatusOK, health)
+	})
+
+	// Prometheus metrics endpoint (with custom registry)
+	router.GET("/metrics", gin.WrapH(promhttp.HandlerFor(registry, promhttp.HandlerOpts{})))
+
+	// API routes
+	api := router.Group("/api/v1")
+	{
+		// Protected routes (require authentication)
+		protected := api.Group("")
+		protected.Use(resilience.AuthMiddleware(cfg.SharedConfig.JWT))
+		protected.Use(resilience.TenantMiddleware())
+		{
+			// Stream management
+			protected.GET("/streams", eventStoreHandler.ListStreams)
+			protected.POST("/streams", eventStoreHandler.CreateStream)
+			protected.GET("/streams/:id", eventStoreHandler.GetStream)
+			protected.DELETE("/streams/:id", eventStoreHandler.DeleteStream)
+			protected.GET("/streams/:id/stats", eventStoreHandler.GetStreamStats)
+
+			// Event management
+			protected.POST("/streams/:streamId/events", eventStoreHandler.AppendEvents)
+			protected.GET("/streams/:streamId/events", eventStoreHandler.GetEvents)
+			protected.GET("/streams/:streamId/events/:eventId", eventStoreHandler.GetEvent)
+
+			// Snapshot management
+			protected.POST("/streams/:streamId/snapshots", eventStoreHandler.CreateSnapshot)
+			protected.GET("/streams/:streamId/snapshots", eventStoreHandler.GetSnapshots)
+			protected.GET("/streams/:streamId/snapshots/:snapshotId", eventStoreHandler.GetSnapshot)
+
+			// Projection management
+			protected.GET("/projections", eventStoreHandler.ListProjections)
+			protected.POST("/projections", eventStoreHandler.CreateProjection)
+			protected.GET("/projections/:id", eventStoreHandler.GetProjection)
+			protected.PUT("/projections/:id", eventStoreHandler.UpdateProjection)
+			protected.DELETE("/projections/:id", eventStoreHandler.DeleteProjection)
+			protected.POST("/projections/:id/start", eventStoreHandler.StartProjection)
+			protected.POST("/projections/:id/stop", eventStoreHandler.StopProjection)
+			protected.POST("/projections/:id/reset", eventStoreHandler.ResetProjection)
+
+			// Subscription management
+			protected.GET("/subscriptions", eventStoreHandler.ListSubscriptions)
+			protected.POST("/subscriptions", eventStoreHandler.CreateSubscription)
+			protected.GET("/subscriptions/:id", eventStoreHandler.GetSubscription)
+			protected.PUT("/subscriptions/:id", eventStoreHandler.UpdateSubscription)
+			protected.DELETE("/subscriptions/:id", eventStoreHandler.DeleteSubscription)
+
+			// Stats
+			protected.GET("/stats", eventStoreHandler.GetStats)
+		}
 	}
 
-	// Initialize modernized handlers
-	eventStoreHandler := handlers.NewEventStoreHandler(
-		eventStoreService,
-		logger,
-	)
+	logger.Info("Routes registered successfully")
 
-	// Setup routes with improved structure
-	setupModernizedRoutes(router, eventStoreHandler, resilienceConfig)
-
-	// Create HTTP server with proper timeouts and configuration
+	// ========================================
+	// STEP 12: Create HTTP Server
+	// ========================================
 	server := &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", resilienceConfig.Server.Host, resilienceConfig.Server.Port),
+		Addr:         fmt.Sprintf("%s:%d", cfg.SharedConfig.Server.Host, cfg.SharedConfig.Server.Port),
 		Handler:      router,
-		ReadTimeout:  resilienceConfig.Server.ReadTimeout,
-		WriteTimeout: resilienceConfig.Server.WriteTimeout,
-		IdleTimeout:  resilienceConfig.Server.IdleTimeout,
+		ReadTimeout:  cfg.SharedConfig.Server.ReadTimeout,
+		WriteTimeout: cfg.SharedConfig.Server.WriteTimeout,
+		IdleTimeout:  cfg.SharedConfig.Server.IdleTimeout,
 	}
 
 	// Start server in a goroutine
 	go func() {
-		logger.Info("Event Store Service server starting",
+		logger.Info("eventstore Service server starting",
 			zap.String("addr", server.Addr),
-			zap.Duration("read_timeout", resilienceConfig.Server.ReadTimeout),
-			zap.Duration("write_timeout", resilienceConfig.Server.WriteTimeout),
+			zap.Duration("read_timeout", cfg.SharedConfig.Server.ReadTimeout),
+			zap.Duration("write_timeout", cfg.SharedConfig.Server.WriteTimeout),
 		)
 
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -167,8 +281,10 @@ func main() {
 		}
 	}()
 
-	// Setup health check monitoring
-	if resilienceConfig.Monitoring.Enabled {
+	// ========================================
+	// STEP 13: Setup Health Check Monitoring
+	// ========================================
+	if cfg.SharedConfig.Monitoring.Enabled {
 		dbHealthChecker := resilience.NewDatabaseHealthChecker(dbManager)
 
 		// Periodically log health status
@@ -189,17 +305,21 @@ func main() {
 				}
 			}
 		}()
+
+		logger.Info("Health check monitoring started")
 	}
 
-	// Wait for interrupt signal to gracefully shutdown the server
+	// ========================================
+	// STEP 14: Graceful Shutdown
+	// ========================================
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Info("Shutting down Event Store Service server...")
+	logger.Info("Shutting down eventstore Service server...")
 
 	// Graceful shutdown with timeout
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), resilienceConfig.Server.GracefulStop)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.SharedConfig.Server.GracefulStop)
 	defer shutdownCancel()
 
 	// Shutdown HTTP server
@@ -212,56 +332,5 @@ func main() {
 		logger.Error("Failed to close database connections", zap.Error(err))
 	}
 
-	// Close cache if initialized
-	if cache != nil {
-		cache.Close()
-	}
-
-	// Close rate limiter if initialized
-	if rateLimiter != nil {
-		rateLimiter.Close()
-	}
-
-	logger.Info("Event Store Service server exited gracefully")
+	logger.Info("eventstore Service server exited gracefully")
 }
-
-// setupModernizedRoutes configures all the routes with improved structure and security
-func setupModernizedRoutes(router *gin.Engine, handler *handlers.EventStoreHandler, resilienceConfig *resilience.Config) {
-	// Health check endpoints (excluded from auth and rate limiting)
-	health := router.Group("/health")
-	{
-		health.GET("", handler.HealthCheck)
-	}
-
-	// Metrics endpoint (excluded from auth)
-	if resilienceConfig.Monitoring.MetricsEnabled {
-	}
-
-	// API routes with versioning
-	api := router.Group("/api/v1")
-	{
-		// Protected routes (authentication required)
-		protected := api.Group("/")
-
-		// Add JWT authentication middleware
-		if resilienceConfig.JWT.Secret != "" {
-			protected.Use(resilience.AuthMiddleware(resilienceConfig.JWT))
-		}
-
-		// Add tenant middleware for multi-tenancy
-		protected.Use(resilience.TenantMiddleware())
-
-		{
-			// Event streams management (only implementing existing handlers)
-			streams := protected.Group("/streams")
-			{
-				streams.GET("", handler.ListStreams)
-				streams.POST("", handler.CreateStream)
-				streams.GET("/:id", handler.GetStream)
-			}
-		}
-	}
-}
-// TODO: CLEANUP - Update auth middleware usage
-// Replace local auth with: auth.NewMiddleware(authConfig, logger)
-// Import: github.com/anupamdutta5/shared-resilience/auth

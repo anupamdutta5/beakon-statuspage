@@ -6,39 +6,25 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/anupamdutta5/event-store-service/internal/config"
 	"github.com/anupamdutta5/event-store-service/internal/models"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 // EventStoreService handles event store-related business logic.
 type EventStoreService struct {
-	config *config.Config
 	logger *zap.Logger
 	db     *gorm.DB
 }
 
 // NewEventStoreService creates a new event store service.
-func NewEventStoreService(cfg *config.Config, logger *zap.Logger) (*EventStoreService, error) {
-	// Initialize database connection
-	db, err := initDatabase(cfg.Database)
-	if err != nil {
-		// For testing, we'll allow the service to be created without a database
-		// The database will be set later via SetDB method
-		if logger != nil {
-			logger.Warn("Failed to initialize database, service will be created without database", zap.Error(err))
-		}
-		db = nil
-	}
-
+// Updated for v2.0 - accepts *gorm.DB instead of config for standard pattern.
+func NewEventStoreService(db *gorm.DB, logger *zap.Logger) *EventStoreService {
 	return &EventStoreService{
-		config: cfg,
 		logger: logger,
 		db:     db,
-	}, nil
+	}
 }
 
 // SetDB sets the database connection (for testing)
@@ -377,32 +363,5 @@ func (s *EventStoreService) Health(ctx context.Context) error {
 }
 
 // initDatabase initializes the database connection.
-func initDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
-	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Name, cfg.SSLMode)
-
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	// Configure connection pool
-	sqlDB, err := db.DB()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
-	}
-
-	sqlDB.SetMaxOpenConns(cfg.MaxConns)
-	sqlDB.SetMaxIdleConns(cfg.MaxIdle)
-	sqlDB.SetConnMaxLifetime(time.Duration(cfg.MaxLifetime) * time.Second)
-
-	// NOTE: Database migrations are managed by Atlas (see migrations/ directory and atlas.hcl)
-	// Run migrations before starting the service:
-	//   cd microservices/event-store-service
-	//   atlas migrate apply --env dev
-	//
-	// AutoMigrate is NOT used in this project as per best practices documented in CLAUDE.md
-	// All schema changes must be tracked in version-controlled migration files
-
-	return db, nil
-}
+// initDatabase removed in v2.0 - database initialization now handled by shared-resilience
+// Database connection is passed in via constructor

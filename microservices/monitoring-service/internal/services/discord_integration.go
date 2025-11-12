@@ -1,6 +1,7 @@
 package services
 
 import (
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -20,17 +21,15 @@ import (
 type DiscordIntegrationService struct {
 	db         *gorm.DB
 	logger     *zap.Logger
-	httpClient *http.Client
+	serviceClient *resilience.ServiceClient
 }
 
 // NewDiscordIntegrationService creates a new Discord integration service
-func NewDiscordIntegrationService(db *gorm.DB, logger *zap.Logger) *DiscordIntegrationService {
+func NewDiscordIntegrationService(db *gorm.DB, serviceClient *resilience.ServiceClient, logger *zap.Logger) *DiscordIntegrationService {
 	return &DiscordIntegrationService{
 		db:     db,
 		logger: logger,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		serviceClient: serviceClient,
 	}
 }
 
@@ -198,7 +197,6 @@ func (s *DiscordIntegrationService) SendMonitorAlert(
 	eventType string,
 	monitorName string,
 	monitorURL string,
-	details map[string]interface{},
 ) error {
 	// Get active integrations for the tenant
 	integrations, err := s.GetActiveIntegrationsByTenant(tenantID)
@@ -229,7 +227,7 @@ func (s *DiscordIntegrationService) SendMonitorAlert(
 
 	// Send notifications to each integration
 	for _, integration := range notifyIntegrations {
-		err := s.sendNotification(ctx, &integration, monitorID, eventType, monitorName, monitorURL, details)
+		err := s.sendNotification(ctx, &integration, monitorID, eventType, monitorName, monitorURL)
 		if err != nil {
 			s.logger.Error("Failed to send Discord notification",
 				zap.Error(err),
@@ -250,10 +248,9 @@ func (s *DiscordIntegrationService) sendNotification(
 	eventType string,
 	monitorName string,
 	monitorURL string,
-	details map[string]interface{},
 ) error {
 	// Build Discord message
-	payload := s.buildMessage(integration, eventType, monitorName, monitorURL, details)
+	payload := s.buildMessage(integration, eventType, monitorName, monitorURL)
 
 	// Send webhook request
 	response, err := s.sendWebhook(integration.WebhookURL, payload)
@@ -318,14 +315,13 @@ func (s *DiscordIntegrationService) buildMessage(
 	eventType string,
 	monitorName string,
 	monitorURL string,
-	details map[string]interface{},
 ) *models.DiscordWebhookPayload {
 	// Build embed
 	embed := models.DiscordEmbed{
 		Title:       s.getEventTitle(eventType, monitorName),
-		Description: s.getEventDescription(eventType, details),
+		Description: s.getEventDescription(eventType, nil),
 		Color:       integration.GetCustomColorDecimal(eventType),
-		Fields:      s.buildEmbedFields(eventType, details),
+		Fields:      s.buildEmbedFields(eventType, nil),
 	}
 
 	// Add monitor URL if enabled
@@ -345,7 +341,6 @@ func (s *DiscordIntegrationService) buildMessage(
 
 	// Build payload
 	payload := &models.DiscordWebhookPayload{
-		Embeds: []models.DiscordEmbed{embed},
 	}
 
 	// Add username override if set
@@ -509,6 +504,10 @@ func (s *DiscordIntegrationService) sendWebhook(webhookURL string, payload *mode
 		return nil, fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	// Create HTTP request
 	req, err := http.NewRequest("POST", webhookURL, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -518,8 +517,9 @@ func (s *DiscordIntegrationService) sendWebhook(webhookURL string, payload *mode
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "Beakon-Monitor/1.0")
 
-	// Send request
-	resp, err := s.httpClient.Do(req)
+	// Send request using HTTP client
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("failed to send webhook: %w", err)
 	}

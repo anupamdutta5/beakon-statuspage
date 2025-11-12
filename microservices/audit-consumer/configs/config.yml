@@ -1,24 +1,148 @@
+# audit-consumer Configuration (v2.0)
+# Updated for shared-resilience v2.0 - all fields required
+
 service:
   name: audit-consumer
   version: 1.0.0
   environment: ${ENVIRONMENT:-development}
 
-rabbitmq:
-  host: ${RABBITMQ_HOST:-localhost}
-  port: 5672
-  user: ${RABBITMQ_USER:-admin}
-  password: ${RABBITMQ_PASSWORD}
-  vhost: /
-  queue: audit
-  exchange: beakon_events
-  routing_key: audit
+database:
+  host: ${DB_HOST:-localhost}
+  port: 5432
+  user: postgres
+  password: ${DB_PASSWORD}
+  name: audit
+  ssl_mode: ${DB_SSLMODE:-disable}
+  max_open_conns: 80
+  max_idle_conns: 32
+  conn_max_lifetime: 1h
+  conn_max_idle_time: 10m
 
-monitoring:
+# Circuit breaker configuration
+circuit_breaker:
+  name: external-api
+  max_requests: 3
+  interval: 10s
+  timeout: 60s
+  failure_ratio: 0.6
+  min_requests: 5
   enabled: true
-  health_path: /health
-  log_level: ${LOG_LEVEL:-info}
 
+# Service client configuration
+service_client:
+  timeout: 30s
+  circuit_breaker:
+    name: service-client
+    max_requests: 3
+    interval: 10s
+    timeout: 60s
+    failure_ratio: 0.6
+    min_requests: 5
+    enabled: true
+
+# Retry configuration
+retry:
+  max_retries: 3
+  initial_delay: 100ms
+  max_delay: 30s
+  backoff_factor: 2.0
+  jitter: true
+  retryable_errors:
+    - "connection refused"
+    - "timeout"
+
+# Cache configuration
+cache:
+  enabled: true
+  default_ttl: 5m
+  max_size: 1000
+  cleanup_interval: 10m
+  type: memory
+
+# Rate limiting
+rate_limit:
+  enabled: true
+  requests_per_minute: 100
+  burst: 10
+  cleanup_interval: 5m
+  redis_key_prefix: "rate_limit:audit-consumer:"
+  excluded_paths:
+    - /health
+    - /health/live
+    - /health/ready
+    - /metrics
+
+# JWT configuration
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 24h
+  refresh_expiration: 168h
+  issuer: audit-consumer
+  audience: beakon-api
+
+# CORS configuration
+cors:
+  allowed_origins:
+    - http://localhost:3000
+    - http://localhost:3001
+    - http://localhost:3002
+  allowed_methods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - PATCH
+  allowed_headers:
+    - Authorization
+    - Content-Type
+    - X-Request-ID
+  allow_credentials: true
+  max_age: 3600
+  expose_headers:
+    - X-Request-ID
+
+# Redis configuration
+redis:
+  host: ${REDIS_HOST:-localhost}
+  port: 6379
+  password: ${REDIS_PASSWORD:-}
+  db: 0
+  max_retries: 3
+  pool_size: 10
+  min_idle_conns: 5
+  key_prefix: "audit-consumer:"
+
+# Security configuration
 security:
   sanitization_enabled: true
   max_string_length: 1000
   strict_mode: false
+  allowed_file_types:
+    - jpg
+    - jpeg
+    - png
+    - pdf
+  max_file_size: 5242880
+  security_headers_enabled: true
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  metrics_enabled: true
+  tracing_enabled: false
+  metrics_path: /metrics
+  health_path: /health
+  jaeger_endpoint: ${JAEGER_ENDPOINT:-http://localhost:14268/api/traces}
+  tracing_sampling: 1.0
+
+# Health check configuration
+health:
+  timeout: 5s
+  cache_ttl: 10s
+
+# Logging configuration
+logging:
+  level: ${LOG_LEVEL:-debug}
+  format: console
+  output: stdout
+  error_output: stderr

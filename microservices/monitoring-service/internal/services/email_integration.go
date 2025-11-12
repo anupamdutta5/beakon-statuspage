@@ -8,6 +8,7 @@ import (
 	"net/smtp"
 	"time"
 
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -87,7 +88,7 @@ type EmailIntegrationService struct {
 }
 
 // NewEmailIntegrationService creates a new email integration service
-func NewEmailIntegrationService(db *gorm.DB, logger *zap.Logger) *EmailIntegrationService {
+func NewEmailIntegrationService(db *gorm.DB, serviceClient *resilience.ServiceClient, logger *zap.Logger) *EmailIntegrationService {
 	return &EmailIntegrationService{
 		db:     db,
 		logger: logger,

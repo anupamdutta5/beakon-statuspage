@@ -1,122 +1,399 @@
-// Package main is the entry point for the Landing Page Service.
+// Package main is the entry point for the LandingPage Service.
+// This is the v2.0 version using shared-resilience v2.0 primitives.
 package main
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/anupamdutta5/landing-page-service/internal/config"
-	"github.com/anupamdutta5/landing-page-service/internal/server"
-	"github.com/anupamdutta5/landing-page-service/pkg/logger"
-	_ "github.com/lib/pq" // PostgreSQL driver
+	resilience "github.com/anupamdutta5/shared-resilience"
+	internalConfig "github.com/anupamdutta5/landing-page-service/internal/config"
+	"github.com/anupamdutta5/landing-page-service/internal/handlers"
+	"github.com/anupamdutta5/landing-page-service/internal/services"
+	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
+// ServiceInfo contains basic service metadata
+type ServiceInfo struct {
+	Name        string `yaml:"name"`
+	Version     string `yaml:"version"`
+	Environment string `yaml:"environment"`
+}
+
+// ServiceClientConfig contains HTTP client configuration for downstream services
+type ServiceClientConfig struct {
+	Timeout        time.Duration                   `yaml:"timeout"`
+	CircuitBreaker resilience.CircuitBreakerConfig `yaml:"circuit_breaker"`
+}
+
+// LandingPageServiceConfig is the complete configuration for this service
+type LandingPageServiceConfig struct {
+	// Shared configuration (database, server, JWT, CORS, etc.)
+	SharedConfig resilience.Config `yaml:",inline"`
+
+	// Service-specific configuration
+	Service       ServiceInfo         `yaml:"service"`
+	ServiceClient ServiceClientConfig `yaml:"service_client"`
+	Retry         resilience.RetryConfig `yaml:"retry"`
+}
+
 func main() {
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
+	// ========================================
+	// STEP 1: Load Configuration from YAML
+	// ========================================
+	loader := resilience.NewConfigLoader("configs")
+	var cfg LandingPageServiceConfig
+	if err := loader.Load(&cfg); err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	// Initialize logger
-	logger, err := logger.New(cfg.Environment)
+	// Validate configuration (fail fast)
+	if err := cfg.SharedConfig.Validate(); err != nil {
+		log.Fatalf("Configuration validation failed: %v", err)
+	}
+
+	// ========================================
+	// STEP 2: Initialize Logger
+	// ========================================
+	var logger *zap.Logger
+	var err error
+
+	if cfg.Service.Environment == "production" {
+		logger, err = zap.NewProduction()
+		gin.SetMode(gin.ReleaseMode)
+	} else {
+		logger, err = zap.NewDevelopment()
+		gin.SetMode(gin.DebugMode)
+	}
+
 	if err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 	defer logger.Sync()
 
-	logger.Info("Starting Landing Page Service",
+	logger.Info("Starting LandingPage Service (v2.0)",
 		zap.String("service", cfg.Service.Name),
 		zap.String("version", cfg.Service.Version),
-		zap.String("environment", cfg.Environment))
+		zap.String("environment", cfg.Service.Environment),
+		zap.Int("port", cfg.SharedConfig.Server.Port),
+		zap.String("shared_resilience", resilience.Version),
+	)
 
-	// Ensure database exists before initializing server
-	if err := ensureDatabaseExists(cfg.Database, logger.Logger); err != nil {
-		logger.Fatal("Failed to ensure database exists", zap.Error(err))
-	}
+	// ========================================
+	// STEP 3: Initialize Prometheus Registry
+	// ========================================
+	registry := prometheus.NewRegistry()
+	logger.Info("Prometheus registry initialized (injected, not global)")
 
-	// Initialize server
-	srv, err := server.New(cfg, logger.Logger)
+	// ========================================
+	// STEP 4: Initialize Metrics (with injected registry)
+	// ========================================
+	metrics, err := resilience.NewMetrics(resilience.MetricsConfig{
+		ServiceName: cfg.Service.Name,
+		Namespace:   "beakon",
+		Subsystem:   "landing_page",
+		Enabled:     cfg.SharedConfig.Monitoring.MetricsEnabled,
+		Registry:    registry,
+	})
 	if err != nil {
-		logger.Fatal("Failed to initialize server", zap.Error(err))
+		logger.Fatal("Failed to initialize metrics", zap.Error(err))
+	}
+	logger.Info("Metrics initialized with custom registry")
+
+	// Log metrics for debugging (can be used later if needed)
+	_ = metrics
+
+	// ========================================
+	// STEP 5: Initialize Database Manager
+	// ========================================
+	dbManager, err := resilience.NewDatabaseManager(cfg.SharedConfig.Database, logger)
+	if err != nil {
+		logger.Fatal("Failed to initialize database manager", zap.Error(err))
+	}
+	defer dbManager.Close()
+	logger.Info("Database manager initialized",
+		zap.String("database", cfg.SharedConfig.Database.Name),
+		zap.Int("max_open_conns", cfg.SharedConfig.Database.MaxOpenConns),
+	)
+
+	// ========================================
+	// STEP 6: Initialize ServiceClient (with config)
+	// ========================================
+	serviceClientCfg := resilience.ServiceClientConfig{
+		Timeout:        cfg.ServiceClient.Timeout,
+		CircuitBreaker: cfg.ServiceClient.CircuitBreaker,
 	}
 
-	// Start server
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	if err := serviceClientCfg.Validate(); err != nil {
+		logger.Fatal("ServiceClient configuration validation failed", zap.Error(err))
+	}
+
+	// Load service endpoints from YAML (if exists)
+	endpoints, err := loader.LoadServiceEndpoints()
+	if err != nil {
+		logger.Warn("Failed to load service endpoints", zap.Error(err))
+		endpoints = make(map[string]resilience.ServiceEndpoint) // Empty for now
+	}
+
+	serviceClient, err := resilience.NewServiceClient(endpoints, serviceClientCfg, logger)
+	if err != nil {
+		logger.Fatal("Failed to initialize ServiceClient", zap.Error(err))
+	}
+	logger.Info("ServiceClient initialized with circuit breakers",
+		zap.Duration("timeout", cfg.ServiceClient.Timeout),
+	)
+
+	// ========================================
+	// STEP 7: Initialize Retry Manager
+	// ========================================
+	retryManager, err := resilience.NewRetryManager(cfg.Retry, logger)
+	if err != nil {
+		logger.Fatal("Failed to initialize retry manager", zap.Error(err))
+	}
+	logger.Info("Retry manager initialized",
+		zap.Int("max_retries", cfg.Retry.MaxRetries),
+		zap.Duration("initial_delay", cfg.Retry.InitialDelay),
+	)
+
+	// Log retry manager for debugging (can be used later if needed)
+	_ = retryManager
+	_ = serviceClient
+
+	// ========================================
+	// STEP 8: Initialize Gin Router
+	// ========================================
+	router := gin.New()
+
+	// Add middleware stack
+	middleware := resilience.DefaultMiddlewareStack(&cfg.SharedConfig, logger)
+	for _, mw := range middleware {
+		router.Use(mw)
+	}
+	logger.Info("Middleware stack applied (CORS, rate limiting, security headers)")
+
+	// ========================================
+	// STEP 9: Initialize Services
+	// ========================================
+	db := dbManager.GetDB()
+
+	// Create landing-specific config for service (service uses config.Landing for site metadata)
+	landingCfg := &internalConfig.Config{
+		Landing: internalConfig.LandingConfig{
+			SiteName:        "StatusPage Pro",
+			SiteURL:         "https://statuspage.pro",
+			SiteDescription: "Professional status page platform for modern teams",
+			SiteKeywords:    []string{"status page", "uptime monitoring", "incident management"},
+			ContactEmail:    "hello@statuspage.pro",
+			SupportEmail:    "support@statuspage.pro",
+			SocialLinks:     "{}",
+			AnalyticsID:     "",
+			OGImage:         "/static/images/og-image.png",
+			Favicon:         "/static/images/favicon.ico",
+			CustomCSS:       "",
+			CustomJS:        "",
+		},
+	}
+
+	landingService := services.NewLandingService(db, landingCfg, logger)
+
+	// Initialize SEO service
+	seoConfig := &services.SEOConfig{
+		SiteURL:     "https://statuspage.pro", // Default from config
+		SiteName:    "StatusPage Pro",
+		DefaultLang: "en",
+		Analytics: services.AnalyticsConfig{
+			GoogleAnalyticsID: "",
+			GoogleTagManager:  "",
+			FacebookPixelID:   "",
+			LinkedInPartnerID: "",
+		},
+	}
+	seoService := services.NewSEOService(logger, seoConfig)
+
+	logger.Info("Landing service and SEO service initialized")
+
+	// ========================================
+	// STEP 10: Initialize Handlers
+	// ========================================
+	landingHandler := handlers.NewLandingHandler(landingService, logger)
+	seoHandler := handlers.NewSEOHandler(seoService, db, logger)
+	pricingHandler := handlers.NewPricingHandler(db, logger)
+
+	logger.Info("Handlers initialized")
+
+	// ========================================
+	// STEP 11: Setup Routes
+	// ========================================
+
+	// Health check endpoint
+	router.GET("/health", landingHandler.HealthCheck)
+
+	// Prometheus metrics endpoint (with custom registry)
+	router.GET("/metrics", gin.WrapH(promhttp.HandlerFor(registry, promhttp.HandlerOpts{})))
+
+	// Static files
+	router.Static("/static", "./web/static")
+
+	// SEO routes
+	router.GET("/sitemap.xml", seoHandler.GetSitemap)
+	router.GET("/robots.txt", seoHandler.GetRobotsTxt)
+
+	// Public routes
+	router.GET("/", landingHandler.LandingPage)
+	router.GET("/blog", landingHandler.BlogPage)
+	router.GET("/blog/:slug", landingHandler.ArticlePage)
+	router.GET("/contact", landingHandler.ContactPage)
+	router.GET("/privacy", landingHandler.PrivacyPage)
+	router.GET("/terms", landingHandler.TermsPage)
+
+	// Authentication routes
+	router.GET("/login", landingHandler.LoginPage)
+	router.GET("/signup", landingHandler.SignupPage)
+	router.GET("/payment", landingHandler.PaymentPage)
+
+	// API routes
+	api := router.Group("/api/v1")
+	{
+		// Contact form
+		api.POST("/contact", landingHandler.SubmitContactForm)
+
+		// Newsletter
+		api.POST("/newsletter", landingHandler.SubscribeNewsletter)
+
+		// Mock Authentication & Payment APIs
+		api.POST("/auth/login", landingHandler.MockLogin)
+		api.POST("/auth/signup", landingHandler.MockSignup)
+		api.POST("/payment/process", landingHandler.MockPayment)
+
+		// Public pricing API for frontend
+		api.GET("/pricing", pricingHandler.GetPricingPlans)
+
+		// Admin API routes
+		admin := api.Group("/admin")
+		{
+			// Pricing management - Sync from SaaS Admin Service
+			admin.POST("/pricing/sync", pricingHandler.SyncPricingPlans)
+		}
+
+		// Content management
+		api.GET("/hero", landingHandler.GetHeroSection)
+		api.POST("/hero", landingHandler.CreateHeroSection)
+		api.PUT("/hero/:id", landingHandler.UpdateHeroSection)
+
+		api.GET("/features", landingHandler.GetFeatures)
+		api.POST("/features", landingHandler.CreateFeature)
+		api.PUT("/features/:id", landingHandler.UpdateFeature)
+
+		api.GET("/testimonials", landingHandler.GetTestimonials)
+		api.POST("/testimonials", landingHandler.CreateTestimonial)
+		api.PUT("/testimonials/:id", landingHandler.UpdateTestimonial)
+
+		api.GET("/faqs", landingHandler.GetFAQs)
+		api.POST("/faqs", landingHandler.CreateFAQ)
+		api.PUT("/faqs/:id", landingHandler.UpdateFAQ)
+
+		api.GET("/articles", landingHandler.GetArticles)
+		api.POST("/articles", landingHandler.CreateArticle)
+		api.PUT("/articles/:id", landingHandler.UpdateArticle)
+		api.DELETE("/articles/:id", landingHandler.DeleteArticle)
+
+		// SEO API routes
+		seo := api.Group("/seo")
+		{
+			seo.POST("/meta-tags", seoHandler.GenerateMetaTags)
+			seo.POST("/structured-data", seoHandler.GetStructuredData)
+			seo.GET("/analyze", seoHandler.AnalyzeSEO)
+			seo.GET("/recommendations", seoHandler.GetSEORecommendations)
+			seo.POST("/web-vitals", seoHandler.TrackWebVitals)
+			seo.POST("/preview", seoHandler.PreviewSEO)
+		}
+	}
+
+	logger.Info("Routes registered successfully")
+
+	// ========================================
+	// STEP 12: Create HTTP Server
+	// ========================================
+	server := &http.Server{
+		Addr:         fmt.Sprintf("%s:%d", cfg.SharedConfig.Server.Host, cfg.SharedConfig.Server.Port),
+		Handler:      router,
+		ReadTimeout:  cfg.SharedConfig.Server.ReadTimeout,
+		WriteTimeout: cfg.SharedConfig.Server.WriteTimeout,
+		IdleTimeout:  cfg.SharedConfig.Server.IdleTimeout,
+	}
 
 	// Start server in a goroutine
 	go func() {
-		logger.Info("Landing Page Service starting...")
-		if err := srv.Start(ctx); err != nil {
+		logger.Info("LandingPage Service server starting",
+			zap.String("addr", server.Addr),
+			zap.Duration("read_timeout", cfg.SharedConfig.Server.ReadTimeout),
+			zap.Duration("write_timeout", cfg.SharedConfig.Server.WriteTimeout),
+		)
+
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("Failed to start server", zap.Error(err))
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown
+	// ========================================
+	// STEP 13: Setup Health Check Monitoring
+	// ========================================
+	if cfg.SharedConfig.Monitoring.Enabled {
+		dbHealthChecker := resilience.NewDatabaseHealthChecker(dbManager)
+
+		// Periodically log health status
+		go func() {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ticker.C:
+					healthCtx, healthCancel := context.WithTimeout(context.Background(), 5*time.Second)
+					health := dbHealthChecker.Check(healthCtx)
+					healthCancel()
+
+					if status, ok := health["status"].(string); ok && status != "healthy" {
+						logger.Warn("Database health check failed", zap.Any("health", health))
+					}
+				}
+			}
+		}()
+
+		logger.Info("Health check monitoring started")
+	}
+
+	// ========================================
+	// STEP 14: Graceful Shutdown
+	// ========================================
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Info("Shutting down Landing Page Service...")
+	logger.Info("Shutting down LandingPage Service server...")
 
-	// Cancel context to stop server
-	cancel()
-
-	// Give server time to finish processing
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Graceful shutdown with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.SharedConfig.Server.GracefulStop)
 	defer shutdownCancel()
 
-	// Wait for server to stop
-	select {
-	case <-shutdownCtx.Done():
-		logger.Warn("Landing Page Service shutdown timeout")
-	default:
-		logger.Info("Landing Page Service stopped gracefully")
+	// Shutdown HTTP server
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		logger.Error("Server forced to shutdown", zap.Error(err))
 	}
 
-	logger.Info("Landing Page Service exited")
+	// Close database connections
+	if err := dbManager.Close(); err != nil {
+		logger.Error("Failed to close database connections", zap.Error(err))
+	}
+
+	logger.Info("LandingPage Service server exited gracefully")
 }
-
-// ensureDatabaseExists creates the database if it doesn't exist.
-func ensureDatabaseExists(dbConfig config.DatabaseConfig, logger *zap.Logger) error {
-	// Connect to postgres database to create the target database
-	connectionString := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=postgres sslmode=%s",
-		dbConfig.Host, dbConfig.Port, dbConfig.User, dbConfig.Password, dbConfig.SSLMode)
-
-	db, err := sql.Open("postgres", connectionString)
-	if err != nil {
-		return fmt.Errorf("failed to connect to postgres database: %w", err)
-	}
-	defer db.Close()
-
-	// Check if database exists
-	var exists bool
-	checkQuery := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = '%s')", dbConfig.Name)
-	err = db.QueryRow(checkQuery).Scan(&exists)
-	if err != nil {
-		return fmt.Errorf("failed to check if database exists: %w", err)
-	}
-
-	// Create database if it doesn't exist
-	if !exists {
-		createQuery := fmt.Sprintf("CREATE DATABASE %s", dbConfig.Name)
-		_, err = db.Exec(createQuery)
-		if err != nil {
-			return fmt.Errorf("failed to create database: %w", err)
-		}
-		logger.Info("Database created successfully", zap.String("database", dbConfig.Name))
-	} else {
-		logger.Info("Database already exists", zap.String("database", dbConfig.Name))
-	}
-
-	return nil
-}
-

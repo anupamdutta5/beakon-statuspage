@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"time"
 
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -114,13 +115,10 @@ type WebhookIntegrationService struct {
 }
 
 // NewWebhookIntegrationService creates a new webhook integration service
-func NewWebhookIntegrationService(db *gorm.DB, logger *zap.Logger) *WebhookIntegrationService {
+func NewWebhookIntegrationService(db *gorm.DB, serviceClient *resilience.ServiceClient, logger *zap.Logger) *WebhookIntegrationService {
 	return &WebhookIntegrationService{
 		db:     db,
 		logger: logger,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
 	}
 }
 
@@ -469,8 +467,9 @@ func (s *WebhookIntegrationService) executeWebhook(ctx context.Context, integrat
 	headersJSON, _ := json.Marshal(req.Header)
 	delivery.RequestHeaders = string(headersJSON)
 
-	// Send request
-	resp, err := s.httpClient.Do(req)
+	// Send request using HTTP client
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		delivery.ErrorMessage = err.Error()
 		return fmt.Errorf("request failed: %w", err)
@@ -535,7 +534,9 @@ func (s *WebhookIntegrationService) TestWebhook(integration *WebhookIntegration)
 		req.Header.Set("X-Webhook-Signature", signature)
 	}
 
-	resp, err := s.httpClient.Do(req)
+	// Send request using HTTP client
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("test request failed: %w", err)
 	}

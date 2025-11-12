@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/anupamdutta5/notification-service/internal/models"
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -17,19 +18,17 @@ import (
 
 // TelegramIntegrationService handles Telegram bot integrations and notifications
 type TelegramIntegrationService struct {
-	db         *gorm.DB
-	logger     *zap.Logger
-	httpClient *http.Client
+	db            *gorm.DB
+	logger        *zap.Logger
+	serviceClient *resilience.ServiceClient
 }
 
 // NewTelegramIntegrationService creates a new Telegram integration service
-func NewTelegramIntegrationService(db *gorm.DB, logger *zap.Logger) *TelegramIntegrationService {
+func NewTelegramIntegrationService(db *gorm.DB, serviceClient *resilience.ServiceClient, logger *zap.Logger) *TelegramIntegrationService {
 	return &TelegramIntegrationService{
-		db:     db,
-		logger: logger,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		db:            db,
+		logger:        logger,
+		serviceClient: serviceClient,
 	}
 }
 
@@ -429,26 +428,22 @@ func (s *TelegramIntegrationService) SendMessage(
 		return 0, 0, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// Create HTTP request
-	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return 0, 0, fmt.Errorf("failed to create request: %w", err)
-	}
+	// Send via ServiceClient with circuit breaker
+	resp, err := s.serviceClient.Call(context.Background(), resilience.ServiceRequest{
+		ServiceName: "telegram-api",
+		Method:      "POST",
+		URL:         apiURL,
+		Body:        jsonData,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+	})
 
-	req.Header.Set("Content-Type", "application/json")
-
-	// Send request
-	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
 
-	// Read response
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return 0, resp.StatusCode, fmt.Errorf("failed to read response: %w", err)
-	}
+	body := resp.Body
 
 	// Parse response
 	var telegramResp models.TelegramSendMessageResponse
@@ -477,16 +472,20 @@ func (s *TelegramIntegrationService) SendMessage(
 func (s *TelegramIntegrationService) GetBotInfo(botToken string) (*models.TelegramUser, error) {
 	apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/getMe", botToken)
 
-	resp, err := s.httpClient.Get(apiURL)
+	// Send via ServiceClient with circuit breaker
+	resp, err := s.serviceClient.Call(context.Background(), resilience.ServiceRequest{
+		ServiceName: "telegram-api",
+		Method:      "GET",
+		URL:         apiURL,
+		Body:        nil,
+		Headers:     map[string]string{},
+	})
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get bot info: %w", err)
 	}
-	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
+	body := resp.Body
 
 	var telegramResp models.TelegramGetMeResponse
 	if err := json.Unmarshal(body, &telegramResp); err != nil {

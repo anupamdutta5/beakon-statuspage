@@ -1,41 +1,58 @@
 // Package main is the entry point for the Billing Consumer.
+// This is the v2.0 version using shared-resilience v2.0 primitives.
 package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/anupamdutta5/billing-consumer/internal/config"
 	"github.com/anupamdutta5/billing-consumer/internal/consumer"
-	"github.com/anupamdutta5/billing-consumer/pkg/logger"
 	"go.uber.org/zap"
 )
 
 func main() {
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+	// Load configuration from YAML
+	loader := resilience.NewConfigLoader("configs")
+	var cfg config.Config
+	if err := loader.Load(&cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Validate configuration
+	if err := cfg.Validate(); err != nil {
+		fmt.Fprintf(os.Stderr, "Configuration validation failed: %v\n", err)
+		os.Exit(1)
 	}
 
 	// Initialize logger
-	logger, err := logger.New(cfg.Environment)
+	var logger *zap.Logger
+	var err error
+	if cfg.Environment == "production" {
+		logger, err = zap.NewProduction()
+	} else {
+		logger, err = zap.NewDevelopment()
+	}
 	if err != nil {
-		log.Fatalf("Failed to initialize logger: %v", err)
+		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
+		os.Exit(1)
 	}
 	defer logger.Sync()
 
-	logger.Info("Starting Billing Consumer",
+	logger.Info("Starting Billing Consumer (v2.0)",
 		zap.String("service", cfg.Service.Name),
 		zap.String("version", cfg.Service.Version),
-		zap.String("environment", cfg.Environment))
+		zap.String("environment", cfg.Environment),
+	)
 
 	// Initialize consumer
-	billingConsumer, err := consumer.NewBillingConsumer(cfg, logger.Logger)
+	billingConsumer, err := consumer.NewBillingConsumer(&cfg, logger)
 	if err != nil {
 		logger.Fatal("Failed to initialize billing consumer", zap.Error(err))
 	}
@@ -48,7 +65,7 @@ func main() {
 	go func() {
 		logger.Info("Billing Consumer starting...")
 		if err := billingConsumer.Start(ctx); err != nil {
-			logger.Fatal("Failed to start billing consumer", zap.Error(err))
+			logger.Error("Billing consumer stopped with error", zap.Error(err))
 		}
 	}()
 
@@ -70,10 +87,9 @@ func main() {
 	select {
 	case <-shutdownCtx.Done():
 		logger.Warn("Billing Consumer shutdown timeout")
-	default:
+	case <-time.After(5 * time.Second):
 		logger.Info("Billing Consumer stopped gracefully")
 	}
 
 	logger.Info("Billing Consumer exited")
 }
-

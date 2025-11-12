@@ -174,15 +174,25 @@ func (p *WebhookProvider) Send(ctx context.Context, request *NotificationRequest
 	// Add user agent
 	headers["User-Agent"] = "StatusPage-Webhook/1.0"
 
-	// Send via ServiceClient with circuit breaker and retries
-	resp, err := p.serviceClient.Call(ctx, resilience.ServiceRequest{
-		ServiceName: "webhook",
-		Method:      p.method,
-		URL:         p.url,
-		Body:        payloadBytes,
-		Headers:     headers,
-	})
+	// Create HTTP request for external webhook
+	req, err := http.NewRequestWithContext(ctx, p.method, p.url, strings.NewReader(string(payloadBytes)))
+	if err != nil {
+		return &NotificationResponse{
+			Success: false,
+			Status:  "failed",
+			Error:   fmt.Sprintf("Failed to create request: %v", err),
+			SentAt:  time.Now(),
+		}, err
+	}
 
+	// Set headers
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+
+	// Send via HTTP client (external webhook)
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return &NotificationResponse{
 			Success: false,
@@ -191,8 +201,14 @@ func (p *WebhookProvider) Send(ctx context.Context, request *NotificationRequest
 			SentAt:  time.Now(),
 		}, err
 	}
+	defer resp.Body.Close()
 
-	body := resp.Body
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		p.logger.Warn("Failed to read webhook response body", zap.Error(err))
+		body = []byte{}
+	}
 
 	response := &NotificationResponse{
 		Success:      resp.StatusCode >= 200 && resp.StatusCode < 300,

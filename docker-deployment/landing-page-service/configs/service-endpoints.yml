@@ -61,7 +61,7 @@ services:
 
 infrastructure:
   postgres:
-    host: "statuspage-postgres"
+    host: "postgres"
     port: 5432
 
   redis:

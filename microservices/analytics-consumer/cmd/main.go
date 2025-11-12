@@ -1,5 +1,5 @@
 // Package main is the entry point for the Analytics Consumer.
-// This is the modernized version using the shared-resilience module.
+// This is the v2.0 version using shared-resilience v2.0 primitives.
 package main
 
 import (
@@ -10,53 +10,51 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/anupamdutta5/shared-resilience"
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/anupamdutta5/analytics-consumer/internal/config"
 	"github.com/anupamdutta5/analytics-consumer/internal/consumer"
 	"go.uber.org/zap"
 )
 
 func main() {
-	// Load configuration from environment variables
-	resilConfig := resilience.LoadConfigFromEnv()
-
-	// Create startup manager for proper error handling
-	startupMgr, err := resilience.NewStartupManager("analytics-consumer", resilConfig)
-	if err != nil {
-		// This is the only acceptable use of fatal - when we can't even initialize logging
-		fmt.Fprintf(os.Stderr, "Failed to create startup manager: %v\n", err)
+	// Load configuration from YAML
+	loader := resilience.NewConfigLoader("configs")
+	var cfg config.Config
+	if err := loader.Load(&cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Set up panic recovery
-	defer startupMgr.RecoverFromPanic()
+	// Validate configuration
+	if err := cfg.Validate(); err != nil {
+		fmt.Fprintf(os.Stderr, "Configuration validation failed: %v\n", err)
+		os.Exit(1)
+	}
 
-	logger := startupMgr.Logger
+	// Initialize logger
+	var logger *zap.Logger
+	var err error
+	if cfg.Environment == "production" {
+		logger, err = zap.NewProduction()
+	} else {
+		logger, err = zap.NewDevelopment()
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
+		os.Exit(1)
+	}
 	defer logger.Sync()
 
-	// Validate configuration
-	if err := startupMgr.ValidateConfiguration(); err != nil {
-		startupMgr.HandleStartupError(err)
-		return
-	}
-
-	// Load legacy configuration
-	cfg, err := config.Load()
-	if err != nil {
-		startupMgr.HandleStartupError(fmt.Errorf("failed to load configuration: %w", err))
-		return
-	}
-
-	logger.Info("Starting Analytics Consumer",
-		zap.String("service", "analytics-consumer"),
-		zap.String("version", "1.0.0"),
-		zap.String("environment", resilConfig.Environment))
+	logger.Info("Starting Analytics Consumer (v2.0)",
+		zap.String("service", cfg.Service.Name),
+		zap.String("version", cfg.Service.Version),
+		zap.String("environment", cfg.Environment),
+	)
 
 	// Initialize consumer
-	analyticsConsumer, err := consumer.NewAnalyticsConsumer(cfg, logger)
+	analyticsConsumer, err := consumer.NewAnalyticsConsumer(&cfg, logger)
 	if err != nil {
-		startupMgr.HandleStartupError(fmt.Errorf("failed to initialize analytics consumer: %w", err))
-		return
+		logger.Fatal("Failed to initialize analytics consumer", zap.Error(err))
 	}
 
 	// Start consumer
@@ -67,8 +65,7 @@ func main() {
 	go func() {
 		logger.Info("Analytics Consumer starting...")
 		if err := analyticsConsumer.Start(ctx); err != nil {
-			logger.Error("Failed to start analytics consumer", zap.Error(err))
-			cancel()
+			logger.Error("Analytics consumer stopped with error", zap.Error(err))
 		}
 	}()
 
@@ -90,10 +87,9 @@ func main() {
 	select {
 	case <-shutdownCtx.Done():
 		logger.Warn("Analytics Consumer shutdown timeout")
-	default:
+	case <-time.After(5 * time.Second):
 		logger.Info("Analytics Consumer stopped gracefully")
 	}
 
 	logger.Info("Analytics Consumer exited")
 }
-

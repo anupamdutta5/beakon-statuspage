@@ -1414,3 +1414,22 @@ func (s *TenantAdminService) UpdateCredentialsByEmail(ctx context.Context, tenan
 
 	return nil
 }
+
+// ExistsBySubdomain checks if a tenant exists with the given subdomain.
+// This method is used for subdomain validation in the frontend middleware.
+func (s *TenantAdminService) ExistsBySubdomain(ctx context.Context, subdomain string) (bool, error) {
+	var count int64
+	err := s.db.WithContext(ctx).
+		Model(&models.Tenant{}).
+		Where("subdomain = ? AND deleted_at IS NULL", subdomain).
+		Count(&count).Error
+
+	if err != nil {
+		s.logger.Error("Failed to check subdomain existence",
+			zap.String("subdomain", subdomain),
+			zap.Error(err))
+		return false, WrapDatabaseError("check subdomain existence", err)
+	}
+
+	return count > 0, nil
+}

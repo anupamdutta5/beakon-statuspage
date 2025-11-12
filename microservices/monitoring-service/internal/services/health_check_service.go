@@ -9,22 +9,21 @@ import (
 	"strings"
 	"time"
 
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"go.uber.org/zap"
 )
 
 // HealthCheckService handles HTTP endpoint health checks.
 type HealthCheckService struct {
-	httpClient *http.Client
-	logger     *zap.Logger
+	serviceClient *resilience.ServiceClient
+	logger        *zap.Logger
 }
 
 // NewHealthCheckService creates a new health check service.
-func NewHealthCheckService(logger *zap.Logger) *HealthCheckService {
+func NewHealthCheckService(serviceClient *resilience.ServiceClient, logger *zap.Logger) *HealthCheckService {
 	return &HealthCheckService{
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-		logger: logger,
+		serviceClient: serviceClient,
+		logger:        logger,
 	}
 }
 
@@ -65,6 +64,10 @@ func (s *HealthCheckService) PerformHealthCheck(ctx context.Context, req *Health
 		req.Timeout = 30
 	}
 
+	// Add timeout to context
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(req.Timeout)*time.Second)
+	defer cancel()
+
 	// Create HTTP request
 	httpReq, err := http.NewRequestWithContext(ctx, req.Method, req.URL, strings.NewReader(req.Body))
 	if err != nil {
@@ -75,18 +78,15 @@ func (s *HealthCheckService) PerformHealthCheck(ctx context.Context, req *Health
 		}, nil
 	}
 
-	// Set headers
+	// Add headers
 	for key, value := range req.Headers {
 		httpReq.Header.Set(key, value)
 	}
 
-	// Create HTTP client with timeout
-	client := &http.Client{
-		Timeout: time.Duration(req.Timeout) * time.Second,
-	}
-
-	// Perform request
+	// Perform request using HTTP client
+	client := &http.Client{Timeout: time.Duration(req.Timeout) * time.Second}
 	resp, err := client.Do(httpReq)
+
 	responseTime := float64(time.Since(startTime).Nanoseconds()) / 1e6 // Convert to milliseconds
 
 	if err != nil {
@@ -100,12 +100,13 @@ func (s *HealthCheckService) PerformHealthCheck(ctx context.Context, req *Health
 	defer resp.Body.Close()
 
 	// Read response body
-	bodyBytes, err := io.ReadAll(resp.Body)
+	responseBody := ""
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		s.logger.Warn("Failed to read response body", zap.Error(err))
+		responseBody = ""
+	} else {
+		responseBody = string(body)
 	}
-
-	responseBody := string(bodyBytes)
 
 	// Check status code
 	status := "success"
@@ -125,7 +126,7 @@ func (s *HealthCheckService) PerformHealthCheck(ctx context.Context, req *Health
 		errorMessage += fmt.Sprintf("Expected body to contain: %s", req.ExpectedBody)
 	}
 
-	// Extract response headers
+	// Extract response headers (convert from map[string][]string to map[string]string)
 	responseHeaders := make(map[string]string)
 	for key, values := range resp.Header {
 		if len(values) > 0 {

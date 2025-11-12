@@ -1,5 +1,5 @@
 // Package main is the entry point for the Notification Service.
-// This is the modernized version using the shared-resilience module.
+// This is the v2.0 version using shared-resilience v2.0 primitives.
 package main
 
 import (
@@ -12,25 +12,61 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/anupamdutta5/shared-resilience"
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/anupamdutta5/notification-service/internal/handlers"
 	"github.com/anupamdutta5/notification-service/internal/services"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
+// ServiceInfo contains basic service metadata
+type ServiceInfo struct {
+	Name        string `yaml:"name"`
+	Version     string `yaml:"version"`
+	Environment string `yaml:"environment"`
+}
+
+// ServiceClientConfig contains HTTP client configuration for downstream services
+type ServiceClientConfig struct {
+	Timeout        time.Duration                   `yaml:"timeout"`
+	CircuitBreaker resilience.CircuitBreakerConfig `yaml:"circuit_breaker"`
+}
+
+// NotificationServiceConfig is the complete configuration for this service
+type NotificationServiceConfig struct {
+	// Shared configuration (database, server, JWT, CORS, etc.)
+	SharedConfig resilience.Config `yaml:",inline"`
+
+	// Service-specific configuration
+	Service       ServiceInfo         `yaml:"service"`
+	ServiceClient ServiceClientConfig `yaml:"service_client"`
+	Retry         resilience.RetryConfig `yaml:"retry"`
+}
+
 func main() {
-	// Load configuration from environment variables
-	resilienceConfig := resilience.LoadConfigFromEnv()
-	if err := resilienceConfig.Validate(); err != nil {
+	// ========================================
+	// STEP 1: Load Configuration from YAML
+	// ========================================
+	loader := resilience.NewConfigLoader("configs")
+	var cfg NotificationServiceConfig
+	if err := loader.Load(&cfg); err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	// Validate configuration (fail fast)
+	if err := cfg.SharedConfig.Validate(); err != nil {
 		log.Fatalf("Configuration validation failed: %v", err)
 	}
 
-	// Initialize logger based on environment
+	// ========================================
+	// STEP 2: Initialize Logger
+	// ========================================
 	var logger *zap.Logger
 	var err error
 
-	if resilienceConfig.Environment == "production" {
+	if cfg.Service.Environment == "production" {
 		logger, err = zap.NewProduction()
 		gin.SetMode(gin.ReleaseMode)
 	} else {
@@ -43,45 +79,129 @@ func main() {
 	}
 	defer logger.Sync()
 
-	logger.Info("Starting Notification Service",
-		zap.String("service", "notification-service"),
-		zap.String("version", "1.0.0"),
-		zap.String("environment", resilienceConfig.Environment),
-		zap.Int("port", resilienceConfig.Server.Port),
+	logger.Info("Starting Notification Service (v2.0)",
+		zap.String("service", cfg.Service.Name),
+		zap.String("version", cfg.Service.Version),
+		zap.String("environment", cfg.Service.Environment),
+		zap.Int("port", cfg.SharedConfig.Server.Port),
+		zap.String("shared_resilience", resilience.Version),
 	)
 
-	// Initialize database manager with connection pooling and health checks
-	dbManager, err := resilience.NewDatabaseManager(resilienceConfig.Database, logger)
+	// ========================================
+	// STEP 3: Initialize Prometheus Registry
+	// ========================================
+	registry := prometheus.NewRegistry()
+	logger.Info("Prometheus registry initialized (injected, not global)")
+
+	// ========================================
+	// STEP 4: Initialize Metrics (with injected registry)
+	// ========================================
+	metrics, err := resilience.NewMetrics(resilience.MetricsConfig{
+		ServiceName: cfg.Service.Name,
+		Namespace:   "beakon",
+		Subsystem:   "notification",
+		Enabled:     cfg.SharedConfig.Monitoring.MetricsEnabled,
+		Registry:    registry,
+	})
+	if err != nil {
+		logger.Fatal("Failed to initialize metrics", zap.Error(err))
+	}
+	logger.Info("Metrics initialized with custom registry")
+
+	// Log metrics for debugging (can be used later if needed)
+	_ = metrics
+
+	// ========================================
+	// STEP 5: Initialize Database Manager
+	// ========================================
+	dbManager, err := resilience.NewDatabaseManager(cfg.SharedConfig.Database, logger)
 	if err != nil {
 		logger.Fatal("Failed to initialize database manager", zap.Error(err))
 	}
 	defer dbManager.Close()
+	logger.Info("Database manager initialized",
+		zap.String("database", cfg.SharedConfig.Database.Name),
+		zap.Int("max_open_conns", cfg.SharedConfig.Database.MaxOpenConns),
+	)
 
-	// Create Gin router
+	// ========================================
+	// STEP 6: Initialize ServiceClient (with config)
+	// ========================================
+	serviceClientCfg := resilience.ServiceClientConfig{
+		Timeout:        cfg.ServiceClient.Timeout,
+		CircuitBreaker: cfg.ServiceClient.CircuitBreaker,
+	}
+
+	if err := serviceClientCfg.Validate(); err != nil {
+		logger.Fatal("ServiceClient configuration validation failed", zap.Error(err))
+	}
+
+	// Load service endpoints from YAML (if exists)
+	endpoints, err := loader.LoadServiceEndpoints()
+	if err != nil {
+		logger.Warn("Failed to load service endpoints", zap.Error(err))
+		endpoints = make(map[string]resilience.ServiceEndpoint) // Empty for now
+	}
+
+	serviceClient, err := resilience.NewServiceClient(endpoints, serviceClientCfg, logger)
+	if err != nil {
+		logger.Fatal("Failed to initialize ServiceClient", zap.Error(err))
+	}
+	logger.Info("ServiceClient initialized with circuit breakers",
+		zap.Duration("timeout", cfg.ServiceClient.Timeout),
+	)
+
+	// ========================================
+	// STEP 7: Initialize Retry Manager
+	// ========================================
+	retryManager, err := resilience.NewRetryManager(cfg.Retry, logger)
+	if err != nil {
+		logger.Fatal("Failed to initialize retry manager", zap.Error(err))
+	}
+	logger.Info("Retry manager initialized",
+		zap.Int("max_retries", cfg.Retry.MaxRetries),
+		zap.Duration("initial_delay", cfg.Retry.InitialDelay),
+	)
+
+	// Log retry manager for debugging (can be used later if needed)
+	_ = retryManager
+
+	// ========================================
+	// STEP 8: Initialize Gin Router
+	// ========================================
 	router := gin.New()
 
-	// Add comprehensive middleware stack
-	middleware := resilience.DefaultMiddlewareStack(resilienceConfig, logger)
+	// Add middleware stack
+	middleware := resilience.DefaultMiddlewareStack(&cfg.SharedConfig, logger)
 	for _, mw := range middleware {
 		router.Use(mw)
 	}
+	logger.Info("Middleware stack applied (CORS, rate limiting, security headers)")
 
-	// Initialize ServiceClient for external API calls with circuit breakers
-	serviceClient := resilience.NewServiceClient("configs/service-endpoints.yml", logger)
-	logger.Info("ServiceClient initialized with circuit breakers for external integrations")
-
-	// Initialize notification service and handlers
+	// ========================================
+	// STEP 9: Initialize Services
+	// ========================================
 	notificationService := services.NewNotificationService(dbManager.GetDB(), logger)
-	enhancedNotificationService := services.NewEnhancedNotificationService(dbManager.GetDB(), logger)
+	enhancedNotificationService := services.NewEnhancedNotificationService(dbManager.GetDB(), serviceClient, logger)
+
+	// Initialize handlers
 	notificationHandler := handlers.NewNotificationHandler(notificationService, logger)
 	enhancedNotificationHandler := handlers.NewEnhancedNotificationHandler(enhancedNotificationService, logger)
 
-	// Setup basic routes
+	logger.Info("Notification services and handlers initialized")
+
+	// ========================================
+	// STEP 10: Setup Routes
+	// ========================================
+
+	// Health check endpoint
 	router.GET("/health", enhancedNotificationHandler.Health)
+
+	// Prometheus metrics endpoint (with custom registry)
+	router.GET("/metrics", gin.WrapH(promhttp.HandlerFor(registry, promhttp.HandlerOpts{})))
 
 	// API routes
 	api := router.Group("/api/v1")
-	// TODO: Add authentication middleware here
 	{
 		// Legacy notification endpoints
 		api.GET("/notifications", notificationHandler.GetNotifications)
@@ -110,21 +230,25 @@ func main() {
 		api.POST("/webhook", notificationHandler.HandleWebhook)
 	}
 
-	// Create HTTP server with proper timeouts and configuration
+	logger.Info("Routes registered successfully")
+
+	// ========================================
+	// STEP 11: Create HTTP Server
+	// ========================================
 	server := &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", resilienceConfig.Server.Host, resilienceConfig.Server.Port),
+		Addr:         fmt.Sprintf("%s:%d", cfg.SharedConfig.Server.Host, cfg.SharedConfig.Server.Port),
 		Handler:      router,
-		ReadTimeout:  resilienceConfig.Server.ReadTimeout,
-		WriteTimeout: resilienceConfig.Server.WriteTimeout,
-		IdleTimeout:  resilienceConfig.Server.IdleTimeout,
+		ReadTimeout:  cfg.SharedConfig.Server.ReadTimeout,
+		WriteTimeout: cfg.SharedConfig.Server.WriteTimeout,
+		IdleTimeout:  cfg.SharedConfig.Server.IdleTimeout,
 	}
 
 	// Start server in a goroutine
 	go func() {
 		logger.Info("Notification Service server starting",
 			zap.String("addr", server.Addr),
-			zap.Duration("read_timeout", resilienceConfig.Server.ReadTimeout),
-			zap.Duration("write_timeout", resilienceConfig.Server.WriteTimeout),
+			zap.Duration("read_timeout", cfg.SharedConfig.Server.ReadTimeout),
+			zap.Duration("write_timeout", cfg.SharedConfig.Server.WriteTimeout),
 		)
 
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -132,8 +256,10 @@ func main() {
 		}
 	}()
 
-	// Setup health check monitoring
-	if resilienceConfig.Monitoring.Enabled {
+	// ========================================
+	// STEP 12: Setup Health Check Monitoring
+	// ========================================
+	if cfg.SharedConfig.Monitoring.Enabled {
 		dbHealthChecker := resilience.NewDatabaseHealthChecker(dbManager)
 
 		// Periodically log health status
@@ -154,9 +280,13 @@ func main() {
 				}
 			}
 		}()
+
+		logger.Info("Health check monitoring started")
 	}
 
-	// Wait for interrupt signal to gracefully shutdown the server
+	// ========================================
+	// STEP 13: Graceful Shutdown
+	// ========================================
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -164,7 +294,7 @@ func main() {
 	logger.Info("Shutting down Notification Service server...")
 
 	// Graceful shutdown with timeout
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), resilienceConfig.Server.GracefulStop)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.SharedConfig.Server.GracefulStop)
 	defer shutdownCancel()
 
 	// Shutdown HTTP server

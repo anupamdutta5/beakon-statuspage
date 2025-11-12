@@ -1,78 +1,109 @@
 // Package main is the entry point for the Database Service.
-// This is the modernized version using the shared-resilience module.
+// This is the v2.0 version using shared-resilience v2.0 primitives.
 package main
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
-	"github.com/anupamdutta5/shared-resilience"
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/anupamdutta5/database-service/internal/config"
 	"github.com/anupamdutta5/database-service/internal/server"
 	"go.uber.org/zap"
 )
 
-func main() {
-	// Load configuration from environment variables
-	resilConfig := resilience.LoadConfigFromEnv()
+// ServiceInfo contains basic service metadata
+type ServiceInfo struct {
+	Name        string `yaml:"name"`
+	Version     string `yaml:"version"`
+	Environment string `yaml:"environment"`
+}
 
-	// Create startup manager for proper error handling
-	startupMgr, err := resilience.NewStartupManager("database-service", resilConfig)
-	if err != nil {
-		// This is the only acceptable use of fatal - when we can't even initialize logging
-		fmt.Fprintf(os.Stderr, "Failed to create startup manager: %v\n", err)
-		os.Exit(1)
+// DatabaseServiceConfig is the complete configuration for this service
+type DatabaseServiceConfig struct {
+	// Shared configuration (server, monitoring, etc.)
+	SharedConfig resilience.Config `yaml:",inline"`
+
+	// Service-specific configuration
+	Service ServiceInfo `yaml:"service"`
+}
+
+func main() {
+	// ========================================
+	// STEP 1: Load Configuration from YAML (v2.0)
+	// ========================================
+	loader := resilience.NewConfigLoader("configs")
+	var cfg DatabaseServiceConfig
+	if err := loader.Load(&cfg); err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	// Set up panic recovery
-	defer startupMgr.RecoverFromPanic()
+	// Validate configuration (fail fast)
+	if err := cfg.SharedConfig.Validate(); err != nil {
+		log.Fatalf("Configuration validation failed: %v", err)
+	}
 
-	logger := startupMgr.Logger
+	// ========================================
+	// STEP 2: Initialize Logger
+	// ========================================
+	var logger *zap.Logger
+	var err error
+
+	if cfg.Service.Environment == "production" {
+		logger, err = zap.NewProduction()
+	} else {
+		logger, err = zap.NewDevelopment()
+	}
+
+	if err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
 	defer logger.Sync()
 
-	// Validate configuration
-	if err := startupMgr.ValidateConfiguration(); err != nil {
-		startupMgr.HandleStartupError(err)
-		return
-	}
+	logger.Info("Starting Database Service (v2.0)",
+		zap.String("service", cfg.Service.Name),
+		zap.String("version", cfg.Service.Version),
+		zap.String("environment", cfg.Service.Environment),
+		zap.String("shared_resilience", resilience.Version))
 
-	// Load legacy configuration
-	cfg, err := config.Load()
+	// ========================================
+	// STEP 3: Load Legacy Configuration
+	// ========================================
+	legacyCfg, err := config.Load()
 	if err != nil {
-		startupMgr.HandleStartupError(fmt.Errorf("failed to load configuration: %w", err))
-		return
+		logger.Fatal("Failed to load legacy configuration", zap.Error(err))
 	}
 
-	logger.Info("Starting Database Service",
-		zap.String("service", "database-service"),
-		zap.String("version", "1.0.0"),
-		zap.String("environment", resilConfig.Environment))
-
-	// Initialize server
-	srv, err := server.New(cfg, logger)
+	// ========================================
+	// STEP 4: Initialize Server
+	// ========================================
+	srv, err := server.New(legacyCfg, logger)
 	if err != nil {
-		startupMgr.HandleStartupError(fmt.Errorf("failed to initialize server: %w", err))
-		return
+		logger.Fatal("Failed to initialize server", zap.Error(err))
 	}
 
-	// Start server
+	// ========================================
+	// STEP 5: Start Server
+	// ========================================
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Start server in a goroutine
 	go func() {
-		logger.Info("Database Service starting...")
+		logger.Info("Database Service starting",
+			zap.Int("port", cfg.SharedConfig.Server.Port))
 		if err := srv.Start(ctx); err != nil {
 			logger.Error("Failed to start server", zap.Error(err))
 			cancel()
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown
+	// ========================================
+	// STEP 6: Graceful Shutdown
+	// ========================================
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -83,7 +114,7 @@ func main() {
 	cancel()
 
 	// Give server time to finish processing
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.SharedConfig.Server.GracefulStop)
 	defer shutdownCancel()
 
 	// Wait for server to stop
@@ -94,6 +125,6 @@ func main() {
 		logger.Info("Database Service stopped gracefully")
 	}
 
-	logger.Info("Database Service exited")
+	logger.Info("Database Service exited gracefully")
 }
 

@@ -24,6 +24,8 @@ import (
 	"github.com/anupamdutta5/saas-admin-service/internal/services"
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq" // PostgreSQL driver
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
@@ -261,13 +263,23 @@ func setupRoutes(router *gin.Engine, adminHandler *handlers.SaaSAdminHandler) {
 }
 
 func main() {
-	// Load configuration from environment variables
-	resilienceConfig := resilience.LoadConfigFromEnv()
+	// ========================================
+	// STEP 1: Load Configuration from YAML (v2.0)
+	// ========================================
+	loader := resilience.NewConfigLoader("configs")
+	var resilienceConfig resilience.Config
+	if err := loader.Load(&resilienceConfig); err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	// Validate configuration (fail fast)
 	if err := resilienceConfig.Validate(); err != nil {
 		log.Fatalf("Configuration validation failed: %v", err)
 	}
 
-	// Initialize logger based on environment
+	// ========================================
+	// STEP 2: Initialize Logger
+	// ========================================
 	var logger *zap.Logger
 	var err error
 
@@ -284,11 +296,12 @@ func main() {
 	}
 	defer logger.Sync()
 
-	logger.Info("Starting SaaS Admin Service",
+	logger.Info("Starting SaaS Admin Service (v2.0)",
 		zap.String("service", "saas-admin-service"),
 		zap.String("version", "1.0.0"),
 		zap.String("environment", resilienceConfig.Environment),
 		zap.Int("port", resilienceConfig.Server.Port),
+		zap.String("shared_resilience", resilience.Version),
 	)
 
 	// Ensure primary database (saas_admin) exists before connecting
@@ -360,7 +373,15 @@ func main() {
 
 	logger.Info("SaaS Admin Service using Atlas for migrations - AutoMigrate disabled")
 
-	// Create Gin router
+	// ========================================
+	// STEP 3: Initialize Prometheus Registry (v2.0)
+	// ========================================
+	registry := prometheus.NewRegistry()
+	logger.Info("Prometheus registry initialized (injected, not global)")
+
+	// ========================================
+	// STEP 4: Create Gin Router
+	// ========================================
 	router := gin.New()
 
 	// CORS middleware for saas-admin-frontend (port 3001)
@@ -396,7 +417,7 @@ func main() {
 	})
 
 	// Add comprehensive middleware stack with custom CSP for admin dashboard
-	middleware := resilience.DefaultMiddlewareStack(resilienceConfig, logger)
+	middleware := resilience.DefaultMiddlewareStack(&resilienceConfig, logger)
 
 	// Apply all middleware (authentication is now required in ALL environments)
 	for _, mw := range middleware {
@@ -500,6 +521,10 @@ func main() {
 
 	// Setup all enterprise routes
 	setupRoutes(router, saasAdminHandler)
+
+	// Add metrics endpoint with custom registry
+	router.GET("/metrics", gin.WrapH(promhttp.HandlerFor(registry, promhttp.HandlerOpts{})))
+	logger.Info("Metrics endpoint registered at /metrics")
 
 	// Create HTTP server with proper timeouts and configuration
 	server := &http.Server{

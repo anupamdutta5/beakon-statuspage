@@ -2,6 +2,7 @@
 package services
 
 import (
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"bytes"
 	"context"
 	"crypto/hmac"
@@ -21,22 +22,18 @@ import (
 
 // WebhookService handles webhook delivery and management.
 type WebhookService struct {
-	db         *gorm.DB
-	logger     *zap.Logger
-	httpClient *http.Client
+	db     *gorm.DB
+	logger *zap.Logger
 }
 
 // NewWebhookService creates a new webhook service.
-func NewWebhookService(db *gorm.DB, logger *zap.Logger) *WebhookService {
-	// Configure HTTP client with reasonable timeouts
-	httpClient := &http.Client{
-		Timeout: 30 * time.Second,
-	}
+func NewWebhookService(db *gorm.DB, serviceClient *resilience.ServiceClient, logger *zap.Logger) *WebhookService {
+	// Note: serviceClient parameter accepted for consistency with other services,
+	// but not used here as webhooks are external HTTP calls
 
 	return &WebhookService{
-		db:         db,
-		logger:     logger,
-		httpClient: httpClient,
+		db:     db,
+		logger: logger,
 	}
 }
 
@@ -211,7 +208,10 @@ func (s *WebhookService) deliverWebhook(ctx context.Context, endpoint models.Web
 	}
 
 	// Send the request
-	resp, err := s.httpClient.Do(req)
+
+	// Send request using HTTP client
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	duration := time.Since(startTime).Milliseconds()
 	delivery.Duration = duration
 
@@ -416,10 +416,9 @@ func (s *WebhookService) deliverWebhookRetry(ctx context.Context, endpoint model
 	}
 
 	// Send the request
-	resp, err := s.httpClient.Do(req)
-	duration := time.Since(startTime).Milliseconds()
-	delivery.Duration = duration
-
+	// Send request using HTTP client
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		s.logger.Error("Failed to send retry webhook",
 			zap.Error(err),
@@ -447,6 +446,9 @@ func (s *WebhookService) deliverWebhookRetry(ctx context.Context, endpoint model
 
 	responseHeaders, _ := json.Marshal(resp.Header)
 	delivery.ResponseHeaders = string(responseHeaders)
+
+	// Calculate delivery duration
+	duration := time.Since(startTime).Milliseconds()
 
 	// Check if delivery was successful
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {

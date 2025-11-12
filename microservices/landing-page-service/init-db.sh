@@ -22,7 +22,7 @@ set -e
 # CONFIGURATION (will be replaced per service)
 # ============================================
 SERVICE_NAME="landing-page-service"
-DB_NAME="statuspage_landing"
+DB_NAME="landing_db"
 MIGRATIONS_DIR="./migrations"
 SEEDS_DIR="./seeds"
 

@@ -22,7 +22,7 @@ set -e
 # CONFIGURATION (will be replaced per service)
 # ============================================
 SERVICE_NAME="component-service"
-DB_NAME="statuspage_component"
+DB_NAME="component_db"
 MIGRATIONS_DIR="./migrations"
 SEEDS_DIR="./seeds"
 

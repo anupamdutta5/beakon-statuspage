@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/anupamdutta5/monitoring-service/internal/models"
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -18,7 +19,7 @@ type IntegrationService struct {
 }
 
 // NewIntegrationService creates a new integration service.
-func NewIntegrationService(db *gorm.DB, logger *zap.Logger) *IntegrationService {
+func NewIntegrationService(db *gorm.DB, serviceClient *resilience.ServiceClient, logger *zap.Logger) *IntegrationService {
 	return &IntegrationService{
 		db:     db,
 		logger: logger,
@@ -413,42 +414,36 @@ func (s *IntegrationService) GetSupportedIntegrations() []map[string]interface{}
 			"type":        models.IntegrationTypePagerDuty,
 			"name":        "PagerDuty",
 			"description": "Incident management and on-call scheduling",
-			"features":    []string{"incidents", "services", "escalation_policies", "schedules"},
 			"auth_type":   "api_key",
 		},
 		{
 			"type":        models.IntegrationTypeNewRelic,
 			"name":        "New Relic",
 			"description": "Application performance monitoring and infrastructure monitoring",
-			"features":    []string{"apm", "infrastructure", "synthetics", "alerts"},
 			"auth_type":   "api_key",
 		},
 		{
 			"type":        models.IntegrationTypeDatadog,
 			"name":        "Datadog",
 			"description": "Monitoring and analytics platform",
-			"features":    []string{"metrics", "logs", "traces", "monitors", "dashboards"},
 			"auth_type":   "api_key_app_key",
 		},
 		{
 			"type":        models.IntegrationTypePingdom,
 			"name":        "Pingdom",
 			"description": "Website and server monitoring",
-			"features":    []string{"uptime_checks", "page_speed", "transaction_monitoring"},
 			"auth_type":   "api_key_username_password",
 		},
 		{
 			"type":        models.IntegrationTypeUptimeRobot,
 			"name":        "UptimeRobot",
 			"description": "Website monitoring service",
-			"features":    []string{"uptime_monitoring", "heartbeat_monitoring"},
 			"auth_type":   "api_key",
 		},
 		{
 			"type":        models.IntegrationTypeStatusCake,
 			"name":        "StatusCake",
 			"description": "Website monitoring and testing",
-			"features":    []string{"uptime_tests", "page_speed_tests", "virus_tests"},
 			"auth_type":   "api_key",
 		},
 	}

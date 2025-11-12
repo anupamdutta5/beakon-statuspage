@@ -1,5 +1,5 @@
-// Package main is the entry point for the Branding Service.
-// This is the modernized version using the shared-resilience module.
+// Package main is the entry point for the uranding Service.
+// This is the v2.0 version using shared-resilience v2.0 primitives.
 package main
 
 import (
@@ -12,25 +12,61 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/anupamdutta5/shared-resilience"
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/anupamdutta5/branding-service/internal/handlers"
 	"github.com/anupamdutta5/branding-service/internal/services"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
+// ServiceInfo contains basic service metadata
+type ServiceInfo struct {
+	Name        string `yaml:"name"`
+	Version     string `yaml:"version"`
+	Environment string `yaml:"environment"`
+}
+
+// ServiceClientConfig contains HTTP client configuration for downstream services
+type ServiceClientConfig struct {
+	Timeout        time.Duration                   `yaml:"timeout"`
+	CircuitBreaker resilience.CircuitBreakerConfig `yaml:"circuit_breaker"`
+}
+
+// urandingServiceConfig is the complete configuration for this service
+type urandingServiceConfig struct {
+	// Shared configuration (database, server, JWT, CORS, etc.)
+	SharedConfig resilience.Config `yaml:",inline"`
+
+	// Service-specific configuration
+	Service       ServiceInfo         `yaml:"service"`
+	ServiceClient ServiceClientConfig `yaml:"service_client"`
+	Retry         resilience.RetryConfig `yaml:"retry"`
+}
+
 func main() {
-	// Load configuration from environment variables
-	config := resilience.LoadConfigFromEnv()
-	if err := config.Validate(); err != nil {
+	// ========================================
+	// STEP 1: Load Configuration from YAML
+	// ========================================
+	loader := resilience.NewConfigLoader("configs")
+	var cfg urandingServiceConfig
+	if err := loader.Load(&cfg); err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	// Validate configuration (fail fast)
+	if err := cfg.SharedConfig.Validate(); err != nil {
 		log.Fatalf("Configuration validation failed: %v", err)
 	}
 
-	// Initialize logger based on environment
+	// ========================================
+	// STEP 2: Initialize Logger
+	// ========================================
 	var logger *zap.Logger
 	var err error
 
-	if config.Environment == "production" {
+	if cfg.Service.Environment == "production" {
 		logger, err = zap.NewProduction()
 		gin.SetMode(gin.ReleaseMode)
 	} else {
@@ -43,116 +79,244 @@ func main() {
 	}
 	defer logger.Sync()
 
-	logger.Info("Starting Branding Service",
-		zap.String("service", "branding-service"),
-		zap.String("version", "1.0.0"),
-		zap.String("environment", config.Environment),
-		zap.Int("port", config.Server.Port),
+	logger.Info("Starting uranding Service (v2.0)",
+		zap.String("service", cfg.Service.Name),
+		zap.String("version", cfg.Service.Version),
+		zap.String("environment", cfg.Service.Environment),
+		zap.Int("port", cfg.SharedConfig.Server.Port),
+		zap.String("shared_resilience", resilience.Version),
 	)
 
-	// Initialize database manager with connection pooling and health checks
-	dbManager, err := resilience.NewDatabaseManager(config.Database, logger)
+	// ========================================
+	// STEP 3: Initialize Prometheus Registry
+	// ========================================
+	registry := prometheus.NewRegistry()
+	logger.Info("Prometheus registry initialized (injected, not global)")
+
+	// ========================================
+	// STEP 4: Initialize Metrics (with injected registry)
+	// ========================================
+	metrics, err := resilience.NewMetrics(resilience.MetricsConfig{
+		ServiceName: cfg.Service.Name,
+		Namespace:   "beakon",
+		Subsystem:   "branding",
+		Enabled:     cfg.SharedConfig.Monitoring.MetricsEnabled,
+		Registry:    registry,
+	})
+	if err != nil {
+		logger.Fatal("Failed to initialize metrics", zap.Error(err))
+	}
+	logger.Info("Metrics initialized with custom registry")
+
+	// Log metrics for debugging (can be used later if needed)
+	_ = metrics
+
+	// ========================================
+	// STEP 5: Initialize Database Manager
+	// ========================================
+	dbManager, err := resilience.NewDatabaseManager(cfg.SharedConfig.Database, logger)
 	if err != nil {
 		logger.Fatal("Failed to initialize database manager", zap.Error(err))
 	}
 	defer dbManager.Close()
+	logger.Info("Database manager initialized",
+		zap.String("database", cfg.SharedConfig.Database.Name),
+		zap.Int("max_open_conns", cfg.SharedConfig.Database.MaxOpenConns),
+	)
 
-	// Test database connectivity
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := dbManager.HealthCheck(ctx); err != nil {
-		logger.Fatal("Database health check failed", zap.Error(err))
+	// ========================================
+	// STEP 6: Initialize ServiceClient (with config)
+	// ========================================
+	serviceClientCfg := resilience.ServiceClientConfig{
+		Timeout:        cfg.ServiceClient.Timeout,
+		CircuitBreaker: cfg.ServiceClient.CircuitBreaker,
 	}
 
-	logger.Info("Database connection established successfully")
-
-	// Initialize circuit breakers for external dependencies
-	var circuitBreakers = make(map[string]*resilience.CircuitBreaker)
-
-	if config.CircuitBreaker.Database.Enabled {
-		circuitBreakers["database"] = resilience.NewCircuitBreaker(
-			config.CircuitBreaker.Database.Name,
-			config.CircuitBreaker.Database,
-			logger,
-		)
+	if err := serviceClientCfg.Validate(); err != nil {
+		logger.Fatal("ServiceClient configuration validation failed", zap.Error(err))
 	}
 
-	if config.CircuitBreaker.External.Enabled {
-		circuitBreakers["external"] = resilience.NewCircuitBreaker(
-			config.CircuitBreaker.External.Name,
-			config.CircuitBreaker.External,
-			logger,
-		)
-	}
-
-	// Initialize cache if enabled
-	var cache resilience.Cache
-	if config.Cache.Enabled {
-		if config.Cache.Type == "redis" {
-			cache = resilience.NewRedisCache(config.Redis, config.Cache, logger)
-		} else {
-			cache = resilience.NewInMemoryCache(config.Cache, logger)
-		}
-		logger.Info("Cache initialized", zap.String("type", config.Cache.Type))
-	}
-
-	// Initialize rate limiter if enabled
-	var rateLimiter resilience.RateLimiter
-	if config.RateLimit.Enabled {
-		if config.Cache.Type == "redis" {
-			rateLimiter = resilience.NewRedisRateLimiter(config.Redis, config.RateLimit, logger)
-		} else {
-			rateLimiter = resilience.NewInMemoryRateLimiter(config.RateLimit, logger)
-		}
-		logger.Info("Rate limiter initialized")
-	}
-
-	// Initialize business services with modernized dependencies
-	// Pass nil for config since we're using DatabaseManager from resilience
-	brandingService, err := services.NewBrandingService(nil, logger)
+	// Load service endpoints from YAML (if exists)
+	endpoints, err := loader.LoadServiceEndpoints()
 	if err != nil {
-		logger.Fatal("Failed to initialize branding service", zap.Error(err))
+		logger.Warn("Failed to load service endpoints", zap.Error(err))
+		endpoints = make(map[string]resilience.ServiceEndpoint) // Empty for now
 	}
 
-	// Inject the database connection from DatabaseManager
-	brandingService.SetDB(dbManager.GetDB())
+	serviceClient, err := resilience.NewServiceClient(endpoints, serviceClientCfg, logger)
+	if err != nil {
+		logger.Fatal("Failed to initialize ServiceClient", zap.Error(err))
+	}
+	logger.Info("ServiceClient initialized with circuit breakers",
+		zap.Duration("timeout", cfg.ServiceClient.Timeout),
+	)
 
-	// Create Gin router
+	// ========================================
+	// STEP 7: Initialize Retry Manager
+	// ========================================
+	retryManager, err := resilience.NewRetryManager(cfg.Retry, logger)
+	if err != nil {
+		logger.Fatal("Failed to initialize retry manager", zap.Error(err))
+	}
+	logger.Info("Retry manager initialized",
+		zap.Int("max_retries", cfg.Retry.MaxRetries),
+		zap.Duration("initial_delay", cfg.Retry.InitialDelay),
+	)
+
+	// Log retry manager for debugging (can be used later if needed)
+	_ = retryManager
+	_ = serviceClient
+
+	// ========================================
+	// STEP 8: Initialize Gin Router
+	// ========================================
 	router := gin.New()
 
-	// Add comprehensive middleware stack
-	middleware := resilience.DefaultMiddlewareStack(config, logger)
+	// Add middleware stack
+	middleware := resilience.DefaultMiddlewareStack(&cfg.SharedConfig, logger)
 	for _, mw := range middleware {
 		router.Use(mw)
 	}
+	logger.Info("Middleware stack applied (CORS, rate limiting, security headers)")
 
-	// Add rate limiting middleware if enabled
-	if rateLimiter != nil {
-		router.Use(resilience.RateLimitMiddleware(config.RateLimit.RequestsPerMinute, time.Minute))
-	}
+	// ========================================
+	// STEP 9: Initialize Services
+	// ========================================
+	db := dbManager.GetDB()
+	brandingService := services.NewBrandingService(db, logger)
 
-	// Initialize modernized handlers with shared error handling
+	logger.Info("Branding service initialized")
+
+	// ========================================
+	// STEP 10: Initialize Handlers
+	// ========================================
 	brandingHandler := handlers.NewBrandingHandler(brandingService, logger)
 
-	// Setup basic routes for now
-	setupBasicRoutes(router, brandingHandler, config)
+	logger.Info("Handlers initialized")
 
-	// Create HTTP server with proper timeouts and configuration
+	// ========================================
+	// STEP 11: Setup Routes
+	// ========================================
+
+	// Health check endpoint
+	router.GET("/health", func(c *gin.Context) {
+		dbHealthChecker := resilience.NewDatabaseHealthChecker(dbManager)
+		health := dbHealthChecker.Check(c.Request.Context())
+		c.JSON(http.StatusOK, health)
+	})
+
+	// Prometheus metrics endpoint (with custom registry)
+	router.GET("/metrics", gin.WrapH(promhttp.HandlerFor(registry, promhttp.HandlerOpts{})))
+
+	// API routes
+	api := router.Group("/api/v1")
+	{
+		// Public endpoints (no authentication required)
+		public := api.Group("/public")
+		{
+			public.GET("/brands/:slug", brandingHandler.GetPublicBrand)
+			public.GET("/themes/:id", brandingHandler.GetPublicTheme)
+			public.GET("/assets/:id", brandingHandler.GetPublicAsset)
+		}
+
+		// Protected routes (require authentication)
+		protected := api.Group("")
+		protected.Use(resilience.AuthMiddleware(cfg.SharedConfig.JWT))
+		protected.Use(resilience.TenantMiddleware())
+		{
+			// Brand management
+			protected.GET("/brands", brandingHandler.ListBrands)
+			protected.POST("/brands", brandingHandler.CreateBrand)
+			protected.GET("/brands/:id", brandingHandler.GetBrand)
+			protected.GET("/brands/slug/:slug", brandingHandler.GetBrandBySlug)
+			protected.PUT("/brands/:id", brandingHandler.UpdateBrand)
+			protected.DELETE("/brands/:id", brandingHandler.DeleteBrand)
+			protected.GET("/brands/:id/stats", brandingHandler.GetBrandStats)
+
+			// Theme management
+			protected.GET("/themes", brandingHandler.ListThemes)
+			protected.POST("/themes", brandingHandler.CreateTheme)
+			protected.GET("/themes/:id", brandingHandler.GetTheme)
+			protected.PUT("/themes/:id", brandingHandler.UpdateTheme)
+			protected.DELETE("/themes/:id", brandingHandler.DeleteTheme)
+			protected.GET("/themes/:id/stats", brandingHandler.GetThemeStats)
+			protected.POST("/themes/:id/compile", brandingHandler.CompileTheme)
+
+			// Asset management
+			protected.GET("/assets", brandingHandler.ListAssets)
+			protected.POST("/assets", brandingHandler.CreateAsset)
+			protected.POST("/assets/upload", brandingHandler.UploadAsset)
+			protected.GET("/assets/:id", brandingHandler.GetAsset)
+			protected.PUT("/assets/:id", brandingHandler.UpdateAsset)
+			protected.DELETE("/assets/:id", brandingHandler.DeleteAsset)
+
+			// Custom CSS management
+			protected.GET("/custom-css", brandingHandler.ListCustomCSS)
+			protected.POST("/custom-css", brandingHandler.CreateCustomCSS)
+			protected.GET("/custom-css/:id", brandingHandler.GetCustomCSS)
+			protected.PUT("/custom-css/:id", brandingHandler.UpdateCustomCSS)
+			protected.DELETE("/custom-css/:id", brandingHandler.DeleteCustomCSS)
+
+			// Color scheme management
+			protected.GET("/color-schemes", brandingHandler.ListColorSchemes)
+			protected.POST("/color-schemes", brandingHandler.CreateColorScheme)
+			protected.GET("/color-schemes/:id", brandingHandler.GetColorScheme)
+			protected.PUT("/color-schemes/:id", brandingHandler.UpdateColorScheme)
+			protected.DELETE("/color-schemes/:id", brandingHandler.DeleteColorScheme)
+
+			// Typography management
+			protected.GET("/typographies", brandingHandler.ListTypographies)
+			protected.POST("/typographies", brandingHandler.CreateTypography)
+			protected.GET("/typographies/:id", brandingHandler.GetTypography)
+			protected.PUT("/typographies/:id", brandingHandler.UpdateTypography)
+			protected.DELETE("/typographies/:id", brandingHandler.DeleteTypography)
+
+			// Custom JS management
+			protected.GET("/custom-js", brandingHandler.ListCustomJS)
+			protected.POST("/custom-js", brandingHandler.CreateCustomJS)
+			protected.GET("/custom-js/:id", brandingHandler.GetCustomJS)
+			protected.PUT("/custom-js/:id", brandingHandler.UpdateCustomJS)
+			protected.DELETE("/custom-js/:id", brandingHandler.DeleteCustomJS)
+
+			// Layout management
+			protected.GET("/layouts", brandingHandler.ListLayouts)
+			protected.POST("/layouts", brandingHandler.CreateLayout)
+			protected.GET("/layouts/:id", brandingHandler.GetLayout)
+			protected.PUT("/layouts/:id", brandingHandler.UpdateLayout)
+			protected.DELETE("/layouts/:id", brandingHandler.DeleteLayout)
+
+			// Component management
+			protected.GET("/components", brandingHandler.ListComponents)
+			protected.POST("/components", brandingHandler.CreateComponent)
+			protected.GET("/components/:id", brandingHandler.GetComponent)
+			protected.PUT("/components/:id", brandingHandler.UpdateComponent)
+			protected.DELETE("/components/:id", brandingHandler.DeleteComponent)
+
+			// Stats
+			protected.GET("/stats", brandingHandler.GetStats)
+			protected.GET("/tenant-stats", brandingHandler.GetTenantStats)
+		}
+	}
+
+	logger.Info("Routes registered successfully")
+
+	// ========================================
+	// STEP 12: Create HTTP Server
+	// ========================================
 	server := &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", config.Server.Host, config.Server.Port),
+		Addr:         fmt.Sprintf("%s:%d", cfg.SharedConfig.Server.Host, cfg.SharedConfig.Server.Port),
 		Handler:      router,
-		ReadTimeout:  config.Server.ReadTimeout,
-		WriteTimeout: config.Server.WriteTimeout,
-		IdleTimeout:  config.Server.IdleTimeout,
+		ReadTimeout:  cfg.SharedConfig.Server.ReadTimeout,
+		WriteTimeout: cfg.SharedConfig.Server.WriteTimeout,
+		IdleTimeout:  cfg.SharedConfig.Server.IdleTimeout,
 	}
 
 	// Start server in a goroutine
 	go func() {
-		logger.Info("Branding Service server starting",
+		logger.Info("uranding Service server starting",
 			zap.String("addr", server.Addr),
-			zap.Duration("read_timeout", config.Server.ReadTimeout),
-			zap.Duration("write_timeout", config.Server.WriteTimeout),
+			zap.Duration("read_timeout", cfg.SharedConfig.Server.ReadTimeout),
+			zap.Duration("write_timeout", cfg.SharedConfig.Server.WriteTimeout),
 		)
 
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -160,8 +324,10 @@ func main() {
 		}
 	}()
 
-	// Setup health check monitoring
-	if config.Monitoring.Enabled {
+	// ========================================
+	// STEP 13: Setup Health Check Monitoring
+	// ========================================
+	if cfg.SharedConfig.Monitoring.Enabled {
 		dbHealthChecker := resilience.NewDatabaseHealthChecker(dbManager)
 
 		// Periodically log health status
@@ -182,17 +348,21 @@ func main() {
 				}
 			}
 		}()
+
+		logger.Info("Health check monitoring started")
 	}
 
-	// Wait for interrupt signal to gracefully shutdown the server
+	// ========================================
+	// STEP 14: Graceful Shutdown
+	// ========================================
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Info("Shutting down Branding Service server...")
+	logger.Info("Shutting down uranding Service server...")
 
 	// Graceful shutdown with timeout
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), config.Server.GracefulStop)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.SharedConfig.Server.GracefulStop)
 	defer shutdownCancel()
 
 	// Shutdown HTTP server
@@ -205,53 +375,5 @@ func main() {
 		logger.Error("Failed to close database connections", zap.Error(err))
 	}
 
-	// Close cache if initialized
-	if cache != nil {
-		cache.Close()
-	}
-
-	// Close rate limiter if initialized
-	if rateLimiter != nil {
-		rateLimiter.Close()
-	}
-
-	logger.Info("Branding Service server exited gracefully")
+	logger.Info("uranding Service server exited gracefully")
 }
-
-
-// setupBasicRoutes configures basic routes for the branding service
-func setupBasicRoutes(router *gin.Engine, brandingHandler *handlers.BrandingHandler, config *resilience.Config) {
-	// Health check endpoints
-	health := router.Group("/health")
-	{
-		health.GET("", brandingHandler.HealthCheck)
-	}
-
-	// Basic API routes for brands
-	api := router.Group("/api/v1")
-	{
-		// Protected routes (authentication required)
-		protected := api.Group("/")
-
-		// Add JWT authentication middleware
-		if config.JWT.Secret != "" {
-			protected.Use(resilience.AuthMiddleware(config.JWT))
-		}
-
-		// Add tenant middleware for multi-tenancy
-		protected.Use(resilience.TenantMiddleware())
-
-		{
-			// Basic Brand Management - only implement methods that exist
-			brands := protected.Group("/brands")
-			{
-				// TODO: Add brand management routes when handlers are implemented
-				_ = brands // Prevent unused variable error
-			}
-		}
-	}
-}
-
-// TODO: CLEANUP - Update auth middleware usage
-// Replace local auth with: auth.NewMiddleware(authConfig, logger)
-// Import: github.com/anupamdutta5/shared-resilience/auth

@@ -1,6 +1,7 @@
 package services
 
 import (
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -19,17 +20,15 @@ import (
 type TelegramIntegrationService struct {
 	db         *gorm.DB
 	logger     *zap.Logger
-	httpClient *http.Client
+	serviceClient *resilience.ServiceClient
 }
 
 // NewTelegramIntegrationService creates a new Telegram integration service
-func NewTelegramIntegrationService(db *gorm.DB, logger *zap.Logger) *TelegramIntegrationService {
+func NewTelegramIntegrationService(db *gorm.DB, serviceClient *resilience.ServiceClient, logger *zap.Logger) *TelegramIntegrationService {
 	return &TelegramIntegrationService{
 		db:     db,
 		logger: logger,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		serviceClient: serviceClient,
 	}
 }
 
@@ -192,7 +191,6 @@ func (s *TelegramIntegrationService) SendMonitorAlert(
 	eventType string,
 	monitorName string,
 	monitorURL string,
-	details map[string]interface{},
 ) error {
 	// Get active integrations for tenant
 	integrations, err := s.GetActiveIntegrationsByTenant(tenantID)
@@ -257,7 +255,6 @@ func (s *TelegramIntegrationService) SendMonitorAlert(
 			eventType,
 			monitorName,
 			monitorURL,
-			details,
 			customPrefix,
 			threadID,
 			monitorID,
@@ -283,7 +280,6 @@ func (s *TelegramIntegrationService) sendNotification(
 	eventType string,
 	monitorName string,
 	monitorURL string,
-	details map[string]interface{},
 	customPrefix string,
 	threadID *int,
 	monitorID uint,
@@ -293,7 +289,7 @@ func (s *TelegramIntegrationService) sendNotification(
 		eventType,
 		monitorName,
 		monitorURL,
-		details,
+		nil, // details map
 		integration.UseMarkdown,
 		integration.IncludeMonitorURL,
 		integration.IncludeTimestamp,
@@ -438,7 +434,10 @@ func (s *TelegramIntegrationService) SendMessage(
 	req.Header.Set("Content-Type", "application/json")
 
 	// Send request
-	resp, err := s.httpClient.Do(req)
+
+	// Send request using HTTP client
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed to send request: %w", err)
 	}
@@ -477,7 +476,8 @@ func (s *TelegramIntegrationService) SendMessage(
 func (s *TelegramIntegrationService) GetBotInfo(botToken string) (*models.TelegramUser, error) {
 	apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/getMe", botToken)
 
-	resp, err := s.httpClient.Get(apiURL)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(apiURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get bot info: %w", err)
 	}

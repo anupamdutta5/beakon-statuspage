@@ -22,7 +22,7 @@ set -e
 # CONFIGURATION (will be replaced per service)
 # ============================================
 SERVICE_NAME="notification-service"
-DB_NAME="statuspage_notification"
+DB_NAME="notification_db"
 MIGRATIONS_DIR="./migrations"
 SEEDS_DIR="./seeds"
 

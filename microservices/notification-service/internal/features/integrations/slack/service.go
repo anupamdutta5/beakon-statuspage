@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -111,19 +112,17 @@ type SlackBlock struct {
 
 // SlackIntegrationService manages Slack integrations
 type SlackIntegrationService struct {
-	db         *gorm.DB
-	logger     *zap.Logger
-	httpClient *http.Client
+	db            *gorm.DB
+	logger        *zap.Logger
+	serviceClient *resilience.ServiceClient
 }
 
 // NewSlackIntegrationService creates a new Slack integration service
-func NewSlackIntegrationService(db *gorm.DB, logger *zap.Logger) *SlackIntegrationService {
+func NewSlackIntegrationService(db *gorm.DB, serviceClient *resilience.ServiceClient, logger *zap.Logger) *SlackIntegrationService {
 	return &SlackIntegrationService{
-		db:     db,
-		logger: logger,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		db:            db,
+		logger:        logger,
+		serviceClient: serviceClient,
 	}
 }
 
@@ -433,20 +432,17 @@ func (s *SlackIntegrationService) sendSlackMessage(ctx context.Context, integrat
 		return
 	}
 
-	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, "POST", integration.WebhookURL, bytes.NewBuffer(payload))
-	if err != nil {
-		s.logger.Error("Failed to create HTTP request", zap.Error(err))
-		notification.Status = "failed"
-		notification.ErrorMessage = err.Error()
-		s.db.Create(&notification)
-		return
-	}
+	// Send via ServiceClient with circuit breaker
+	resp, err := s.serviceClient.Call(ctx, resilience.ServiceRequest{
+		ServiceName: "slack-api",
+		Method:      "POST",
+		URL:         integration.WebhookURL,
+		Body:        payload,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+	})
 
-	req.Header.Set("Content-Type", "application/json")
-
-	// Send request
-	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		s.logger.Error("Failed to send Slack message", zap.Error(err))
 		notification.Status = "failed"
@@ -454,10 +450,8 @@ func (s *SlackIntegrationService) sendSlackMessage(ctx context.Context, integrat
 		s.db.Create(&notification)
 		return
 	}
-	defer resp.Body.Close()
 
-	// Read response
-	body, _ := io.ReadAll(resp.Body)
+	body := resp.Body
 	notification.ResponseCode = resp.StatusCode
 	notification.SentAt = time.Now()
 
@@ -496,22 +490,23 @@ func (s *SlackIntegrationService) TestWebhook(webhookURL string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "POST", webhookURL, bytes.NewBuffer(payload))
-	if err != nil {
-		return fmt.Errorf("failed to create test request: %w", err)
-	}
+	// Send via ServiceClient with circuit breaker
+	resp, err := s.serviceClient.Call(ctx, resilience.ServiceRequest{
+		ServiceName: "slack-api",
+		Method:      "POST",
+		URL:         webhookURL,
+		Body:        payload,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+	})
 
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send test message: %w", err)
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("test message failed with status %d: %s", resp.StatusCode, string(body))
+		return fmt.Errorf("test message failed with status %d: %s", resp.StatusCode, string(resp.Body))
 	}
 
 	return nil

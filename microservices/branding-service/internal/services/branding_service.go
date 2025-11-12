@@ -10,44 +10,24 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anupamdutta5/branding-service/internal/config"
 	"github.com/anupamdutta5/branding-service/internal/models"
 	"go.uber.org/zap"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 // BrandingService handles branding-related business logic.
 type BrandingService struct {
-	config *config.Config
 	logger *zap.Logger
 	db     *gorm.DB
 }
 
 // NewBrandingService creates a new branding service.
-func NewBrandingService(cfg *config.Config, logger *zap.Logger) (*BrandingService, error) {
-	// Initialize database connection
-	var db *gorm.DB
-	var err error
-
-	// If config is nil, skip database initialization (will be set later via SetDB)
-	if cfg != nil {
-		db, err = initDatabase(cfg.Database)
-		if err != nil {
-			// For testing, we'll allow the service to be created without a database
-			// The database will be set later via SetDB method
-			if logger != nil {
-				logger.Warn("Failed to initialize database, service will be created without database", zap.Error(err))
-			}
-			db = nil
-		}
-	}
-
+// Updated for v2.0 - accepts *gorm.DB instead of config for standard pattern.
+func NewBrandingService(db *gorm.DB, logger *zap.Logger) *BrandingService {
 	return &BrandingService{
-		config: cfg,
 		logger: logger,
 		db:     db,
-	}, nil
+	}
 }
 
 // SetDB sets the database connection (for testing)
@@ -467,35 +447,8 @@ func (s *BrandingService) Health(ctx context.Context) error {
 }
 
 // initDatabase initializes the database connection.
-func initDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
-	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Name, cfg.SSLMode)
-
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	// Configure connection pool
-	sqlDB, err := db.DB()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
-	}
-
-	sqlDB.SetMaxOpenConns(cfg.MaxConns)
-	sqlDB.SetMaxIdleConns(cfg.MaxIdle)
-	sqlDB.SetConnMaxLifetime(time.Duration(cfg.MaxLifetime) * time.Second)
-
-	// NOTE: Database migrations are managed by Atlas (see migrations/ directory and atlas.hcl)
-	// Run migrations before starting the service:
-	//   cd microservices/branding-service
-	//   atlas migrate apply --env dev
-	//
-	// AutoMigrate is NOT used in this project as per best practices documented in CLAUDE.md
-	// All schema changes must be tracked in version-controlled migration files
-
-	return db, nil
-}
+// initDatabase removed in v2.0 - database initialization now handled by shared-resilience
+// Database connection is passed in via constructor
 
 // Enhanced Asset Management with File Upload Support
 

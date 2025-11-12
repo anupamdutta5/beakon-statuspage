@@ -1,0 +1,47 @@
+# notification-service Configuration
+
+service:
+  name: notification-service
+  version: 1.0.0
+  environment: ${ENVIRONMENT:-development}
+
+server:
+  port: 8085
+  host: 0.0.0.0
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 120s
+
+database:
+  host: ${DB_HOST:-localhost}
+  port: 5432
+  user: postgres
+  password: ${DB_PASSWORD}
+  name: notifications
+  ssl_mode: ${DB_SSL_MODE:-disable}
+  max_conns: 100
+  min_conns: 10
+  conn_max_lifetime: 3600s
+  conn_max_idle_time: 600s
+
+rabbitmq:
+  host: ${RABBITMQ_HOST:-localhost}
+  port: 5672
+  user: ${RABBITMQ_USER:-admin}
+  password: ${RABBITMQ_PASSWORD}
+  vhost: /
+  queue: notifications
+  exchange: beakon_events
+  routing_key: notification
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 24h
+  issuer: beakon-notification-service
+
+monitoring:
+  enabled: true
+  metrics_port: 9085
+  health_path: /health
+  metrics_path: /metrics
+  log_level: ${LOG_LEVEL:-info}

@@ -1,5 +1,5 @@
 // Package main is the entry point for the Tenant Admin Service.
-// This is the modernized version using the shared-resilience module.
+// This is the v2.0 version using shared-resilience v2.0 primitives.
 package main
 
 import (
@@ -10,39 +10,38 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
-	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/anupamdutta5/tenant-admin-service/internal/config"
 	"github.com/anupamdutta5/tenant-admin-service/internal/events"
 	"github.com/anupamdutta5/tenant-admin-service/internal/handlers"
 	"github.com/anupamdutta5/tenant-admin-service/internal/middleware"
-	// "github.com/anupamdutta5/tenant-admin-service/internal/models" // Unused after disabling AutoMigrate
 	"github.com/anupamdutta5/tenant-admin-service/internal/sessions"
 	"github.com/anupamdutta5/tenant-admin-service/internal/services"
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq" // PostgreSQL driver
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
 func main() {
-	// Load resilience configuration from environment variables
-	resilienceConfig := resilience.LoadConfigFromEnv()
-	if err := resilienceConfig.Validate(); err != nil {
-		log.Fatalf("Configuration validation failed: %v", err)
-	}
-
-	// Load local service configuration
-	localConfig, err := config.Load()
+	// ========================================
+	// STEP 1: Load Configuration from YAML
+	// ========================================
+	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Failed to load local configuration: %v", err)
+		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	// Initialize logger based on environment
+	// ========================================
+	// STEP 2: Initialize Logger
+	// ========================================
 	var logger *zap.Logger
-	if resilienceConfig.Environment == "production" {
+
+	if cfg.Service.Environment == "production" {
 		logger, err = zap.NewProduction()
 		gin.SetMode(gin.ReleaseMode)
 	} else {
@@ -55,95 +54,93 @@ func main() {
 	}
 	defer logger.Sync()
 
-	logger.Info("Starting Tenant Admin Service",
-		zap.String("service", "tenant-admin-service"),
-		zap.String("version", "1.0.0"),
-		zap.String("environment", resilienceConfig.Environment),
-		zap.Int("port", resilienceConfig.Server.Port),
+	logger.Info("Starting Tenant Admin Service (v2.0)",
+		zap.String("service", cfg.Service.Name),
+		zap.String("version", cfg.Service.Version),
+		zap.String("environment", cfg.Service.Environment),
+		zap.Int("port", cfg.Server.Port),
+		zap.String("shared_resilience", resilience.Version),
 	)
 
-	// Ensure database exists before connecting
-	if err := ensureDatabaseExists(resilienceConfig.Database, logger); err != nil {
+	// ========================================
+	// STEP 3: Initialize Prometheus Registry
+	// ========================================
+	registry := prometheus.NewRegistry()
+	logger.Info("Prometheus registry initialized (injected, not global)")
+
+	// ========================================
+	// STEP 4: Initialize Metrics (with injected registry)
+	// ========================================
+	metrics, err := resilience.NewMetrics(resilience.MetricsConfig{
+		ServiceName: cfg.Service.Name,
+		Namespace:   "beakon",
+		Subsystem:   "tenant_admin",
+		Enabled:     cfg.Monitoring.Enabled,
+		Registry:    registry,
+	})
+	if err != nil {
+		logger.Fatal("Failed to initialize metrics", zap.Error(err))
+	}
+	logger.Info("Metrics initialized with custom registry")
+
+	// ========================================
+	// STEP 5: Ensure Database Exists
+	// ========================================
+	dbConfig := resilience.DatabaseConfig{
+		Host:            cfg.Database.Host,
+		Port:            cfg.Database.Port,
+		User:            cfg.Database.User,
+		Password:        cfg.Database.Password,
+		Name:            cfg.Database.Name,
+		SSLMode:         cfg.Database.SSLMode,
+		MaxOpenConns:    cfg.Database.MaxConns,
+		MaxIdleConns:    cfg.Database.MinConns,
+		ConnMaxLifetime: cfg.Database.GetConnMaxLifetimeDuration(),
+		ConnMaxIdleTime: cfg.Database.GetConnMaxIdleTimeDuration(),
+	}
+
+	if err := ensureDatabaseExists(dbConfig, logger); err != nil {
 		logger.Fatal("Failed to ensure database exists", zap.Error(err))
 	}
 
-	// Initialize database manager with connection pooling and health checks
-	dbManager, err := resilience.NewDatabaseManager(resilienceConfig.Database, logger)
+	// ========================================
+	// STEP 6: Initialize Database Manager
+	// ========================================
+	dbManager, err := resilience.NewDatabaseManager(dbConfig, logger)
 	if err != nil {
 		logger.Fatal("Failed to initialize database manager", zap.Error(err))
 	}
 	defer dbManager.Close()
+	logger.Info("Database manager initialized",
+		zap.String("database", cfg.Database.Name),
+		zap.Int("max_open_conns", cfg.Database.MaxConns),
+	)
 
-	// Test database connectivity
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := dbManager.HealthCheck(ctx); err != nil {
-		logger.Fatal("Database health check failed", zap.Error(err))
-	}
-
-	logger.Info("Database connection established successfully")
-
-	// Database migrations are managed by Atlas (atlas.hcl)
-	// DO NOT use GORM AutoMigrate - it conflicts with Atlas schema management
-	// To apply migrations: atlas migrate apply --env dev
-	// To create new migrations: atlas migrate diff <name> --env dev
 	db := dbManager.GetDB()
 
-	logger.Info("Tenant Admin Service using Atlas for migrations - AutoMigrate disabled")
-
-	// Initialize circuit breakers for external dependencies
-	var circuitBreakers = make(map[string]*resilience.CircuitBreaker)
-
-	if resilienceConfig.CircuitBreaker.Database.Enabled {
-		circuitBreakers["database"] = resilience.NewCircuitBreaker(
-			resilienceConfig.CircuitBreaker.Database.Name,
-			resilienceConfig.CircuitBreaker.Database,
-			logger,
-		)
-	}
-
-	if resilienceConfig.CircuitBreaker.External.Enabled {
-		circuitBreakers["external"] = resilience.NewCircuitBreaker(
-			resilienceConfig.CircuitBreaker.External.Name,
-			resilienceConfig.CircuitBreaker.External,
-			logger,
-		)
-	}
-
-	// Initialize cache if enabled
-	var cache resilience.Cache
-	if resilienceConfig.Cache.Enabled {
-		if resilienceConfig.Cache.Type == "redis" {
-			cache = resilience.NewRedisCache(resilienceConfig.Redis, resilienceConfig.Cache, logger)
-		} else {
-			cache = resilience.NewInMemoryCache(resilienceConfig.Cache, logger)
-		}
-		logger.Info("Cache initialized", zap.String("type", resilienceConfig.Cache.Type))
-	}
-
-	// Initialize rate limiter if enabled
-	var rateLimiter resilience.RateLimiter
-	if resilienceConfig.RateLimit.Enabled {
-		if resilienceConfig.Cache.Type == "redis" {
-			rateLimiter = resilience.NewRedisRateLimiter(resilienceConfig.Redis, resilienceConfig.RateLimit, logger)
-		} else {
-			rateLimiter = resilience.NewInMemoryRateLimiter(resilienceConfig.RateLimit, logger)
-		}
-		logger.Info("Rate limiter initialized")
-	}
-
-	// Initialize session storage with Redis as primary and database as fallback
+	// ========================================
+	// STEP 7: Initialize Session Storage
+	// ========================================
 	var sessionManager *sessions.SessionManager
 	var primarySessionStore sessions.SessionStore
 	var fallbackSessionStore sessions.SessionStore
 
-	// Try to initialize Redis session store as primary
-	// Re-enabled after configuration standardization
-	if resilienceConfig.Redis.Host != "" {
-		redisStore, err := sessions.NewRedisSessionStore(resilienceConfig.Redis, logger)
+	// Try to initialize Redis session store as primary (if enabled)
+	if cfg.Redis.Enabled {
+		redisConfig := resilience.RedisConfig{
+			Host:         cfg.Redis.Host,
+			Port:         cfg.Redis.Port,
+			Password:     cfg.Redis.Password,
+			DB:           cfg.Redis.DB,
+			MaxRetries:   cfg.Redis.MaxRetries,
+			PoolSize:     cfg.Redis.PoolSize,
+			MinIdleConns: cfg.Redis.MinIdleConns,
+			KeyPrefix:    "tenant-admin:",
+		}
+
+		redisStore, err := sessions.NewRedisSessionStore(redisConfig, logger)
 		if err != nil {
-			logger.Warn("Failed to initialize Redis session store, using database only",
+			logger.Warn("Failed to initialize Redis session store, falling back to DB only",
 				zap.Error(err))
 		} else {
 			primarySessionStore = redisStore
@@ -152,7 +149,7 @@ func main() {
 	}
 
 	// Always initialize database session store as fallback
-	dbSessionStore := sessions.NewDBSessionStore(dbManager.GetDB(), logger)
+	dbSessionStore := sessions.NewDBSessionStore(db, logger)
 
 	if primarySessionStore != nil {
 		// Redis as primary, DB as fallback
@@ -165,132 +162,19 @@ func main() {
 		logger.Info("Session manager initialized with database only")
 	}
 
-	// Initialize business services with modernized dependencies
-	tenantAdminService, err := services.NewTenantAdminService(localConfig, logger)
+	// ========================================
+	// STEP 8: Initialize RabbitMQ Consumer
+	// ========================================
+	rabbitmqURL := cfg.GetRabbitMQURL()
+
+	// Initialize tenant admin service (required for event handler)
+	tenantAdminService, err := services.NewTenantAdminService(cfg, logger)
 	if err != nil {
 		logger.Fatal("Failed to initialize tenant admin service", zap.Error(err))
 	}
 
-	domainService := services.NewDomainService(logger)
-
-	// Initialize RBAC service with session manager
-	rbacService := services.NewRBACService(dbManager.GetDB(), logger, sessionManager)
-
-	// Initialize status page service
-	statusPageService := services.NewStatusPageManagementService(dbManager.GetDB(), logger, &services.StatusPageConfig{
-		ComponentServiceURL:    "http://localhost:8001",
-		IncidentServiceURL:     "http://localhost:8002",
-		MonitoringServiceURL:   "http://localhost:8003",
-		NotificationServiceURL: "http://localhost:8004",
-		BrandingServiceURL:     "http://localhost:8005",
-	})
-
-	// Create Gin router
-	router := gin.New()
-
-	// Add comprehensive middleware stack
-	middlewareStack := resilience.DefaultMiddlewareStack(resilienceConfig, logger)
-	for _, mw := range middlewareStack {
-		router.Use(mw)
-	}
-
-	// Add custom Phase 4 middleware - Enhanced Error Handling & Logging
-	router.Use(middleware.CorrelationIDMiddleware())      // Correlation ID for request tracing
-	router.Use(middleware.RecoveryMiddleware(logger))     // Panic recovery with stack traces
-	router.Use(middleware.LoggingMiddleware(logger))      // Enhanced structured logging
-
-	// Add rate limiting middleware if enabled
-	if rateLimiter != nil {
-		router.Use(resilience.RateLimitMiddleware(resilienceConfig.RateLimit.RequestsPerMinute, time.Minute))
-	}
-
-	// Add tenant context middleware for subdomain routing
-	baseDomain := os.Getenv("BASE_DOMAIN")
-	if baseDomain == "" {
-		baseDomain = "localhost" // Default for development
-	}
-	router.Use(middleware.TenantContextMiddleware(dbManager.GetDB(), logger, baseDomain))
-
-	// Initialize Redis cache (production-ready with circuit breaker)
-	redisHost := os.Getenv("REDIS_HOST")
-	if redisHost == "" {
-		redisHost = "localhost"
-	}
-
-	redisPort := 6379
-	if portStr := os.Getenv("REDIS_PORT"); portStr != "" {
-		if p, err := strconv.Atoi(portStr); err == nil {
-			redisPort = p
-		}
-	}
-
-	// Redis is enabled by default unless explicitly set to "false"
-	redisEnabled := os.Getenv("REDIS_ENABLED") != "false"
-
-	// Configure Redis connection settings
-	redisConfig := resilience.RedisConfig{
-		Host:         redisHost,
-		Port:         redisPort,
-		Password:     os.Getenv("REDIS_PASSWORD"),
-		DB:           0,
-		MaxRetries:   3,
-		PoolSize:     10,
-		MinIdleConns: 5,
-		KeyPrefix:    "tenant-admin:",
-	}
-
-	// Configure cache behavior
-	cacheConfig := resilience.CacheConfig{
-		Enabled:         redisEnabled,
-		DefaultTTL:      5 * time.Minute,
-		MaxSize:         1000,
-		CleanupInterval: 10 * time.Minute,
-		Type:            "redis",
-	}
-
-	// Create Redis cache client using shared-resilience
-	redisClient := resilience.NewRedisCache(redisConfig, cacheConfig, logger)
-
-	// Initialize services with Redis caching
-	componentService := services.NewComponentService(db, redisClient, logger)
-	incidentService := services.NewIncidentService(db, redisClient, logger)
-	subscriberService := services.NewSubscriberService(db, redisClient, logger)
-	dependencyService := services.NewDependencyService(db)
-
-	// Initialize session service for refresh token management
-	sessionService := services.NewSessionService(db, logger)
-
-	// Initialize modernized handlers with shared error handling
-	tenantAdminHandler := handlers.NewTenantAdminHandler(tenantAdminService, statusPageService, rbacService, sessionService, logger)
-	domainHandler := handlers.NewDomainHandler(domainService, logger)
-	rbacHandler := handlers.NewRBACHandler(rbacService, logger)
-	userHandler := handlers.NewUserHandler(tenantAdminService, logger)
-	componentHandler := handlers.NewComponentHandler(componentService, logger)
-	incidentHandler := handlers.NewIncidentHandler(incidentService, logger)
-	subscriberHandler := handlers.NewSubscriberHandler(subscriberService, logger)
-	dependencyHandler := handlers.NewDependencyHandler(dependencyService)
-
-	// Initialize SAML/SSO service for enterprise authentication
-	samlBaseURL := os.Getenv("SAML_BASE_URL")
-	if samlBaseURL == "" {
-		samlBaseURL = fmt.Sprintf("http://localhost:%d", resilienceConfig.Server.Port)
-	}
-
-	samlService := services.NewSAMLService(db, tenantAdminService, logger, &services.SAMLConfig{
-		BaseURL: samlBaseURL,
-	})
-
-	samlHandler := handlers.NewSAMLHandler(samlService, tenantAdminService, logger)
-
-	logger.Info("SAML/SSO service initialized",
-		zap.String("base_url", samlBaseURL))
-
-	// Initialize RabbitMQ event consumer for tenant sync
-	// Use GetRabbitMQURL() from config instead of hardcoded credentials
-	rabbitmqURL := localConfig.GetRabbitMQURL()
-
-	// Create event handler with proper service injection (best practice)
-	eventHandler := events.NewRabbitMQTenantEventHandler(dbManager.GetDB(), tenantAdminService, logger)
+	// Create event handler with proper service injection
+	eventHandler := events.NewRabbitMQTenantEventHandler(db, tenantAdminService, logger)
 
 	// Create consumer
 	eventConsumer, err := events.NewConsumer(events.ConsumerConfig{
@@ -300,8 +184,7 @@ func main() {
 	})
 	if err != nil {
 		logger.Warn("Failed to initialize RabbitMQ consumer, tenant events will not be synchronized",
-			zap.Error(err),
-			zap.String("url", rabbitmqURL))
+			zap.Error(err))
 		eventConsumer = nil
 	} else {
 		logger.Info("RabbitMQ event consumer initialized successfully",
@@ -316,24 +199,144 @@ func main() {
 		}()
 	}
 
-	// Setup routes with improved structure
-	setupModernizedRoutes(router, tenantAdminHandler, domainHandler, rbacHandler, userHandler, componentHandler, incidentHandler, subscriberHandler, dependencyHandler, samlHandler, rbacService, logger, resilienceConfig)
+	// ========================================
+	// STEP 9: Initialize Redis Cache
+	// ========================================
+	var cache resilience.Cache
+	if cfg.Redis.Enabled {
+		redisConfig := resilience.RedisConfig{
+			Host:         cfg.Redis.Host,
+			Port:         cfg.Redis.Port,
+			Password:     cfg.Redis.Password,
+			DB:           cfg.Redis.DB,
+			MaxRetries:   cfg.Redis.MaxRetries,
+			PoolSize:     cfg.Redis.PoolSize,
+			MinIdleConns: cfg.Redis.MinIdleConns,
+			KeyPrefix:    "tenant-admin:",
+		}
 
-	// Create HTTP server with proper timeouts and configuration
+		cacheConfig := resilience.CacheConfig{
+			Enabled:         true,
+			DefaultTTL:      5 * time.Minute,
+			MaxSize:         1000,
+			CleanupInterval: 10 * time.Minute,
+			Type:            "redis",
+		}
+
+		cache = resilience.NewRedisCache(redisConfig, cacheConfig, logger)
+		logger.Info("Redis cache initialized", zap.String("type", "redis"))
+	}
+
+	// ========================================
+	// STEP 10: Initialize Services
+	// ========================================
+	domainService := services.NewDomainService(logger)
+	rbacService := services.NewRBACService(db, logger, sessionManager)
+
+	// Status page service
+	statusPageService := services.NewStatusPageManagementService(db, logger, &services.StatusPageConfig{
+		ComponentServiceURL:    "http://localhost:8001",
+		IncidentServiceURL:     "http://localhost:8002",
+		MonitoringServiceURL:   "http://localhost:8003",
+		NotificationServiceURL: "http://localhost:8004",
+		BrandingServiceURL:     "http://localhost:8005",
+	})
+
+	// Component, incident, subscriber services with cache
+	componentService := services.NewComponentService(db, cache, logger)
+	incidentService := services.NewIncidentService(db, cache, logger)
+	subscriberService := services.NewSubscriberService(db, cache, logger)
+	dependencyService := services.NewDependencyService(db)
+
+	// Session service for refresh token management
+	sessionService := services.NewSessionService(db, logger)
+
+	// SAML/SSO service for enterprise authentication
+	samlBaseURL := os.Getenv("SAML_BASE_URL")
+	if samlBaseURL == "" {
+		samlBaseURL = fmt.Sprintf("http://localhost:%d", cfg.Server.Port)
+	}
+
+	samlService := services.NewSAMLService(db, tenantAdminService, logger, &services.SAMLConfig{
+		BaseURL: samlBaseURL,
+	})
+
+	logger.Info("All services initialized successfully")
+
+	// ========================================
+	// STEP 11: Initialize Handlers
+	// ========================================
+	tenantAdminHandler := handlers.NewTenantAdminHandler(tenantAdminService, statusPageService, rbacService, sessionService, logger)
+	domainHandler := handlers.NewDomainHandler(domainService, logger)
+	rbacHandler := handlers.NewRBACHandler(rbacService, logger)
+	userHandler := handlers.NewUserHandler(tenantAdminService, logger)
+	componentHandler := handlers.NewComponentHandler(componentService, logger)
+	incidentHandler := handlers.NewIncidentHandler(incidentService, logger)
+	subscriberHandler := handlers.NewSubscriberHandler(subscriberService, logger)
+	dependencyHandler := handlers.NewDependencyHandler(dependencyService)
+	samlHandler := handlers.NewSAMLHandler(samlService, tenantAdminService, logger)
+
+	logger.Info("All handlers initialized successfully")
+
+	// ========================================
+	// STEP 12: Initialize Gin Router
+	// ========================================
+	router := gin.New()
+
+	// Add recovery middleware
+	router.Use(gin.Recovery())
+
+	// Add custom middleware
+	router.Use(middleware.CorrelationIDMiddleware())
+	router.Use(middleware.RecoveryMiddleware(logger))
+	router.Use(middleware.LoggingMiddleware(logger))
+
+	// CORS middleware from shared-resilience
+	corsConfig := resilience.CORSConfig{
+		AllowedOrigins:   cfg.CORS.AllowedOrigins,
+		AllowedMethods:   cfg.CORS.AllowedMethods,
+		AllowedHeaders:   cfg.CORS.AllowedHeaders,
+		AllowCredentials: cfg.CORS.AllowCredentials,
+		MaxAge:           cfg.CORS.MaxAge,
+	}
+	router.Use(resilience.CORSMiddleware(corsConfig))
+
+	// Security headers middleware from shared-resilience
+	router.Use(resilience.SecurityHeadersMiddleware())
+
+	// Subdomain-based tenant isolation
+	baseDomain := os.Getenv("BASE_DOMAIN")
+	if baseDomain == "" {
+		baseDomain = "localhost"
+	}
+	router.Use(middleware.TenantContextMiddleware(db, logger, baseDomain))
+
+	logger.Info("Middleware stack applied")
+
+	// ========================================
+	// STEP 13: Setup Routes
+	// ========================================
+	setupRoutes(router, tenantAdminHandler, domainHandler, rbacHandler, userHandler, componentHandler, incidentHandler, subscriberHandler, dependencyHandler, samlHandler, rbacService, logger, cfg, registry)
+
+	logger.Info("Routes registered successfully")
+
+	// ========================================
+	// STEP 14: Create HTTP Server
+	// ========================================
 	server := &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", resilienceConfig.Server.Host, resilienceConfig.Server.Port),
+		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
 		Handler:      router,
-		ReadTimeout:  resilienceConfig.Server.ReadTimeout,
-		WriteTimeout: resilienceConfig.Server.WriteTimeout,
-		IdleTimeout:  resilienceConfig.Server.IdleTimeout,
+		ReadTimeout:  cfg.GetReadTimeout(),
+		WriteTimeout: cfg.GetWriteTimeout(),
+		IdleTimeout:  cfg.GetIdleTimeout(),
 	}
 
 	// Start server in a goroutine
 	go func() {
 		logger.Info("Tenant Admin Service server starting",
 			zap.String("addr", server.Addr),
-			zap.Duration("read_timeout", resilienceConfig.Server.ReadTimeout),
-			zap.Duration("write_timeout", resilienceConfig.Server.WriteTimeout),
+			zap.Duration("read_timeout", cfg.GetReadTimeout()),
+			zap.Duration("write_timeout", cfg.GetWriteTimeout()),
 		)
 
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -341,8 +344,10 @@ func main() {
 		}
 	}()
 
-	// Setup health check monitoring
-	if resilienceConfig.Monitoring.Enabled {
+	// ========================================
+	// STEP 15: Setup Health Check Monitoring
+	// ========================================
+	if cfg.Monitoring.Enabled {
 		dbHealthChecker := resilience.NewDatabaseHealthChecker(dbManager)
 
 		// Periodically log health status
@@ -363,12 +368,16 @@ func main() {
 				}
 			}
 		}()
+
+		logger.Info("Health check monitoring started")
 	}
 
-	// Start periodic session cleanup
+	// ========================================
+	// STEP 16: Start Periodic Session Cleanup
+	// ========================================
 	if sessionManager != nil {
 		go func() {
-			ticker := time.NewTicker(30 * time.Minute) // Run cleanup every 30 minutes
+			ticker := time.NewTicker(30 * time.Minute)
 			defer ticker.Stop()
 
 			for range ticker.C {
@@ -383,7 +392,12 @@ func main() {
 		logger.Info("Started periodic session cleanup")
 	}
 
-	// Wait for interrupt signal to gracefully shutdown the server
+	// Log metrics usage (for debugging)
+	_ = metrics
+
+	// ========================================
+	// STEP 17: Graceful Shutdown
+	// ========================================
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -391,7 +405,7 @@ func main() {
 	logger.Info("Shutting down Tenant Admin Service server...")
 
 	// Graceful shutdown with timeout
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), resilienceConfig.Server.GracefulStop)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
 
 	// Shutdown HTTP server
@@ -414,11 +428,6 @@ func main() {
 	// Close cache if initialized
 	if cache != nil {
 		cache.Close()
-	}
-
-	// Close rate limiter if initialized
-	if rateLimiter != nil {
-		rateLimiter.Close()
 	}
 
 	logger.Info("Tenant Admin Service server exited gracefully")
@@ -459,12 +468,15 @@ func ensureDatabaseExists(config resilience.DatabaseConfig, logger *zap.Logger) 
 	return nil
 }
 
-// setupModernizedRoutes configures all the routes with improved structure and security
-func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdminHandler, domainHandler *handlers.DomainHandler, rbacHandler *handlers.RBACHandler, userHandler *handlers.UserHandler, componentHandler *handlers.ComponentHandler, incidentHandler *handlers.IncidentHandler, subscriberHandler *handlers.SubscriberHandler, dependencyHandler *handlers.DependencyHandler, samlHandler *handlers.SAMLHandler, rbacService *services.RBACService, logger *zap.Logger, config *resilience.Config) {
+// setupRoutes configures all the routes with improved structure and security
+func setupRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdminHandler, domainHandler *handlers.DomainHandler, rbacHandler *handlers.RBACHandler, userHandler *handlers.UserHandler, componentHandler *handlers.ComponentHandler, incidentHandler *handlers.IncidentHandler, subscriberHandler *handlers.SubscriberHandler, dependencyHandler *handlers.DependencyHandler, samlHandler *handlers.SAMLHandler, rbacService *services.RBACService, logger *zap.Logger, cfg *config.Config, registry *prometheus.Registry) {
 	// Health check endpoints (excluded from auth and rate limiting)
 	router.GET("/health", tenantHandler.HealthCheck)
 	router.GET("/health/ready", tenantHandler.HealthCheck)
 	router.GET("/health/live", tenantHandler.HealthCheck)
+
+	// Prometheus metrics endpoint (with custom registry)
+	router.GET("/metrics", gin.WrapH(promhttp.HandlerFor(registry, promhttp.HandlerOpts{})))
 
 	// API routes with versioning
 	api := router.Group("/api/v1")
@@ -472,32 +484,33 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 		// SAML/SSO public endpoints (no authentication required)
 		saml := api.Group("/saml")
 		{
-			saml.POST("/login", samlHandler.InitiateLogin)                // Initiate SAML login
-			saml.POST("/acs", samlHandler.AssertionConsumerService)       // Assertion Consumer Service
-			saml.GET("/metadata", samlHandler.GetMetadata)                // SP metadata for IdP configuration
-			saml.POST("/logout", samlHandler.SingleLogout)                // Single Logout
+			saml.POST("/login", samlHandler.InitiateLogin)
+			saml.POST("/acs", samlHandler.AssertionConsumerService)
+			saml.GET("/metadata", samlHandler.GetMetadata)
+			saml.POST("/logout", samlHandler.SingleLogout)
 		}
 
 		// Auth routes (public, no authentication required)
 		auth := api.Group("/auth")
 		{
 			auth.POST("/login", tenantHandler.Login)
-			auth.POST("/refresh", tenantHandler.RefreshToken) // Refresh access token using refresh token
+			auth.POST("/refresh", tenantHandler.RefreshToken)
 		}
 
 		// Public routes (no authentication required)
 		public := api.Group("/public")
 		{
-			public.POST("/login", tenantHandler.Login) // Keep for backward compatibility
+			public.POST("/login", tenantHandler.Login) // Backward compatibility
 
 			// Tenant management (for SaaS-Admin service calls)
 			public.GET("/tenants", tenantHandler.GetTenants)
 			public.POST("/tenants", tenantHandler.CreateTenant)
-			public.POST("/tenants/sync", tenantHandler.SyncTenant) // Idempotent sync endpoint for SaaS Admin
+			public.POST("/tenants/sync", tenantHandler.SyncTenant)
 			public.GET("/tenants/:id", tenantHandler.GetTenant)
 			public.GET("/tenants/slug/:slug", tenantHandler.GetTenantBySlug)
 			public.PUT("/tenants/:id", tenantHandler.UpdateTenant)
 			public.DELETE("/tenants/:id", tenantHandler.DeleteTenant)
+			public.GET("/tenants/validate", tenantHandler.ValidateSubdomain) // Subdomain validation
 		}
 
 		// Session management routes (for service-to-service communication)
@@ -520,20 +533,21 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 		// Protected routes (authentication required)
 		protected := api.Group("/")
 
-		// Add JWT authentication middleware
-		if config.JWT.Secret != "" {
-			protected.Use(resilience.AuthMiddleware(config.JWT))
+		// Create JWT config from local config
+		jwtConfig := resilience.JWTConfig{
+			Secret:     cfg.JWT.Secret,
+			Expiration: cfg.GetJWTExpiration(),
+			Issuer:     cfg.JWT.Issuer,
 		}
+
+		// Add JWT authentication middleware
+		protected.Use(resilience.AuthMiddleware(jwtConfig))
 
 		// Add tenant middleware for multi-tenancy
 		protected.Use(resilience.TenantMiddleware())
 
 		// Initialize RBAC middleware
 		rbacMiddleware := middleware.NewRBACMiddleware(rbacService, logger)
-
-		// REMOVED: Session validation middleware (redundant with JWT authentication)
-		// JWT authentication middleware (line 526) already provides user_id, tenant_id, and email from token claims
-		// protected.Use(rbacMiddleware.SessionValidation())
 
 		// Add audit logging middleware
 		protected.Use(rbacMiddleware.AuditLogging())
@@ -546,13 +560,13 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 				auth.POST("/verify", tenantHandler.VerifyToken)
 			}
 
-			// Dashboard routes (aggregated statistics)
+			// Dashboard routes
 			dashboard := protected.Group("/dashboard")
 			{
 				dashboard.GET("/stats", tenantHandler.GetDashboardStats)
 			}
 
-			// Tenant management routes (main CRUD operations)
+			// Tenant management routes
 			tenants := protected.Group("/tenants")
 			{
 				tenants.GET("", tenantHandler.GetTenants)
@@ -564,7 +578,7 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 				tenants.GET("/domain/:domain", tenantHandler.GetTenantByDomain)
 			}
 
-			// Tenant branding routes - separate group to avoid route conflicts
+			// Tenant branding routes
 			branding := protected.Group("/branding")
 			{
 				branding.GET("/:tenant_id", tenantHandler.GetTenantBranding)
@@ -581,7 +595,7 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 				admins.DELETE("/:id", tenantHandler.DeleteTenantAdmin)
 			}
 
-			// User management routes (tenant context from middleware)
+			// User management routes
 			users := protected.Group("/users")
 			{
 				users.GET("/stats", userHandler.GetUserStats)
@@ -592,7 +606,7 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 				users.DELETE("/:id", userHandler.DeleteUser)
 			}
 
-			// Component management routes (tenant context from middleware)
+			// Component management routes
 			components := protected.Group("/components")
 			{
 				components.GET("/stats", componentHandler.GetComponentStats)
@@ -605,7 +619,7 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 				components.DELETE("/:id", componentHandler.DeleteComponent)
 			}
 
-			// Incident management routes (tenant context from middleware)
+			// Incident management routes
 			incidents := protected.Group("/incidents")
 			{
 				incidents.GET("/stats", incidentHandler.GetIncidentStats)
@@ -617,7 +631,7 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 				incidents.DELETE("/:id", incidentHandler.DeleteIncident)
 			}
 
-			// Subscriber management routes (tenant context from middleware)
+			// Subscriber management routes
 			subscribers := protected.Group("/subscribers")
 			{
 				subscribers.GET("/stats", subscriberHandler.GetSubscriberStats)
@@ -629,7 +643,7 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 				subscribers.DELETE("/:id", subscriberHandler.DeleteSubscriber)
 			}
 
-			// Dependency mapping routes (tenant context from middleware)
+			// Dependency mapping routes
 			dependencies := protected.Group("/dependencies")
 			{
 				dependencies.GET("/graph", dependencyHandler.GetDependencyGraph)
@@ -703,11 +717,11 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 			// SSO/SAML admin routes (protected - admin only)
 			sso := protected.Group("/sso")
 			{
-				sso.GET("/providers", samlHandler.ListProviders)          // List SSO providers for tenant
-				sso.GET("/providers/:id", samlHandler.GetProvider)        // Get provider details
-				sso.POST("/providers", samlHandler.CreateProvider)        // Create new SSO provider
-				sso.PUT("/providers/:id", samlHandler.UpdateProvider)     // Update SSO provider
-				sso.DELETE("/providers/:id", samlHandler.DeleteProvider)  // Delete SSO provider
+				sso.GET("/providers", samlHandler.ListProviders)
+				sso.GET("/providers/:id", samlHandler.GetProvider)
+				sso.POST("/providers", samlHandler.CreateProvider)
+				sso.PUT("/providers/:id", samlHandler.UpdateProvider)
+				sso.DELETE("/providers/:id", samlHandler.DeleteProvider)
 			}
 
 			// Activity and backup routes
@@ -727,7 +741,7 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 			{
 				// Role management
 				roles := rbac.Group("/roles")
-				roles.Use(rbacMiddleware.RequirePermission("users.read")) // Basic permission check for role management
+				roles.Use(rbacMiddleware.RequirePermission("users.read"))
 				{
 					roles.GET("", rbacHandler.GetRoles)
 					roles.POST("", rbacMiddleware.RequirePermission("users.create"), rbacHandler.CreateRole)
@@ -766,7 +780,7 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 					teams.DELETE("/:id", rbacMiddleware.RequirePermission("users.delete"), rbacHandler.DeleteTeam)
 				}
 
-				// Team member management - separate endpoint to avoid route conflicts
+				// Team member management
 				teamMembers := rbac.Group("/team-members")
 				teamMembers.Use(rbacMiddleware.RequirePermission("users.read"))
 				{
@@ -785,11 +799,4 @@ func setupModernizedRoutes(router *gin.Engine, tenantHandler *handlers.TenantAdm
 			}
 		}
 	}
-
-	// Frontend now served independently on port 3002 (tenant-admin-frontend service)
-	// All static file routes removed - backend is API-only
-	// Subdomain routing middleware remains active for tenant isolation
 }
-// TODO: CLEANUP - Update auth middleware usage
-// Replace local auth with: auth.NewMiddleware(authConfig, logger)
-// Import: github.com/anupamdutta5/shared-resilience/auth

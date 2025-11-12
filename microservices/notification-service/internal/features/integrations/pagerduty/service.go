@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -126,21 +127,19 @@ type PagerDutyEventResponse struct {
 
 // PagerDutyIntegrationService manages PagerDuty integrations
 type PagerDutyIntegrationService struct {
-	db         *gorm.DB
-	logger     *zap.Logger
-	httpClient *http.Client
-	eventsAPIURL string
+	db            *gorm.DB
+	logger        *zap.Logger
+	serviceClient *resilience.ServiceClient
+	eventsAPIURL  string
 }
 
 // NewPagerDutyIntegrationService creates a new PagerDuty integration service
-func NewPagerDutyIntegrationService(db *gorm.DB, logger *zap.Logger) *PagerDutyIntegrationService {
+func NewPagerDutyIntegrationService(db *gorm.DB, serviceClient *resilience.ServiceClient, logger *zap.Logger) *PagerDutyIntegrationService {
 	return &PagerDutyIntegrationService{
-		db:     db,
-		logger: logger,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-		eventsAPIURL: "https://events.pagerduty.com/v2/enqueue",
+		db:            db,
+		logger:        logger,
+		serviceClient: serviceClient,
+		eventsAPIURL:  "https://events.pagerduty.com/v2/enqueue",
 	}
 }
 
@@ -443,23 +442,22 @@ func (s *PagerDutyIntegrationService) sendEvent(ctx context.Context, integration
 		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
-	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, "POST", s.eventsAPIURL, bytes.NewBuffer(payload))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
+	// Send via ServiceClient with circuit breaker
+	resp, err := s.serviceClient.Call(ctx, resilience.ServiceRequest{
+		ServiceName: "pagerduty-api",
+		Method:      "POST",
+		URL:         s.eventsAPIURL,
+		Body:        payload,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+	})
 
-	req.Header.Set("Content-Type", "application/json")
-
-	// Send request
-	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send event: %w", err)
 	}
-	defer resp.Body.Close()
 
-	// Read response
-	body, _ := io.ReadAll(resp.Body)
+	body := resp.Body
 
 	// Parse response
 	var eventResp PagerDutyEventResponse
@@ -535,22 +533,23 @@ func (s *PagerDutyIntegrationService) TestIntegration(integrationKey string) err
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "POST", s.eventsAPIURL, bytes.NewBuffer(payload))
-	if err != nil {
-		return fmt.Errorf("failed to create test request: %w", err)
-	}
+	// Send via ServiceClient with circuit breaker
+	resp, err := s.serviceClient.Call(ctx, resilience.ServiceRequest{
+		ServiceName: "pagerduty-api",
+		Method:      "POST",
+		URL:         s.eventsAPIURL,
+		Body:        payload,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+	})
 
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send test event: %w", err)
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusAccepted {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("test event failed with status %d: %s", resp.StatusCode, string(body))
+		return fmt.Errorf("test event failed with status %d: %s", resp.StatusCode, string(resp.Body))
 	}
 
 	// Auto-resolve the test incident
@@ -561,9 +560,15 @@ func (s *PagerDutyIntegrationService) TestIntegration(integrationKey string) err
 	}
 
 	resolvePayload, _ := json.Marshal(resolveEvent)
-	resolveReq, _ := http.NewRequestWithContext(ctx, "POST", s.eventsAPIURL, bytes.NewBuffer(resolvePayload))
-	resolveReq.Header.Set("Content-Type", "application/json")
-	s.httpClient.Do(resolveReq)
+	s.serviceClient.Call(ctx, resilience.ServiceRequest{
+		ServiceName: "pagerduty-api",
+		Method:      "POST",
+		URL:         s.eventsAPIURL,
+		Body:        resolvePayload,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+	})
 
 	return nil
 }

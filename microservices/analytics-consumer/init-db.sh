@@ -22,7 +22,7 @@ set -e
 # CONFIGURATION (will be replaced per service)
 # ============================================
 SERVICE_NAME="analytics-consumer"
-DB_NAME="statuspage_analytics"
+DB_NAME="analytics_db"
 MIGRATIONS_DIR="./migrations"
 SEEDS_DIR="./seeds"
 

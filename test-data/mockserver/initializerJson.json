@@ -1,0 +1,147 @@
+[
+  {
+    "httpRequest": {
+      "method": "POST",
+      "path": "/api/chat.postMessage"
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "ok": true,
+        "channel": "C1234567890",
+        "ts": "1503435956.000247",
+        "message": {
+          "text": "Here's a message for you",
+          "username": "ecto1",
+          "bot_id": "B19LU7CSY",
+          "attachments": [
+            {
+              "text": "This is an attachment",
+              "id": 1,
+              "fallback": "This is an attachment's fallback"
+            }
+          ],
+          "type": "message",
+          "subtype": "bot_message",
+          "ts": "1503435956.000247"
+        }
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "POST",
+      "path": "/webhooks/.*"
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "success": true,
+        "message": "Webhook received"
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "POST",
+      "path": "/v2/enqueue"
+    },
+    "httpResponse": {
+      "statusCode": 202,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "status": "success",
+        "message": "Event processed",
+        "dedup_key": "srv01/HTTP"
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "POST",
+      "path": "/bot.*/sendMessage"
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "ok": true,
+        "result": {
+          "message_id": 123,
+          "from": {
+            "id": 123456789,
+            "is_bot": true,
+            "first_name": "StatusPage Bot"
+          },
+          "chat": {
+            "id": -987654321,
+            "title": "Test Channel",
+            "type": "channel"
+          },
+          "date": 1234567890,
+          "text": "Test notification"
+        }
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "POST",
+      "path": "/v3/mail/send"
+    },
+    "httpResponse": {
+      "statusCode": 202,
+      "headers": {
+        "Content-Type": ["application/json"],
+        "X-Message-Id": ["test-message-id-12345"]
+      },
+      "body": {}
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "POST",
+      "path": "/2010-04-01/Accounts/.*/Messages.json"
+    },
+    "httpResponse": {
+      "statusCode": 201,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "sid": "SMxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "date_created": "Thu, 30 Jul 2015 20:12:31 +0000",
+        "date_updated": "Thu, 30 Jul 2015 20:12:33 +0000",
+        "date_sent": "Thu, 30 Jul 2015 20:12:33 +0000",
+        "account_sid": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "to": "+15558675310",
+        "from": "+15017122661",
+        "messaging_service_sid": "MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "body": "Sent from your Twilio trial account - Test message",
+        "status": "sent",
+        "num_segments": "1",
+        "num_media": "0",
+        "direction": "outbound-api",
+        "api_version": "2010-04-01",
+        "price": "-0.00750",
+        "price_unit": "USD",
+        "error_code": null,
+        "error_message": null,
+        "uri": "/2010-04-01/Accounts/ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/Messages/SMxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.json",
+        "subresource_uris": {
+          "media": "/2010-04-01/Accounts/ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/Messages/SMxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/Media.json"
+        }
+      }
+    }
+  }
+]

@@ -9,28 +9,26 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/anupamdutta5/notification-service/internal/models"
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
-
-	"github.com/anupamdutta5/notification-service/internal/models"
 )
 
 // DiscordIntegrationService manages Discord webhook integrations
 type DiscordIntegrationService struct {
-	db         *gorm.DB
-	logger     *zap.Logger
-	httpClient *http.Client
+	db            *gorm.DB
+	logger        *zap.Logger
+	serviceClient *resilience.ServiceClient
 }
 
 // NewDiscordIntegrationService creates a new Discord integration service
-func NewDiscordIntegrationService(db *gorm.DB, logger *zap.Logger) *DiscordIntegrationService {
+func NewDiscordIntegrationService(db *gorm.DB, serviceClient *resilience.ServiceClient, logger *zap.Logger) *DiscordIntegrationService {
 	return &DiscordIntegrationService{
-		db:     db,
-		logger: logger,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		db:            db,
+		logger:        logger,
+		serviceClient: serviceClient,
 	}
 }
 
@@ -509,27 +507,23 @@ func (s *DiscordIntegrationService) sendWebhook(webhookURL string, payload *mode
 		return nil, fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
-	// Create HTTP request
-	req, err := http.NewRequest("POST", webhookURL, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
+	// Send via ServiceClient with circuit breaker
+	resp, err := s.serviceClient.Call(context.Background(), resilience.ServiceRequest{
+		ServiceName: "discord-webhook",
+		Method:      "POST",
+		URL:         webhookURL,
+		Body:        jsonData,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+			"User-Agent":   "Beakon-Monitor/1.0",
+		},
+	})
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "Beakon-Monitor/1.0")
-
-	// Send request
-	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send webhook: %w", err)
 	}
-	defer resp.Body.Close()
 
-	// Read response
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
+	body := resp.Body
 
 	// Check status code
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {

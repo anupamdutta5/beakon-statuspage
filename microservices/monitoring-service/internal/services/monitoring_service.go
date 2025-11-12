@@ -7,6 +7,7 @@ import (
 
 	"github.com/anupamdutta5/monitoring-service/internal/core/config"
 	"github.com/anupamdutta5/monitoring-service/internal/models"
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -29,7 +30,7 @@ type MonitoringService struct {
 }
 
 // NewMonitoringService creates a new monitoring service.
-func NewMonitoringService(db *gorm.DB, logger *zap.Logger) *MonitoringService {
+func NewMonitoringService(db *gorm.DB, serviceClient *resilience.ServiceClient, logger *zap.Logger) *MonitoringService {
 	// NOTE: Database migrations are managed by Atlas (see migrations/ directory and atlas.hcl)
 	// Run migrations before starting the service:
 	//   cd microservices/monitoring-service
@@ -47,7 +48,7 @@ func NewMonitoringService(db *gorm.DB, logger *zap.Logger) *MonitoringService {
 		StatusAutomation:      NewStatusAutomationService(db, logger),
 		KubernetesMonitoring:  NewKubernetesMonitoringService(db, logger),
 		DockerMonitoring:      NewDockerMonitoringService(db, logger),
-		HealthCheck:           NewHealthCheckService(logger),
+		HealthCheck:           NewHealthCheckService(serviceClient, logger),
 		MaintenanceManagement: NewMaintenanceManagementService(db, logger),
 	}
 }

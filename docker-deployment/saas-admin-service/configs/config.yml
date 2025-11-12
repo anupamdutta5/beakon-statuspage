@@ -4,14 +4,14 @@
 environment: development
 
 server:
-  port: 8098
+  port: ${SERVER_PORT:-8098}
   read_timeout: 30s
   write_timeout: 30s
   shutdown_timeout: 30s
-  host: "0.0.0.0"
+  host: ${SERVER_HOST:-0.0.0.0}
 
 database:
-  host: statuspage-postgres
+  host: postgres
   port: 5432
   user: postgres
   password: postgres

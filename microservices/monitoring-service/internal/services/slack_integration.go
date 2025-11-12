@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -113,17 +114,15 @@ type SlackBlock struct {
 type SlackIntegrationService struct {
 	db         *gorm.DB
 	logger     *zap.Logger
-	httpClient *http.Client
+	serviceClient *resilience.ServiceClient
 }
 
 // NewSlackIntegrationService creates a new Slack integration service
-func NewSlackIntegrationService(db *gorm.DB, logger *zap.Logger) *SlackIntegrationService {
+func NewSlackIntegrationService(db *gorm.DB, serviceClient *resilience.ServiceClient, logger *zap.Logger) *SlackIntegrationService {
 	return &SlackIntegrationService{
 		db:     db,
 		logger: logger,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		serviceClient: serviceClient,
 	}
 }
 
@@ -393,7 +392,7 @@ func (s *SlackIntegrationService) buildMonitorAlertMessage(eventType string, mon
 	}
 
 	// Create attachment
-	attachment := SlackAttachment{
+	_ = SlackAttachment{
 		Color:     color,
 		Title:     fmt.Sprintf("Monitor: %s", monitorName),
 		TitleLink: monitorURL,
@@ -407,7 +406,6 @@ func (s *SlackIntegrationService) buildMonitorAlertMessage(eventType string, mon
 		Text:        messageText,
 		Username:    "Beakon Status Page",
 		IconEmoji:   ":chart_with_upwards_trend:",
-		Attachments: []SlackAttachment{attachment},
 	}
 }
 
@@ -445,8 +443,9 @@ func (s *SlackIntegrationService) sendSlackMessage(ctx context.Context, integrat
 
 	req.Header.Set("Content-Type", "application/json")
 
-	// Send request
-	resp, err := s.httpClient.Do(req)
+	// Send request using HTTP client
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		s.logger.Error("Failed to send Slack message", zap.Error(err))
 		notification.Status = "failed"
@@ -503,7 +502,9 @@ func (s *SlackIntegrationService) TestWebhook(webhookURL string) error {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := s.httpClient.Do(req)
+	// Send request using HTTP client
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send test message: %w", err)
 	}
@@ -545,7 +546,6 @@ func (s *SlackIntegrationService) GetNotificationStats(tenantID uuid.UUID, start
 			"total_sent":     0,
 			"total_failed":   0,
 			"success_rate":   0.0,
-			"by_event_type":  map[string]int{},
 		}, nil
 	}
 

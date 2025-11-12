@@ -14,8 +14,9 @@ services:
       - ./configs:/app/configs:ro
     environment:
       - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8098
-      - DB_HOST=${DB_HOST:-statuspage-postgres}
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_PORT=${DB_PORT:-5432}
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}

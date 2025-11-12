@@ -1,159 +1,300 @@
-// Package main is the entry point for the Analytics Service.
-// This is the modernized version using the shared-resilience module.
+// Package main is the entry point for the analytics Service.
+// This is the v2.0 version using shared-resilience v2.0 primitives.
 package main
 
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/anupamdutta5/shared-resilience"
+	resilience "github.com/anupamdutta5/shared-resilience"
 	"github.com/anupamdutta5/analytics-service/internal/handlers"
 	"github.com/anupamdutta5/analytics-service/internal/services"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
+// ServiceInfo contains basic service metadata
+type ServiceInfo struct {
+	Name        string `yaml:"name"`
+	Version     string `yaml:"version"`
+	Environment string `yaml:"environment"`
+}
+
+// ServiceClientConfig contains HTTP client configuration for downstream services
+type ServiceClientConfig struct {
+	Timeout        time.Duration                   `yaml:"timeout"`
+	CircuitBreaker resilience.CircuitBreakerConfig `yaml:"circuit_breaker"`
+}
+
+// analyticsServiceConfig is the complete configuration for this service
+type analyticsServiceConfig struct {
+	// Shared configuration (database, server, JWT, CORS, etc.)
+	SharedConfig resilience.Config `yaml:",inline"`
+
+	// Service-specific configuration
+	Service       ServiceInfo         `yaml:"service"`
+	ServiceClient ServiceClientConfig `yaml:"service_client"`
+	Retry         resilience.RetryConfig `yaml:"retry"`
+}
+
 func main() {
-	// Load configuration from environment variables
-	config := resilience.LoadConfigFromEnv()
-
-	// Create startup manager for proper error handling
-	startupMgr, err := resilience.NewStartupManager("analytics-service", config)
-	if err != nil {
-		// This is the only acceptable use of fatal - when we can't even initialize logging
-		fmt.Fprintf(os.Stderr, "Failed to create startup manager: %v\n", err)
-		os.Exit(1)
+	// ========================================
+	// STEP 1: Load Configuration from YAML
+	// ========================================
+	loader := resilience.NewConfigLoader("configs")
+	var cfg analyticsServiceConfig
+	if err := loader.Load(&cfg); err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	// Set up panic recovery
-	defer startupMgr.RecoverFromPanic()
-
-	logger := startupMgr.Logger
-	defer logger.Sync()
-
-	// Validate configuration
-	if err := startupMgr.ValidateConfiguration(); err != nil {
-		startupMgr.HandleStartupError(err)
-		return
+	// Validate configuration (fail fast)
+	if err := cfg.SharedConfig.Validate(); err != nil {
+		log.Fatalf("Configuration validation failed: %v", err)
 	}
 
-	// Set Gin mode based on environment
-	if config.Environment == "production" {
+	// ========================================
+	// STEP 2: Initialize Logger
+	// ========================================
+	var logger *zap.Logger
+	var err error
+
+	if cfg.Service.Environment == "production" {
+		logger, err = zap.NewProduction()
 		gin.SetMode(gin.ReleaseMode)
 	} else {
+		logger, err = zap.NewDevelopment()
 		gin.SetMode(gin.DebugMode)
 	}
 
-	logger.Info("Starting Analytics Service",
-		zap.String("service", "analytics-service"),
-		zap.String("version", "1.0.0"),
-		zap.String("environment", config.Environment),
-		zap.Int("port", config.Server.Port),
+	if err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer logger.Sync()
+
+	logger.Info("Starting analytics Service (v2.0)",
+		zap.String("service", cfg.Service.Name),
+		zap.String("version", cfg.Service.Version),
+		zap.String("environment", cfg.Service.Environment),
+		zap.Int("port", cfg.SharedConfig.Server.Port),
+		zap.String("shared_resilience", resilience.Version),
 	)
 
-	// Initialize database manager with connection pooling and health checks
-	dbManager, err := resilience.NewDatabaseManager(config.Database, logger)
+	// ========================================
+	// STEP 3: Initialize Prometheus Registry
+	// ========================================
+	registry := prometheus.NewRegistry()
+	logger.Info("Prometheus registry initialized (injected, not global)")
+
+	// ========================================
+	// STEP 4: Initialize Metrics (with injected registry)
+	// ========================================
+	metrics, err := resilience.NewMetrics(resilience.MetricsConfig{
+		ServiceName: cfg.Service.Name,
+		Namespace:   "beakon",
+		Subsystem:   "analytics",
+		Enabled:     cfg.SharedConfig.Monitoring.MetricsEnabled,
+		Registry:    registry,
+	})
+	if err != nil {
+		logger.Fatal("Failed to initialize metrics", zap.Error(err))
+	}
+	logger.Info("Metrics initialized with custom registry")
+
+	// Log metrics for debugging (can be used later if needed)
+	_ = metrics
+
+	// ========================================
+	// STEP 5: Initialize Database Manager
+	// ========================================
+	dbManager, err := resilience.NewDatabaseManager(cfg.SharedConfig.Database, logger)
 	if err != nil {
 		logger.Fatal("Failed to initialize database manager", zap.Error(err))
 	}
 	defer dbManager.Close()
+	logger.Info("Database manager initialized",
+		zap.String("database", cfg.SharedConfig.Database.Name),
+		zap.Int("max_open_conns", cfg.SharedConfig.Database.MaxOpenConns),
+	)
 
-	// Test database connectivity
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := dbManager.HealthCheck(ctx); err != nil {
-		logger.Fatal("Database health check failed", zap.Error(err))
+	// ========================================
+	// STEP 6: Initialize ServiceClient (with config)
+	// ========================================
+	serviceClientCfg := resilience.ServiceClientConfig{
+		Timeout:        cfg.ServiceClient.Timeout,
+		CircuitBreaker: cfg.ServiceClient.CircuitBreaker,
 	}
 
-	logger.Info("Database connection established successfully")
-
-	// Initialize circuit breakers for external dependencies
-	var circuitBreakers = make(map[string]*resilience.CircuitBreaker)
-
-	if config.CircuitBreaker.Database.Enabled {
-		circuitBreakers["database"] = resilience.NewCircuitBreaker(
-			config.CircuitBreaker.Database.Name,
-			config.CircuitBreaker.Database,
-			logger,
-		)
+	if err := serviceClientCfg.Validate(); err != nil {
+		logger.Fatal("ServiceClient configuration validation failed", zap.Error(err))
 	}
 
-	if config.CircuitBreaker.External.Enabled {
-		circuitBreakers["external"] = resilience.NewCircuitBreaker(
-			config.CircuitBreaker.External.Name,
-			config.CircuitBreaker.External,
-			logger,
-		)
+	// Load service endpoints from YAML (if exists)
+	endpoints, err := loader.LoadServiceEndpoints()
+	if err != nil {
+		logger.Warn("Failed to load service endpoints", zap.Error(err))
+		endpoints = make(map[string]resilience.ServiceEndpoint) // Empty for now
 	}
 
-	// Initialize cache if enabled
-	var cache resilience.Cache
-	if config.Cache.Enabled {
-		if config.Cache.Type == "redis" {
-			cache = resilience.NewRedisCache(config.Redis, config.Cache, logger)
-		} else {
-			cache = resilience.NewInMemoryCache(config.Cache, logger)
-		}
-		logger.Info("Cache initialized", zap.String("type", config.Cache.Type))
+	serviceClient, err := resilience.NewServiceClient(endpoints, serviceClientCfg, logger)
+	if err != nil {
+		logger.Fatal("Failed to initialize ServiceClient", zap.Error(err))
 	}
+	logger.Info("ServiceClient initialized with circuit breakers",
+		zap.Duration("timeout", cfg.ServiceClient.Timeout),
+	)
 
-	// Initialize rate limiter if enabled
-	var rateLimiter resilience.RateLimiter
-	if config.RateLimit.Enabled {
-		if config.Cache.Type == "redis" {
-			rateLimiter = resilience.NewRedisRateLimiter(config.Redis, config.RateLimit, logger)
-		} else {
-			rateLimiter = resilience.NewInMemoryRateLimiter(config.RateLimit, logger)
-		}
-		logger.Info("Rate limiter initialized")
+	// ========================================
+	// STEP 7: Initialize Retry Manager
+	// ========================================
+	retryManager, err := resilience.NewRetryManager(cfg.Retry, logger)
+	if err != nil {
+		logger.Fatal("Failed to initialize retry manager", zap.Error(err))
 	}
+	logger.Info("Retry manager initialized",
+		zap.Int("max_retries", cfg.Retry.MaxRetries),
+		zap.Duration("initial_delay", cfg.Retry.InitialDelay),
+	)
 
-	// Initialize business services with modernized dependencies
-	analyticsService := services.NewAnalyticsService(dbManager.GetDB(), logger)
-	slaService := services.NewSLAService(dbManager.GetDB(), logger)
+	// Log retry manager for debugging (can be used later if needed)
+	_ = retryManager
+	_ = serviceClient
 
-	// Create Gin router
+	// ========================================
+	// STEP 8: Initialize Gin Router
+	// ========================================
 	router := gin.New()
 
-	// Add comprehensive middleware stack
-	middleware := resilience.DefaultMiddlewareStack(config, logger)
+	// Add middleware stack
+	middleware := resilience.DefaultMiddlewareStack(&cfg.SharedConfig, logger)
 	for _, mw := range middleware {
 		router.Use(mw)
 	}
+	logger.Info("Middleware stack applied (CORS, rate limiting, security headers)")
 
-	// Add rate limiting middleware if enabled
-	if rateLimiter != nil {
-		router.Use(resilience.RateLimitMiddleware(config.RateLimit.RequestsPerMinute, time.Minute))
-	}
+	// ========================================
+	// STEP 9: Initialize Services
+	// ========================================
+	db := dbManager.GetDB()
+	analyticsService := services.NewAnalyticsService(db, logger)
+	slaService := services.NewSLAService(db, logger)
 
-	// Initialize modernized handlers with shared error handling
+	logger.Info("Analytics service initialized")
+
+	// ========================================
+	// STEP 10: Initialize Handlers
+	// ========================================
 	analyticsHandler := handlers.NewAnalyticsHandler(analyticsService, logger)
 	slaHandler := handlers.NewSLAHandler(slaService, logger)
 
-	// Setup routes with improved structure
-	setupModernizedRoutes(router, analyticsHandler, slaHandler, config)
+	logger.Info("Handlers initialized")
 
-	// Create HTTP server with proper timeouts and configuration
+	// ========================================
+	// STEP 11: Setup Routes
+	// ========================================
+
+	// Health check endpoint
+	router.GET("/health", func(c *gin.Context) {
+		dbHealthChecker := resilience.NewDatabaseHealthChecker(dbManager)
+		health := dbHealthChecker.Check(c.Request.Context())
+		c.JSON(http.StatusOK, health)
+	})
+
+	// Prometheus metrics endpoint (with custom registry)
+	router.GET("/metrics", gin.WrapH(promhttp.HandlerFor(registry, promhttp.HandlerOpts{})))
+
+	// API routes
+	api := router.Group("/api/v1")
+	{
+		// Public endpoints (no authentication required)
+		public := api.Group("/public")
+		{
+			public.GET("/metrics", analyticsHandler.GetPublicMetrics)
+			public.GET("/reports", analyticsHandler.GetPublicReports)
+		}
+
+		// Protected routes (require authentication)
+		protected := api.Group("")
+		protected.Use(resilience.AuthMiddleware(cfg.SharedConfig.JWT))
+		protected.Use(resilience.TenantMiddleware())
+		{
+			// Analytics overview
+			protected.GET("/analytics/overview", analyticsHandler.GetAnalyticsOverview)
+
+			// Metrics management
+			protected.GET("/metrics", analyticsHandler.GetMetrics)
+			protected.POST("/metrics", analyticsHandler.CreateMetric)
+			protected.GET("/metrics/:id", analyticsHandler.GetMetric)
+			protected.PUT("/metrics/:id", analyticsHandler.UpdateMetric)
+			protected.DELETE("/metrics/:id", analyticsHandler.DeleteMetric)
+			protected.GET("/metrics/:id/data", analyticsHandler.GetMetricData)
+			protected.POST("/metrics/:id/data", analyticsHandler.AddMetricData)
+
+			// Reports management
+			protected.GET("/reports", analyticsHandler.GetReports)
+			protected.POST("/reports", analyticsHandler.CreateReport)
+			protected.GET("/reports/:id", analyticsHandler.GetReport)
+			protected.PUT("/reports/:id", analyticsHandler.UpdateReport)
+			protected.DELETE("/reports/:id", analyticsHandler.DeleteReport)
+			protected.POST("/reports/:id/generate", analyticsHandler.GenerateReport)
+			protected.GET("/reports/:id/download", analyticsHandler.DownloadReport)
+
+			// Dashboards management
+			protected.GET("/dashboards", analyticsHandler.GetDashboards)
+			protected.POST("/dashboards", analyticsHandler.CreateDashboard)
+			protected.GET("/dashboards/:id", analyticsHandler.GetDashboard)
+			protected.PUT("/dashboards/:id", analyticsHandler.UpdateDashboard)
+			protected.DELETE("/dashboards/:id", analyticsHandler.DeleteDashboard)
+			protected.GET("/dashboards/:id/widgets", analyticsHandler.GetDashboardWidgets)
+			protected.POST("/dashboards/:id/widgets", analyticsHandler.AddDashboardWidget)
+			protected.PUT("/dashboards/:id/widgets/:widgetId", analyticsHandler.UpdateDashboardWidget)
+			protected.DELETE("/dashboards/:id/widgets/:widgetId", analyticsHandler.DeleteDashboardWidget)
+
+			// Export functionality
+			protected.GET("/export/csv", analyticsHandler.ExportCSV)
+			protected.GET("/export/json", analyticsHandler.ExportJSON)
+			protected.GET("/export/excel", analyticsHandler.ExportExcel)
+
+			// SLA management
+			protected.GET("/sla", slaHandler.GetSLAs)
+			protected.POST("/sla", slaHandler.CreateSLA)
+			protected.GET("/sla/:id", slaHandler.GetSLA)
+			protected.PUT("/sla/:id", slaHandler.UpdateSLA)
+			protected.DELETE("/sla/:id", slaHandler.DeleteSLA)
+			protected.POST("/sla/:id/calculate", slaHandler.CalculateSLAMeasurement)
+			protected.GET("/sla/:id/measurements", slaHandler.GetSLAMeasurements)
+			protected.GET("/sla/:id/breaches", slaHandler.GetSLABreaches)
+			protected.POST("/sla/:id/report", slaHandler.GenerateSLAReport)
+			protected.GET("/sla/reports", slaHandler.GetSLAReports)
+		}
+	}
+
+	logger.Info("Routes registered successfully")
+
+	// ========================================
+	// STEP 12: Create HTTP Server
+	// ========================================
 	server := &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", config.Server.Host, config.Server.Port),
+		Addr:         fmt.Sprintf("%s:%d", cfg.SharedConfig.Server.Host, cfg.SharedConfig.Server.Port),
 		Handler:      router,
-		ReadTimeout:  config.Server.ReadTimeout,
-		WriteTimeout: config.Server.WriteTimeout,
-		IdleTimeout:  config.Server.IdleTimeout,
+		ReadTimeout:  cfg.SharedConfig.Server.ReadTimeout,
+		WriteTimeout: cfg.SharedConfig.Server.WriteTimeout,
+		IdleTimeout:  cfg.SharedConfig.Server.IdleTimeout,
 	}
 
 	// Start server in a goroutine
 	go func() {
-		logger.Info("Analytics Service server starting",
+		logger.Info("analytics Service server starting",
 			zap.String("addr", server.Addr),
-			zap.Duration("read_timeout", config.Server.ReadTimeout),
-			zap.Duration("write_timeout", config.Server.WriteTimeout),
+			zap.Duration("read_timeout", cfg.SharedConfig.Server.ReadTimeout),
+			zap.Duration("write_timeout", cfg.SharedConfig.Server.WriteTimeout),
 		)
 
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -161,8 +302,10 @@ func main() {
 		}
 	}()
 
-	// Setup health check monitoring
-	if config.Monitoring.Enabled {
+	// ========================================
+	// STEP 13: Setup Health Check Monitoring
+	// ========================================
+	if cfg.SharedConfig.Monitoring.Enabled {
 		dbHealthChecker := resilience.NewDatabaseHealthChecker(dbManager)
 
 		// Periodically log health status
@@ -183,17 +326,21 @@ func main() {
 				}
 			}
 		}()
+
+		logger.Info("Health check monitoring started")
 	}
 
-	// Wait for interrupt signal to gracefully shutdown the server
+	// ========================================
+	// STEP 14: Graceful Shutdown
+	// ========================================
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Info("Shutting down Analytics Service server...")
+	logger.Info("Shutting down analytics Service server...")
 
 	// Graceful shutdown with timeout
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), config.Server.GracefulStop)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.SharedConfig.Server.GracefulStop)
 	defer shutdownCancel()
 
 	// Shutdown HTTP server
@@ -206,138 +353,5 @@ func main() {
 		logger.Error("Failed to close database connections", zap.Error(err))
 	}
 
-	// Close cache if initialized
-	if cache != nil {
-		cache.Close()
-	}
-
-	// Close rate limiter if initialized
-	if rateLimiter != nil {
-		rateLimiter.Close()
-	}
-
-	logger.Info("Analytics Service server exited gracefully")
+	logger.Info("analytics Service server exited gracefully")
 }
-
-// setupModernizedRoutes configures basic routes with existing handlers
-func setupModernizedRoutes(router *gin.Engine, handler *handlers.AnalyticsHandler, slaHandler *handlers.SLAHandler, config *resilience.Config) {
-	// Health check endpoints
-	health := router.Group("/health")
-	{
-		health.GET("", handler.Health)
-	}
-
-	// API routes with versioning
-	api := router.Group("/api/v1")
-	{
-		// Public routes (no authentication required)
-		public := api.Group("/public")
-		{
-			public.GET("/metrics", handler.GetPublicMetrics)
-			public.GET("/reports", handler.GetPublicReports)
-		}
-
-		// Protected routes (authentication required)
-		protected := api.Group("/")
-
-		// Add JWT authentication middleware
-		if config.JWT.Secret != "" {
-			protected.Use(resilience.AuthMiddleware(config.JWT))
-		}
-
-		// Add tenant middleware for multi-tenancy
-		protected.Use(resilience.TenantMiddleware())
-
-		{
-			// Core analytics and metrics management
-			analytics := protected.Group("/analytics")
-			{
-				analytics.GET("/overview", handler.GetAnalyticsOverview)
-
-				// Metrics management
-				metrics := analytics.Group("/metrics")
-				{
-					metrics.GET("", handler.GetMetrics)
-					metrics.POST("", handler.CreateMetric)
-					metrics.GET("/:id", handler.GetMetric)
-					metrics.PUT("/:id", handler.UpdateMetric)
-					metrics.DELETE("/:id", handler.DeleteMetric)
-					metrics.GET("/:id/data", handler.GetMetricData)
-					metrics.POST("/:id/data", handler.AddMetricData)
-				}
-
-				// Reports management
-				reports := analytics.Group("/reports")
-				{
-					reports.GET("", handler.GetReports)
-					reports.POST("", handler.CreateReport)
-					reports.GET("/:id", handler.GetReport)
-					reports.PUT("/:id", handler.UpdateReport)
-					reports.DELETE("/:id", handler.DeleteReport)
-					reports.POST("/:id/generate", handler.GenerateReport)
-					reports.GET("/:id/download", handler.DownloadReport)
-				}
-
-				// Dashboard management
-				dashboards := analytics.Group("/dashboards")
-				{
-					dashboards.GET("", handler.GetDashboards)
-					dashboards.POST("", handler.CreateDashboard)
-					dashboards.GET("/:id", handler.GetDashboard)
-					dashboards.PUT("/:id", handler.UpdateDashboard)
-					dashboards.DELETE("/:id", handler.DeleteDashboard)
-					dashboards.GET("/:id/widgets", handler.GetDashboardWidgets)
-					dashboards.POST("/:id/widgets", handler.AddDashboardWidget)
-					dashboards.PUT("/:id/widgets/:widget_id", handler.UpdateDashboardWidget)
-					dashboards.DELETE("/:id/widgets/:widget_id", handler.DeleteDashboardWidget)
-				}
-
-				// Data exports
-				exports := analytics.Group("/exports")
-				{
-					exports.GET("/csv", handler.ExportCSV)
-					exports.GET("/json", handler.ExportJSON)
-					exports.GET("/excel", handler.ExportExcel)
-				}
-			}
-
-			// SLA Management and Reporting
-			sla := protected.Group("/sla")
-			{
-				// SLA definitions
-				sla.POST("", slaHandler.CreateSLA)
-				sla.GET("", slaHandler.GetSLAs)
-				sla.GET("/:id", slaHandler.GetSLA)
-				sla.PUT("/:id", slaHandler.UpdateSLA)
-				sla.DELETE("/:id", slaHandler.DeleteSLA)
-
-				// SLA measurements and calculations
-				sla.POST("/:id/calculate", slaHandler.CalculateSLAMeasurement)
-				sla.GET("/:id/measurements", slaHandler.GetSLAMeasurements)
-
-				// SLA breaches
-				sla.GET("/breaches", slaHandler.GetSLABreaches)
-
-				// SLA reports
-				sla.POST("/reports", slaHandler.GenerateSLAReport)
-				sla.GET("/reports", slaHandler.GetSLAReports)
-
-				// SLA statistics
-				sla.POST("/statistics", slaHandler.GetSLAStatistics)
-
-				// SLA targets (templates)
-				sla.POST("/targets", slaHandler.CreateSLATarget)
-				sla.GET("/targets", slaHandler.GetSLATargets)
-
-				// Uptime calculations
-				sla.POST("/uptime/calculate", slaHandler.CalculateUptime)
-
-				// Response time recording
-				sla.POST("/response-time", slaHandler.RecordResponseTime)
-			}
-		}
-	}
-}
-// TODO: CLEANUP - Update auth middleware usage
-// Replace local auth with: auth.NewMiddleware(authConfig, logger)
-// Import: github.com/anupamdutta5/shared-resilience/auth

@@ -22,7 +22,7 @@ set -e
 # CONFIGURATION (will be replaced per service)
 # ============================================
 SERVICE_NAME="audit-consumer"
-DB_NAME="statuspage_audit"
+DB_NAME="audit_db"
 MIGRATIONS_DIR="./migrations"
 SEEDS_DIR="./seeds"
 

@@ -424,3 +424,37 @@ func (h *TenantAdminHandler) VerifyToken(c *gin.Context) {
 		},
 	})
 }
+
+// ValidateSubdomain validates if a subdomain corresponds to a valid tenant.
+// This endpoint is used by the frontend middleware to check if a subdomain exists
+// before allowing access to the login page.
+func (h *TenantAdminHandler) ValidateSubdomain(c *gin.Context) {
+	subdomain := c.Query("subdomain")
+	if subdomain == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "subdomain parameter is required",
+			"valid": false,
+		})
+		return
+	}
+
+	h.logger.Info("Validating subdomain", zap.String("subdomain", subdomain))
+
+	// Check if tenant exists with this subdomain
+	exists, err := h.service.ExistsBySubdomain(c.Request.Context(), subdomain)
+	if err != nil {
+		h.logger.Error("Failed to validate subdomain",
+			zap.String("subdomain", subdomain),
+			zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to validate subdomain",
+			"valid": false,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"valid":     exists,
+		"subdomain": subdomain,
+	})
+}

@@ -361,7 +361,7 @@ type WebhookRetryJob struct {
 func NewWebhookRetryJob(db *gorm.DB, logger *zap.Logger, checkInterval time.Duration) *WebhookRetryJob {
 	return &WebhookRetryJob{
 		db:             db,
-		webhookService: services.NewWebhookService(db, logger),
+		webhookService: services.NewWebhookService(db, nil, logger), // nil serviceClient for webhooks
 		logger:         logger,
 		interval:       checkInterval,
 		stopChan:       make(chan struct{}),
